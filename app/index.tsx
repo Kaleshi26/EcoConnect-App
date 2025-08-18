@@ -1,26 +1,27 @@
-// app/index.tsx
 import { useRouter } from "expo-router";
 import { Text, TouchableOpacity, View } from "react-native";
 
-export default function Index() {
+export default function Landing() {
   const router = useRouter();
 
   return (
-    <View className="flex-1 items-center justify-center bg-white p-4">
-      <Text className="text-2xl font-bold text-custom-blue mb-8">Welcome</Text>
+    <View className="flex-1 items-center justify-center bg-white">
+      <Text className="text-3xl font-bold text-custom-blue mb-6">
+        EcoConnect 🌱
+      </Text>
 
       <TouchableOpacity
-        onPress={() => router.push("/auth/signup")}
-        className="bg-blue-500 w-full p-3 rounded mb-4"
+        className="bg-custom-blue px-6 py-3 rounded-2xl mb-3"
+        onPress={() => router.push("/auth/login")}
       >
-        <Text className="text-white text-center text-lg">Sign Up</Text>
+        <Text className="text-white text-lg font-semibold">Login</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
-        onPress={() => router.push("/auth/login")}
-        className="bg-green-500 w-full p-3 rounded"
+        className="border border-custom-blue px-6 py-3 rounded-2xl"
+        onPress={() => router.push("/auth/signup")}
       >
-        <Text className="text-white text-center text-lg">Login</Text>
+        <Text className="text-custom-blue text-lg font-semibold">Sign Up</Text>
       </TouchableOpacity>
     </View>
   );
