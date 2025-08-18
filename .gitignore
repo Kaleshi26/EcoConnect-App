@@ -37,3 +37,16 @@ yarn-error.*
 *.tsbuildinfo
 
 app-example
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Expo / RN
+.expo
+.expo-shared
+node_modules/
+dist/
+build/
+
