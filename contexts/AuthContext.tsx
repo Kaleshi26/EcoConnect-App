@@ -1,55 +1,63 @@
-import { onAuthStateChanged, signOut, User } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { User, onAuthStateChanged } from "firebase/auth";
+import { doc, onSnapshot } from "firebase/firestore";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { auth, db } from "../services/firebaseConfig";
 
-type UserRole = "volunteer" | "organizer" | "sponsor" | "wasteCollector" | "researcher";
+type Role = "volunteer" | "organizer" | "sponsor" | "wasteCollector" | "researcher";
 
-type UserProfile = {
+export type Profile = {
   email: string;
-  role: UserRole;
+  role: Role;
   isTeam?: boolean;
   createdAt?: any;
 };
 
 type AuthContextType = {
   user: User | null;
-  profile: UserProfile | null;
+  profile: (Profile & { uid: string }) | null;
   loading: boolean;
-  logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
   loading: true,
-  logout: async () => {},
 });
 
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profile, setProfile] = useState<(Profile & { uid: string }) | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const sub = onAuthStateChanged(auth, async (u) => {
+    // Auth listener
+    const unsubAuth = onAuthStateChanged(auth, (u) => {
       setUser(u);
-      if (u) {
-        const snap = await getDoc(doc(db, "users", u.uid));
-        setProfile((snap.exists() ? (snap.data() as UserProfile) : null));
-      } else {
+      if (!u) {
         setProfile(null);
+        setLoading(false);
+      } else {
+        // subscribe to the Firestore user doc
+        const ref = doc(db, "users", u.uid);
+        const unsubDoc = onSnapshot(
+          ref,
+          (snap) => {
+            if (snap.exists()) {
+              setProfile({ uid: u.uid, ...(snap.data() as Profile) });
+            } else {
+              setProfile(null);
+            }
+            setLoading(false);
+          },
+          () => setLoading(false)
+        );
+        return () => unsubDoc();
       }
-      setLoading(false);
     });
-    return () => sub();
+    return () => unsubAuth();
   }, []);
 
-  const logout = async () => {
-    await signOut(auth);
-  };
-
-  const value = useMemo(() => ({ user, profile, loading, logout }), [user, profile, loading]);
+  const value = useMemo(() => ({ user, profile, loading }), [user, profile, loading]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

@@ -10,7 +10,7 @@ export default function Landing() {
 
       <TouchableOpacity
         onPress={() => router.push("/auth/login")}
-        className="bg-green-500 px-6 py-3 rounded-2xl mb-3 w-full"
+        className="bg-custom-blue px-6 py-3 rounded-2xl mb-3 w-full"
       >
         <Text className="text-white text-center text-lg font-semibold">Login</Text>
       </TouchableOpacity>

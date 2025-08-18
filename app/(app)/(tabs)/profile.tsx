@@ -1,75 +1,89 @@
+import { useRouter } from "expo-router";
+import { signOut } from "firebase/auth";
+import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../../../contexts/AuthContext";
+import { auth } from "../../../services/firebaseConfig";
 
-function VolunteerView({ isTeam }: { isTeam?: boolean }) {
+function VolunteerProfile({ isTeam, teamName }: { isTeam?: boolean; teamName?: string }) {
   return (
-    <View className="mt-4">
-      <Text className="text-lg font-semibold">Volunteer Profile</Text>
-      <Text className="mt-1">Type: {isTeam ? "Team" : "Individual"}</Text>
-      {/* add volunteer-specific UI here */}
+    <View className="w-full">
+      <Text className="text-xl font-semibold mb-2">Volunteer Profile</Text>
+      <Text className="mb-2">Mode: {isTeam ? "Team/Community" : "Individual"}</Text>
+      {isTeam && teamName ? <Text className="mb-2">Team: {teamName}</Text> : null}
+      <Text>- Browse & join clean-ups</Text>
+      <Text>- Track your impact & badges</Text>
     </View>
   );
 }
 
-function OrganizerView() {
+function OrganizerProfile() {
   return (
-    <View className="mt-4">
-      <Text className="text-lg font-semibold">Organizer Profile</Text>
-      {/* organizer-specific UI */}
+    <View className="w-full">
+      <Text className="text-xl font-semibold mb-2">Organizer Profile</Text>
+      <Text>- Create & manage events</Text>
+      <Text>- Publish QR codes, track attendance</Text>
     </View>
   );
 }
 
-function SponsorView() {
+function SponsorProfile() {
   return (
-    <View className="mt-4">
-      <Text className="text-lg font-semibold">Sponsor Profile</Text>
-      {/* sponsor-specific UI */}
+    <View className="w-full">
+      <Text className="text-xl font-semibold mb-2">Sponsor Profile</Text>
+      <Text>- Browse events to support</Text>
+      <Text>- See impact reports & recognition</Text>
     </View>
   );
 }
 
-function WasteCollectorView() {
+function WasteCollectorProfile() {
   return (
-    <View className="mt-4">
-      <Text className="text-lg font-semibold">Waste Collector Profile</Text>
-      {/* waste collector-specific UI */}
+    <View className="w-full">
+      <Text className="text-xl font-semibold mb-2">Waste Collector Profile</Text>
+      <Text>- See pickups needed & schedule</Text>
+      <Text>- Confirm disposal with reports</Text>
     </View>
   );
 }
 
-function ResearcherView() {
+function ResearcherProfile() {
   return (
-    <View className="mt-4">
-      <Text className="text-lg font-semibold">Researcher Profile</Text>
-      {/* research-specific UI */}
+    <View className="w-full">
+      <Text className="text-xl font-semibold mb-2">Researcher Profile</Text>
+      <Text>- Access anonymized event/waste datasets</Text>
+      <Text>- Share insights with organizers</Text>
     </View>
   );
 }
 
-export default function ProfileTab() {
-  const { user, profile, logout } = useAuth();
+export default function Profile() {
+  const { user, profile } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    router.replace("/(public)/auth/login");
+  };
 
   return (
-    <View className="flex-1 bg-white p-6">
-      <Text className="text-2xl font-bold text-custom-blue">My Profile</Text>
+    <View className="flex-1 justify-center items-center bg-light-100 px-6">
+      <Text className="text-2xl font-bold mb-4 text-custom-blue">Profile</Text>
+      <Text className="text-lg mb-6">{user?.email}</Text>
 
-      {profile && (
-        <>
-          <Text className="mt-3">Email: {profile.email}</Text>
-          <Text>Role: {profile.role}</Text>
-          {profile.role === "volunteer" && <VolunteerView isTeam={profile.isTeam} />}
-          {profile.role === "organizer" && <OrganizerView />}
-          {profile.role === "sponsor" && <SponsorView />}
-          {profile.role === "wasteCollector" && <WasteCollectorView />}
-          {profile.role === "researcher" && <ResearcherView />}
-        </>
-      )}
+      <View className="w-full mb-10">
+        {profile?.role === "volunteer" && (
+          <VolunteerProfile isTeam={profile?.isTeam} teamName={(profile as any)?.teamName} />
+        )}
+        {profile?.role === "organizer" && <OrganizerProfile />}
+        {profile?.role === "sponsor" && <SponsorProfile />}
+        {profile?.role === "wasteCollector" && <WasteCollectorProfile />}
+        {profile?.role === "researcher" && <ResearcherProfile />}
 
-      <TouchableOpacity
-        className="mt-8 bg-red-500 px-4 py-3 rounded"
-        onPress={logout}
-      >
+        {!profile?.role && <Text>No role found. Please contact admin.</Text>}
+      </View>
+
+      <TouchableOpacity onPress={handleLogout} className="bg-custom-red w-full py-3 rounded-xl">
         <Text className="text-white text-center font-semibold">Logout</Text>
       </TouchableOpacity>
     </View>

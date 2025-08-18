@@ -5,7 +5,8 @@ export default function TabsLayout() {
   const { user, loading } = useAuth();
 
   if (loading) return null;
-  if (!user) return <Redirect href="/auth/login" />; // not logged in → go public
+  // if not logged in → go to public login
+  if (!user) return <Redirect href="/(public)/auth/login" />;
 
   return (
     <Tabs screenOptions={{ headerShown: false }}>

@@ -4,8 +4,9 @@ import { useAuth } from "../../contexts/AuthContext";
 export default function PublicLayout() {
   const { user, loading } = useAuth();
 
-  if (loading) return null; // splash/loader if you want
-  if (user) return <Redirect href="/profile" />; // already logged in → go to app
+  if (loading) return null;
+  // if already logged in → go into the app tabs
+  if (user) return <Redirect href="/(app)/(tabs)" />;
 
   return <Stack screenOptions={{ headerShown: false }} />;
 }
