@@ -1,4 +1,3 @@
-// app/auth/login.tsx
 import { useRouter } from "expo-router";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { useState } from "react";
@@ -13,7 +12,9 @@ export default function Login() {
   const handleLogin = async () => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.replace("/tabs/profile"); // ✅ TypeScript safe
+
+      // ✅ Fixed route
+      router.replace("/(tabs)/profile");
     } catch (error: any) {
       Alert.alert("Login Error", error.message);
       console.error(error);

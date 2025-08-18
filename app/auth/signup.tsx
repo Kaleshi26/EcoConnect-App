@@ -1,4 +1,3 @@
-// app/auth/signup.tsx
 import { useRouter } from "expo-router";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
@@ -25,7 +24,8 @@ export default function Signup() {
         createdAt: new Date(),
       });
 
-      router.replace("/tabs/profile"); // ✅ TypeScript safe
+      // ✅ Fixed route
+      router.replace("/(tabs)/profile");
     } catch (error: any) {
       Alert.alert("Signup Error", error.message);
       console.error(error);
