@@ -19,9 +19,11 @@ export default function Signup() {
 
   const handleSignup = async () => {
     try {
+      // 1. Create auth account
       const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const uid = cred.user.uid;
 
+      // 2. Save user profile in Firestore
       await setDoc(doc(db, "users", uid), {
         email: email.trim(),
         role,
@@ -30,7 +32,12 @@ export default function Signup() {
         createdAt: serverTimestamp(),
       });
 
-      router.replace("/(app)/(tabs)");
+      // 3. Redirect by role
+      if (role === "sponsor") {
+       router.push("/sponsor/(tabs)/sponsorDashboard")
+      } else {
+        router.replace("/(app)/(tabs)");
+      }
     } catch (err: any) {
       setError(err.message);
     }
@@ -57,7 +64,7 @@ export default function Signup() {
         onChangeText={setPassword}
       />
 
-      {/* Role buttons */}
+      {/* Role Selection */}
       <View className="w-full flex-row flex-wrap mb-4">
         {ROLES.map((r) => (
           <TouchableOpacity
@@ -70,7 +77,7 @@ export default function Signup() {
         ))}
       </View>
 
-      {/* Volunteer: Individual / Team */}
+      {/* Volunteer Extra Input */}
       {role === "volunteer" && (
         <View className="w-full mb-4">
           <View className="flex-row mb-3">
