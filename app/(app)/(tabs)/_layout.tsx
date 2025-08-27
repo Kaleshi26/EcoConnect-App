@@ -10,6 +10,8 @@ export default function TabsLayout() {
 
   // Redirect to volunteer-specific default tab if role is volunteer
   if (profile?.role === "volunteer") return <Redirect href="/volunteer/tabs/vol_home" />;
+  // Redirect to waste collector-specific default tab if role is wasteCollector
+  if (profile?.role === "wasteCollector") return <Redirect href="/waste_collector/tabs/wc_home" />;
 
   return (
     <Tabs screenOptions={{ headerShown: false }}>
