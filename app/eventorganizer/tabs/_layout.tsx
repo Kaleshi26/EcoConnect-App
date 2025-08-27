@@ -7,7 +7,7 @@ export default function OrgTabsLayout() {
 
   if (loading) return null;
   if (!user) return <Redirect href="/(public)/auth/login" />;
-  if (profile?.role !== "eventorganizer") return <Redirect href="/(app)/(tabs)" />;
+  if (profile?.role !== "organizer") return <Redirect href="/(app)/(tabs)" />;
 
   return (
     <Tabs screenOptions={{ headerShown: false }}>
