@@ -1,5 +1,6 @@
+// contexts/AuthContext.tsx
 import { User, onAuthStateChanged } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore"; // Add doc here
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { auth, db } from "../services/firebaseConfig";
 
