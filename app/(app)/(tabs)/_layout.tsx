@@ -10,6 +10,8 @@ export default function TabsLayout() {
 
   // Redirect to volunteer-specific default tab if role is volunteer
   if (profile?.role === "volunteer") return <Redirect href="/volunteer/tabs/vol_home" />;
+// Redirect sponsor-specific default tab if role is sponsor
+if (profile?.role === "sponsor") return <Redirect href="/sponsor/tabs/sponsorDashboard" />;
 
   return (
     <Tabs screenOptions={{ headerShown: false }}>
