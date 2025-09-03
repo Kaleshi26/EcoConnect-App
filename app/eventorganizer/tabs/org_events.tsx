@@ -20,9 +20,7 @@ import {
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from "react-native-maps";
 
 import { useAuth } from "../../../contexts/AuthContext";
-// TODO: replace with your db import path
-// Example: import { db } from "../../../lib/firebase";
-import { db } from "../../../services/firebaseConfig"; // <- update path if different
+import { db } from "../../../services/firebaseConfig";
 
 type Coords = { latitude: number; longitude: number };
 
@@ -48,9 +46,9 @@ function Chip({
     <Pressable
       onPress={onPress}
       className={`px-4 py-2 rounded-full mr-2 mb-2 border ${
-        selected ? "bg-blue-600 border-blue-600" : "bg-white border-gray-300"
+        selected ? "bg-blue-500 border-blue-500" : "bg-white border-gray-300"
       }`}
-      style={{ shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 }}
+      style={{ shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}
     >
       <Text className={selected ? "text-white font-medium" : "text-gray-700 font-medium"}>
         {label}
@@ -65,9 +63,9 @@ function Row({ children }: { children: React.ReactNode }) {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <View className="mb-5">
+    <View className="mb-6">
       <Text className="text-gray-900 text-base font-semibold mb-2">{title}</Text>
-      <View className="bg-white rounded-xl border border-gray-200">
+      <View className="bg-white rounded-xl border border-gray-200 shadow-sm p-1">
         {children}
       </View>
     </View>
@@ -167,8 +165,8 @@ function MapPickerModal({
   const [region, setRegion] = useState<Region>({
     latitude: initialCoords?.latitude ?? 37.78825,
     longitude: initialCoords?.longitude ?? -122.4324,
-    latitudeDelta: 0.04,
-    longitudeDelta: 0.04,
+    latitudeDelta: 0.02,
+    longitudeDelta: 0.02,
   });
   const [loadingLoc, setLoadingLoc] = useState(false);
 
@@ -193,7 +191,7 @@ function MapPickerModal({
 
   const confirm = async () => {
     if (!marker) {
-      Alert.alert("Pick a location", "Tap-and-hold on the map to drop a pin.");
+      Alert.alert("Pick a location", "Tap on the map to drop a pin.");
       return;
     }
     try {
@@ -236,9 +234,15 @@ function MapPickerModal({
           style={{ flex: 1 }}
           region={region}
           onRegionChangeComplete={setRegion}
-          onLongPress={(e) => setMarker(e.nativeEvent.coordinate as Coords)}
+          onPress={(e) => setMarker(e.nativeEvent.coordinate as Coords)} // FIX: tap instead of long-press
         >
-          {marker && <Marker coordinate={marker} draggable onDragEnd={(e) => setMarker(e.nativeEvent.coordinate as Coords)} />}
+          {marker && (
+            <Marker
+              coordinate={marker}
+              draggable
+              onDragEnd={(e) => setMarker(e.nativeEvent.coordinate as Coords)}
+            />
+          )}
         </MapView>
 
         <View className="p-4 border-t border-gray-200">
@@ -249,7 +253,7 @@ function MapPickerModal({
             <Text className="text-white font-semibold">Confirm Location</Text>
           </Pressable>
           <Text className="text-gray-500 mt-2 text-center">
-            Tip: long-press on the map to drop a pin.
+            Tip: tap on the map to drop a pin.
           </Text>
         </View>
       </View>
@@ -332,7 +336,7 @@ export default function OrgEvents() {
       const payload = {
         title: title.trim(),
         description: description.trim(),
-        eventAt: Timestamp.fromDate(combinedDate!), // Firestore Timestamp
+        eventAt: Timestamp.fromDate(combinedDate!), 
         location: {
           label: locationText || "Selected Location",
           latitude: coords!.latitude,
@@ -348,12 +352,9 @@ export default function OrgEvents() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
-      const ref = await addDoc(collection(db, "events"), payload);
-      Alert.alert("Event published", "Your event is now live.", [
-        { text: "OK" },
-      ]);
+      await addDoc(collection(db, "events"), payload);
+      Alert.alert("Event published", "Your event is now live.", [{ text: "OK" }]);
 
-      // Reset form after publish
       setTitle("");
       setDescription("");
       setWasteTypes([]);
@@ -364,9 +365,6 @@ export default function OrgEvents() {
       setLocationText("");
       setDate(new Date());
       setTime(new Date());
-
-      // Optional: navigate to a details or list screen
-      // router.push(`/eventorganizer/tabs/org_events`); // staying here
     } catch (e: any) {
       Alert.alert("Publish failed", e?.message ?? "Something went wrong.");
     } finally {
@@ -375,14 +373,16 @@ export default function OrgEvents() {
   };
 
   return (
-    <View className="flex-1 bg-light-100">
+    <View className="flex-1 bg-gradient-to-b from-blue-50 to-cyan-50">
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 60 }}
         keyboardShouldPersistTaps="handled"
       >
-        <Text className="text-2xl font-bold text-gray-900">Create New Event</Text>
-        <Text className="text-gray-500 mb-4">Event Organizer</Text>
+        <View className="mt-6 mb-4">
+          <Text className="text-2xl font-bold text-gray-900 text-center">Create New Event</Text>
+          <Text className="text-gray-500 text-center">Event Organizer</Text>
+        </View>
 
         {/* Event Title */}
         <Section title="Event Title">
@@ -412,7 +412,6 @@ export default function OrgEvents() {
               onPress={() => setShowTime(true)}
             />
           </View>
-          {/* Date Picker */}
           {showDate && (
             <DateTimePicker
               mode="date"
@@ -425,7 +424,6 @@ export default function OrgEvents() {
               display={Platform.OS === "ios" ? "spinner" : "default"}
             />
           )}
-          {/* Time Picker */}
           {showTime && (
             <DateTimePicker
               mode="time"
