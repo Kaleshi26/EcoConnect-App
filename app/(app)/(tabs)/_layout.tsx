@@ -13,6 +13,11 @@ export default function TabsLayout() {
   // Redirect to waste collector-specific default tab if role is wasteCollector
   if (profile?.role === "wasteCollector") return <Redirect href="/waste_collector/tabs/wc_home" />;
 
+  // Event Organizer role → send to organizer tabs
+  if (profile?.role === "organizer") return <Redirect href="/eventorganizer/tabs/org_events" />;
+  
+
+   // Default (maybe admin or unknown role) → show generic app tabs
   return (
     <Tabs screenOptions={{ headerShown: false }}>
       <Tabs.Screen name="index" options={{ title: "Home" }} />
