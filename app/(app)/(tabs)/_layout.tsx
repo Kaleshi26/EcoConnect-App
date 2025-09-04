@@ -11,6 +11,11 @@ export default function TabsLayout() {
   // Redirect to volunteer-specific default tab if role is volunteer
   if (profile?.role === "volunteer") return <Redirect href="/volunteer/tabs/vol_home" />;
 
+  // Event Organizer role → send to organizer tabs
+  if (profile?.role === "organizer") return <Redirect href="/eventorganizer/tabs/org_events" />;
+  
+
+   // Default (maybe admin or unknown role) → show generic app tabs
   return (
     <Tabs screenOptions={{ headerShown: false }}>
       <Tabs.Screen name="index" options={{ title: "Home" }} />
