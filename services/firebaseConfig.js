@@ -2,6 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage"; // Added for storage
 // import { getAnalytics } from "firebase/analytics"; // ❌ not for Expo (web only)
 
 // Firebase configuration using .env variables
@@ -21,6 +22,7 @@ const app = initializeApp(firebaseConfig);
 // Firebase services we use
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const storage = getStorage(app); // Export storage service
 // Analytics is web-only, so skip for Expo Go
 // export const analytics = getAnalytics(app);
 

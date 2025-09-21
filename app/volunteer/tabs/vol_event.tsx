@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { addDoc, collection, onSnapshot, query, where } from "firebase/firestore";
+import { addDoc, collection, onSnapshot, query, where, doc, getDoc, setDoc, updateDoc, getDocs } from "firebase/firestore";
 import React, { useEffect, useState, useRef } from "react";
-import { ActivityIndicator, Alert, Animated, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Animated, Pressable, ScrollView, Text, TextInput, View, Modal, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from "react-native";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/services/firebaseConfig";
 import { Timestamp } from "firebase/firestore";
@@ -18,6 +18,19 @@ type EventDoc = {
   sponsorshipRequired?: boolean;
   organizerId?: string;
   createdAt?: Timestamp;
+};
+
+// Registration type
+type RegistrationData = {
+  id?: string;
+  eventId: string;
+  userId: string;
+  email: string;
+  phoneNumber: string;
+  emergencyContact: string;
+  skills: string;
+  registeredAt: Timestamp;
+  status: "pending" | "confirmed" | "cancelled";
 };
 
 // Reuse helpers from org_events.tsx
@@ -53,8 +66,303 @@ function usePressScale(initial = 1) {
   return { scale, onPressIn, onPressOut };
 }
 
+// Registration Modal Component
+function RegistrationModal({ 
+  visible, 
+  onClose, 
+  event,
+  onRegistrationComplete 
+}: { 
+  visible: boolean; 
+  onClose: () => void; 
+  event: EventDoc;
+  onRegistrationComplete: () => void;
+}) {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    email: user?.email || "",
+    phoneNumber: "",
+    emergencyContact: "",
+    skills: ""
+  });
+
+  useEffect(() => {
+    if (user?.email) {
+      setFormData(prev => ({ ...prev, email: user.email || "" }));
+    }
+  }, [user]);
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSubmit = async () => {
+    if (!user) {
+      Alert.alert("Authentication Required", "Please sign in to register for events.");
+      return;
+    }
+
+    // Validation
+    if (!formData.email || !formData.phoneNumber || !formData.emergencyContact) {
+      Alert.alert("Missing Information", "Please fill in all required fields.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Check if user is already registered
+      const registrationQuery = query(
+        collection(db, `events/${event.id}/registrations`),
+        where("userId", "==", user.uid)
+      );
+      const existingRegistrations = await getDocs(registrationQuery);
+      
+      if (!existingRegistrations.empty) {
+        Alert.alert("Already Registered", "You have already registered for this event.");
+        onClose();
+        return;
+      }
+
+      // Create registration
+      const registrationData: RegistrationData = {
+        eventId: event.id,
+        userId: user.uid,
+        email: formData.email,
+        phoneNumber: formData.phoneNumber,
+        emergencyContact: formData.emergencyContact,
+        skills: formData.skills,
+        registeredAt: Timestamp.fromDate(new Date()),
+        status: "confirmed"
+      };
+
+      await addDoc(collection(db, `events/${event.id}/registrations`), registrationData);
+      
+      // Also store a reference in the user's profile for easy access
+      const userRegistrationRef = doc(db, `users/${user.uid}/registrations`, event.id);
+      await setDoc(userRegistrationRef, {
+        eventId: event.id,
+        eventTitle: event.title,
+        eventDate: event.eventAt,
+        registeredAt: Timestamp.fromDate(new Date()),
+        status: "confirmed"
+      });
+
+      Alert.alert("Registration Successful", "You have been registered for this event!");
+      onRegistrationComplete();
+      onClose();
+    } catch (e: any) {
+      console.error("[RegistrationModal] Registration error:", e);
+      Alert.alert("Registration Failed", "Unable to register for this event. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const slideAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.timing(slideAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [visible]);
+
+  const translateY = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [600, 0],
+  });
+
+  const d = tsToDate(event.eventAt);
+  const dateStr = d ? `${formatDate(d)} • ${formatTime(d)}` : "Date TBD";
+
+return (
+  <Modal
+    visible={visible}
+    animationType="slide"
+    onRequestClose={onClose}
+    presentationStyle="pageSheet"
+  >
+    <View className="flex-1 bg-gray-50">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        className="flex-1"
+      >
+        <ScrollView 
+          className="flex-1" 
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ flexGrow: 1 }}
+        >
+          {/* Header */}
+          <View className="bg-white px-6 pt-4 pb-5 shadow-sm">
+            <View className="flex-row justify-between items-center mb-1">
+              <Text className="text-2xl font-bold text-gray-900">Event Registration</Text>
+              <Pressable 
+                onPress={onClose}
+                className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center"
+              >
+                <Ionicons name="close" size={20} color="#6b7280" />
+              </Pressable>
+            </View>
+            <Text className="text-gray-500 text-sm mt-1">Fill in your details to secure your spot</Text>
+          </View>
+
+          {/* Event Info Card */}
+          <View className="mx-6 mt-4 mb-6">
+            <View className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+              <View className="flex-row items-start justify-between mb-3">
+                <View className="flex-1 pr-3">
+                  <Text className="text-lg font-bold text-gray-900 mb-2">{event.title}</Text>
+                </View>
+                <View className="bg-blue-100 px-3 py-1 rounded-full">
+                  <Text className="text-blue-700 text-xs font-semibold">EVENT</Text>
+                </View>
+              </View>
+              
+              <View className="space-y-2">
+                <View className="flex-row items-center">
+                  <View className="w-8 h-8 bg-blue-50 rounded-full items-center justify-center mr-3">
+                    <Ionicons name="time" size={16} color="#3b82f6" />
+                  </View>
+                  <Text className="text-gray-700 flex-1">{dateStr}</Text>
+                </View>
+                
+                {event.location?.label && (
+                  <View className="flex-row items-center">
+                    <View className="w-8 h-8 bg-green-50 rounded-full items-center justify-center mr-3">
+                      <Ionicons name="location" size={16} color="#10b981" />
+                    </View>
+                    <Text className="text-gray-700 flex-1">{event.location.label}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+
+          {/* Registration Form */}
+          <View className="mx-6 mb-8">
+            <View className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <Text className="text-lg font-bold text-gray-900 mb-1">Registration Details</Text>
+              <Text className="text-gray-500 text-sm mb-6">All fields marked with * are required</Text>
+              
+              {/* Email Field */}
+              <View className="mb-5">
+                <Text className="text-gray-700 font-semibold mb-3">Email Address *</Text>
+                <View className="relative">
+                  <TextInput
+                    value={formData.email}
+                    onChangeText={(text) => handleInputChange("email", text)}
+                    placeholder="Enter your email address"
+                    placeholderTextColor="#9ca3af"
+                    className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-gray-900 text-base"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                  />
+                  <View className="absolute right-4 top-4">
+                    <Ionicons name="mail-outline" size={20} color="#9ca3af" />
+                  </View>
+                </View>
+              </View>
+
+              {/* Phone Field */}
+              <View className="mb-5">
+                <Text className="text-gray-700 font-semibold mb-3">Phone Number *</Text>
+                <View className="relative">
+                  <TextInput
+                    value={formData.phoneNumber}
+                    onChangeText={(text) => handleInputChange("phoneNumber", text)}
+                    placeholder="Enter your phone number"
+                    placeholderTextColor="#9ca3af"
+                    className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-gray-900 text-base"
+                    keyboardType="phone-pad"
+                    autoComplete="tel"
+                  />
+                  <View className="absolute right-4 top-4">
+                    <Ionicons name="call-outline" size={20} color="#9ca3af" />
+                  </View>
+                </View>
+              </View>
+
+              {/* Emergency Contact Field */}
+              <View className="mb-5">
+                <Text className="text-gray-700 font-semibold mb-3">Emergency Contact *</Text>
+                <TextInput
+                  value={formData.emergencyContact}
+                  onChangeText={(text) => handleInputChange("emergencyContact", text)}
+                  placeholder="Name and phone number"
+                  placeholderTextColor="#9ca3af"
+                  className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-gray-900 text-base"
+                />
+                <Text className="text-gray-500 text-xs mt-2">E.g., John Doe - +1 (555) 123-4567</Text>
+              </View>
+
+              {/* Skills Field */}
+              <View className="mb-6">
+                <Text className="text-gray-700 font-semibold mb-3">Skills & Experience</Text>
+                <TextInput
+                  value={formData.skills}
+                  onChangeText={(text) => handleInputChange("skills", text)}
+                  placeholder="Tell us about your relevant skills or experience"
+                  placeholderTextColor="#9ca3af"
+                  className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-gray-900 text-base min-h-24"
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                />
+                <Text className="text-gray-500 text-xs mt-2">Optional - This helps us better organize the event</Text>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+
+        {/* Fixed Bottom Button */}
+        <View className="bg-white px-6 py-4 shadow-lg">
+          <Pressable
+            onPress={handleSubmit}
+            disabled={loading}
+            className={`bg-blue-600 rounded-xl py-4 px-6 items-center shadow-sm ${
+              loading ? "opacity-70" : ""
+            }`}
+          >
+            {loading ? (
+              <View className="flex-row items-center">
+                <ActivityIndicator color="white" size="small" />
+                <Text className="text-white font-bold text-base ml-2">Processing...</Text>
+              </View>
+            ) : (
+              <View className="flex-row items-center">
+                <Ionicons name="checkmark-circle" size={20} color="white" />
+                <Text className="text-white font-bold text-base ml-2">Complete Registration</Text>
+              </View>
+            )}
+          </Pressable>
+          
+          <Pressable 
+            onPress={onClose}
+            className="mt-3 py-3 items-center"
+          >
+            <Text className="text-gray-500 font-medium">Cancel</Text>
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
+    </View>
+  </Modal>
+);
+}
+
 // Professional EventCard with blue-gray theme
-function EventCard({ ev }: { ev: EventDoc }) {
+function EventCard({ ev, onViewDetails }: { ev: EventDoc; onViewDetails: (event: EventDoc) => void }) {
   const { user } = useAuth();
   const d = tsToDate(ev.eventAt);
   const dateStr = d ? `${formatDate(d)} • ${formatTime(d)}` : "Date TBD";
@@ -66,29 +374,26 @@ function EventCard({ ev }: { ev: EventDoc }) {
       Alert.alert("Authentication Required", "Please sign in to register for events.");
       return;
     }
+    
+    // Check if already registered
     try {
-      await addDoc(collection(db, `events/${ev.id}/registrations`), {
-        userId: user.uid,
-        registeredAt: Timestamp.fromDate(new Date()),
-      });
-      Alert.alert("Registration Successful", "You have been registered for this event!");
+      const registrationQuery = query(
+        collection(db, `events/${ev.id}/registrations`),
+        where("userId", "==", user.uid)
+      );
+      const existingRegistrations = await getDocs(registrationQuery);
+      
+      if (!existingRegistrations.empty) {
+        Alert.alert("Already Registered", "You have already registered for this event.");
+        return;
+      }
+      
+      // If not registered, show details modal which includes registration
+      onViewDetails(ev);
     } catch (e: any) {
-      console.error("[EventCard] Registration error:", e);
-      Alert.alert("Registration Failed", "Unable to register for this event. Please try again.");
+      console.error("[EventCard] Registration check error:", e);
+      onViewDetails(ev);
     }
-  };
-
-  const handleViewInfo = () => {
-    const details = [
-      `Event: ${ev.title}`,
-      `Date & Time: ${dateStr}`,
-      ev.location?.label ? `Location: ${ev.location.label}` : "",
-      `Volunteers Needed: ${ev.volunteersNeeded ?? 0}`,
-      ev.wasteTypes?.length ? `Focus Areas: ${ev.wasteTypes.join(", ")}` : "",
-      `\nDescription:\n${ev.description}`,
-      ev.sponsorshipRequired ? "\n• Sponsorship opportunities available" : "",
-    ].filter(Boolean).join("\n");
-    Alert.alert("Event Information", details);
   };
 
   return (
@@ -172,7 +477,7 @@ function EventCard({ ev }: { ev: EventDoc }) {
           </Animated.View>
           <Animated.View style={{ flex: 1, transform: [{ scale: viewInfoAnim.scale }] }}>
             <Pressable
-              onPress={handleViewInfo}
+              onPress={() => onViewDetails(ev)}
               onPressIn={viewInfoAnim.onPressIn}
               onPressOut={viewInfoAnim.onPressOut}
               className="bg-slate-100 border border-slate-200 rounded-xl py-4 items-center ml-1.5"
@@ -187,10 +492,14 @@ function EventCard({ ev }: { ev: EventDoc }) {
 }
 
 export default function VolEvent() {
+  const { user } = useAuth();
   const [events, setEvents] = useState<EventDoc[]>([]);
   const [filteredEvents, setFilteredEvents] = useState<EventDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedEvent, setSelectedEvent] = useState<EventDoc | null>(null);
+  const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+  const [userRegistrations, setUserRegistrations] = useState<string[]>([]);
 
   // Fetch events
   useEffect(() => {
@@ -211,6 +520,24 @@ export default function VolEvent() {
     );
     return () => unsub();
   }, []);
+
+  // Fetch user registrations
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchUserRegistrations = async () => {
+      try {
+        const registrationsRef = collection(db, `users/${user.uid}/registrations`);
+        const snapshot = await getDocs(registrationsRef);
+        const eventIds = snapshot.docs.map(doc => doc.id);
+        setUserRegistrations(eventIds);
+      } catch (error) {
+        console.error("Error fetching user registrations:", error);
+      }
+    };
+
+    fetchUserRegistrations();
+  }, [user]);
 
   // Enhanced filter with multiple search criteria
   useEffect(() => {
@@ -242,6 +569,19 @@ export default function VolEvent() {
 
   const clearSearch = () => {
     setSearchQuery("");
+  };
+
+  const handleViewDetails = (event: EventDoc) => {
+    setSelectedEvent(event);
+    setShowRegistrationModal(true);
+  };
+
+  const handleRegistrationComplete = () => {
+    if (selectedEvent) {
+      setUserRegistrations(prev => [...prev, selectedEvent.id]);
+    }
+    setShowRegistrationModal(false);
+    setSelectedEvent(null);
   };
 
   return (
@@ -343,11 +683,28 @@ export default function VolEvent() {
               )}
             </View>
             {filteredEvents.map((ev) => (
-              <EventCard key={ev.id} ev={ev} />
+              <EventCard 
+                key={ev.id} 
+                ev={ev} 
+                onViewDetails={handleViewDetails}
+              />
             ))}
           </View>
         )}
       </ScrollView>
+
+      {/* Registration Modal */}
+      {selectedEvent && (
+        <RegistrationModal
+          visible={showRegistrationModal}
+          onClose={() => {
+            setShowRegistrationModal(false);
+            setSelectedEvent(null);
+          }}
+          event={selectedEvent}
+          onRegistrationComplete={handleRegistrationComplete}
+        />
+      )}
     </View>
   );
 }
