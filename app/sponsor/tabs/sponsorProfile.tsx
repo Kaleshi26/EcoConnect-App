@@ -20,6 +20,16 @@ interface SponsorProfile {
   billingAddress?: string;
   gstin?: string;
   pan?: string;
+  paymentMethods?: {
+    cards?: {
+      id: string;
+      last4: string;
+      brand: string;
+      expMonth: number;
+      expYear: number;
+      isDefault: boolean;
+    }[];
+  };
 }
 
 export default function SponsorProfileSummary() {
@@ -77,10 +87,20 @@ export default function SponsorProfileSummary() {
       "Are you sure you want to logout?",
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Logout", onPress: async () => {
-          await signOut(auth);
-          router.replace("/(public)/auth/login");
-        }, style: "destructive" }
+        { 
+          text: "Logout", 
+          onPress: async () => {
+            try {
+              await signOut(auth);
+              // Use replace to prevent going back to the profile page
+              router.replace("/(public)/auth/login");
+            } catch (error) {
+              console.error("Logout error:", error);
+              Alert.alert("Error", "Failed to logout. Please try again.");
+            }
+          }, 
+          style: "destructive" 
+        }
       ]
     );
   };
@@ -125,6 +145,28 @@ export default function SponsorProfileSummary() {
   const totalSponsored = sponsorProfile.totalSponsored || 0;
   const eventsSupported = sponsorProfile.eventsSupported || 0;
   const memberSince = sponsorProfile.createdAt ? new Date(sponsorProfile.createdAt.seconds * 1000).getFullYear() : new Date().getFullYear();
+
+  // Sample credit card data - in a real app, this would come from your backend
+  const paymentMethods = sponsorProfile.paymentMethods || {
+    cards: [
+      {
+        id: "1",
+        last4: "4242",
+        brand: "Visa",
+        expMonth: 12,
+        expYear: 2025,
+        isDefault: true
+      },
+      {
+        id: "2",
+        last4: "5689",
+        brand: "Mastercard",
+        expMonth: 6,
+        expYear: 2024,
+        isDefault: false
+      }
+    ]
+  };
 
   // Badges based on sponsorship activity
   const badges = [
@@ -187,7 +229,7 @@ export default function SponsorProfileSummary() {
           {/* Quick Stats */}
           <View className="flex-row justify-around mb-4">
             <View className="items-center">
-              <Text className="text-2xl font-bold text-teal-700">₹{totalSponsored.toLocaleString()}</Text>
+              <Text className="text-2xl font-bold text-teal-700">LKR. {totalSponsored.toLocaleString()}</Text>
               <Text className="text-gray-600 text-sm">Total Sponsored</Text>
             </View>
             <View className="items-center">
@@ -297,6 +339,47 @@ export default function SponsorProfileSummary() {
 
           {showPaymentDetails && (
             <View className="space-y-4">
+              {/* Credit/Debit Cards */}
+              <View className="bg-gray-50 p-4 rounded-lg">
+                <Text className="font-semibold text-gray-700 mb-3">Payment Methods</Text>
+                {paymentMethods.cards && paymentMethods.cards.length > 0 ? (
+                  paymentMethods.cards.map((card) => (
+                    <View key={card.id} className="flex-row items-center justify-between mb-3 p-3 bg-white rounded-lg border border-gray-200">
+                      <View className="flex-row items-center">
+                        <Ionicons 
+                          name={card.brand.toLowerCase() === 'visa' ? 'card' : 'card-outline'} 
+                          size={24} 
+                          color="#4FB7B3" 
+                          className="mr-3"
+                        />
+                        <View>
+                          <Text className="font-medium text-gray-700">
+                            {card.brand} •••• {card.last4}
+                          </Text>
+                          <Text className="text-gray-500 text-sm">
+                            Expires {card.expMonth}/{card.expYear}
+                            {card.isDefault && (
+                              <Text className="text-teal-600 ml-2">Default</Text>
+                            )}
+                          </Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity>
+                        <Ionicons name="pencil-outline" size={18} color="#9CA3AF" />
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                ) : (
+                  <Text className="text-gray-600">No payment methods added</Text>
+                )}
+                
+                <TouchableOpacity className="mt-3 flex-row items-center justify-center bg-teal-50 p-3 rounded-lg border border-teal-100">
+                  <Ionicons name="add-circle" size={20} color="#4FB7B3" />
+                  <Text className="text-teal-700 font-medium ml-2">Add Payment Method</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Billing Information */}
               <TouchableOpacity 
                 onPress={() => openEditModal("billingAddress", formData.billingAddress)}
                 className="bg-gray-50 p-4 rounded-lg"
