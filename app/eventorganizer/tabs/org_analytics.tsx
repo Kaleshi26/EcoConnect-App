@@ -1,3 +1,4 @@
+// app/eventorganizer/tabs/org_analytics.tsx
 import { Text, View } from "react-native";
 
 export default function OrgAnalytics() {
