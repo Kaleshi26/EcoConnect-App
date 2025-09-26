@@ -1,5 +1,6 @@
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
+import { router } from "expo-router";
 import {
   collection,
   doc,
@@ -17,7 +18,6 @@ import {
   CheckCircle,
   ChevronLeft,
   MapPin,
-  Navigation,
   Package,
   Truck
 } from "lucide-react-native";
@@ -66,6 +66,7 @@ function formatTime(d?: Date | null) {
   return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
+// ✅ We keep StatusBadge component in case you need it later, but not using it
 function StatusBadge({ status }: { status: EventDoc["status"] }) {
   if (!status) return null;
   let bgColor = "", textColor = "";
@@ -173,7 +174,6 @@ export default function WcHome({ userId }: { userId: string }) {
   }
 
   const steps = [
-    { title: "Navigate to Location", icon: Navigation },
     { title: "Collect Waste", icon: Truck },
     { title: "Take Disposal Photos", icon: Camera },
     { title: "Confirm Completion", icon: CheckCircle },
@@ -183,7 +183,9 @@ export default function WcHome({ userId }: { userId: string }) {
     <View className="flex-1 bg-gray-50">
       {!selected ? (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 }}>
-          <Text className="text-2xl font-bold text-gray-900 text-center mt-6 mb-4">Assigned Cleanups</Text>
+          <Text className="text-2xl font-bold text-gray-900 text-center mt-6 mb-4">
+            Assigned Cleanups
+          </Text>
           {loading ? (
             <View className="py-10 items-center">
               <ActivityIndicator />
@@ -207,11 +209,11 @@ export default function WcHome({ userId }: { userId: string }) {
                           setPhotos([]);
                         }}
                       >
-                        <View className="flex-row justify-between items-start">
-                          <Text className="text-lg font-semibold text-gray-900 flex-1">{ev.title}</Text>
-                          {ev.status && <StatusBadge status={ev.status} />}
-                        </View>
-                        <Text className="text-gray-500 mt-1">{dateStr}</Text>
+                        {/* Removed status badge */}
+                        <Text className="text-lg font-semibold text-gray-900 mb-1">
+                          {ev.title}
+                        </Text>
+                        <Text className="text-gray-500">{dateStr}</Text>
                         {!!ev.location?.label && (
                           <Text className="text-gray-700 mt-1">{ev.location.label}</Text>
                         )}
@@ -220,18 +222,27 @@ export default function WcHome({ userId }: { userId: string }) {
                   })}
                 </View>
               ) : (
-                <Text className="text-gray-500 text-center mb-6">No completed/today tasks</Text>
+                <Text className="text-gray-500 text-center mb-6">
+                  No completed/today tasks
+                </Text>
               )}
 
               {/* 🗓 Upcoming Destinations */}
-              <Text className="text-xl font-bold text-gray-900 mb-3">Upcoming Destinations</Text>
+              <Text className="text-xl font-bold text-gray-900 mb-3">
+                Upcoming Destinations
+              </Text>
               {upcomingDestinations.length > 0 ? (
                 upcomingDestinations.map((ev) => {
                   const d = tsToDate(ev.eventAt);
                   const dateStr = d ? `${formatDate(d)} • ${formatTime(d)}` : "No date";
                   return (
-                    <View key={ev.id} className="mb-3 bg-white border border-gray-200 rounded-xl p-4">
-                      <Text className="text-lg font-semibold text-gray-900">{ev.title}</Text>
+                    <View
+                      key={ev.id}
+                      className="mb-3 bg-white border border-gray-200 rounded-xl p-4"
+                    >
+                      <Text className="text-lg font-semibold text-gray-900">
+                        {ev.title}
+                      </Text>
                       <Text className="text-gray-500 mt-1">{dateStr}</Text>
                       {!!ev.location?.label && (
                         <Text className="text-gray-700 mt-1">{ev.location.label}</Text>
@@ -240,7 +251,9 @@ export default function WcHome({ userId }: { userId: string }) {
                   );
                 })
               ) : (
-                <Text className="text-gray-500 text-center">No upcoming destinations</Text>
+                <Text className="text-gray-500 text-center">
+                  No upcoming destinations
+                </Text>
               )}
             </>
           )}
@@ -252,11 +265,15 @@ export default function WcHome({ userId }: { userId: string }) {
             <TouchableOpacity onPress={() => setSelected(null)} className="mr-2">
               <ChevronLeft color="#16a34a" size={20} />
             </TouchableOpacity>
-            <Text className="text-2xl font-bold text-gray-800">Assignment Details</Text>
+            <Text className="text-2xl font-bold text-gray-800">
+              Assignment Details
+            </Text>
           </View>
 
           <View className="bg-white rounded-xl p-4 mb-4">
-            <Text className="text-xl font-bold text-gray-800 mb-2">{selected.title}</Text>
+            <Text className="text-xl font-bold text-gray-800 mb-2">
+              {selected.title}
+            </Text>
             <View className="flex-row items-center text-gray-600 mb-1">
               <MapPin size={16} color="#4b5563" />
               <Text className="ml-2">{selected.location?.label}</Text>
@@ -264,17 +281,45 @@ export default function WcHome({ userId }: { userId: string }) {
             <View className="flex-row items-center text-gray-600 mb-1">
               <Calendar size={16} color="#4b5563" />
               <Text className="ml-2">
-                {formatDate(tsToDate(selected.eventAt))} • {formatTime(tsToDate(selected.eventAt))}
+                {formatDate(tsToDate(selected.eventAt))} •{" "}
+                {formatTime(tsToDate(selected.eventAt))}
               </Text>
             </View>
             {!!selected.wasteTypes && (
               <View className="flex-row items-center text-gray-600">
                 <Package size={16} color="#4b5563" />
                 <Text className="ml-2">
-                  {selected.wasteTypes.join(", ")} • {selected.estimatedQuantity || "N/A"}
+                  {selected.wasteTypes.join(", ")} •{" "}
+                  {selected.estimatedQuantity || "N/A"}
                 </Text>
               </View>
             )}
+          </View>
+
+          {/* Navigate to Location Button */}
+          <View className="bg-white rounded-xl p-4 mb-4">
+            <Text className="text-lg font-semibold mb-3">Navigation</Text>
+            <TouchableOpacity
+              onPress={() => {
+                const destLabel = selected?.location?.label || "";
+                const lat = selected?.location?.lat;
+                const lng = selected?.location?.lng;
+                const params: Record<string, string> = {};
+                if (destLabel) params.destLabel = destLabel;
+                if (typeof lat === "number") params.destLat = String(lat);
+                if (typeof lng === "number") params.destLng = String(lng);
+                if (selected?.id) params.eventId = selected.id;
+                router.navigate({
+                  pathname: "/waste_collector/tabs/wc_route_navigation",
+                  params,
+                });
+              }}
+              className="bg-blue-600 px-4 py-3 rounded-lg"
+            >
+              <Text className="text-white text-center font-medium">
+                Navigate to Location
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Steps */}
@@ -287,11 +332,16 @@ export default function WcHome({ userId }: { userId: string }) {
                     index <= currentStep ? "bg-green-600" : "bg-gray-200"
                   }`}
                 >
-                  <step.icon color={index <= currentStep ? "white" : "#4b5563"} size={20} />
+                  <step.icon
+                    color={index <= currentStep ? "white" : "#4b5563"}
+                    size={20}
+                  />
                 </View>
                 <View className="flex-1">
                   <Text
-                    className={`${index <= currentStep ? "text-green-600" : "text-gray-600"} font-medium`}
+                    className={`${
+                      index <= currentStep ? "text-green-600" : "text-gray-600"
+                    } font-medium`}
                   >
                     {step.title}
                   </Text>
@@ -308,18 +358,15 @@ export default function WcHome({ userId }: { userId: string }) {
                     disabled={uploading}
                     onPress={async () => {
                       if (index === 0) setCurrentStep(1);
-                      else if (index === 1) setCurrentStep(2);
-                      else if (index === 2) await handleTakePhoto(selected);
-                      else if (index === 3) await handleComplete(selected);
+                      else if (index === 1) await handleTakePhoto(selected);
+                      else if (index === 2) await handleComplete(selected);
                     }}
                     className="bg-green-600 px-4 py-2 rounded-lg"
                   >
                     <Text className="text-white">
                       {index === 0
-                        ? "Start Navigation"
-                        : index === 1
                         ? "Mark Collected"
-                        : index === 2
+                        : index === 1
                         ? "Take Photo"
                         : "Complete"}
                     </Text>
