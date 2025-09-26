@@ -2,34 +2,39 @@ import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { router } from "expo-router";
 import {
-  collection,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  Timestamp,
-  updateDoc
+    collection,
+    doc,
+    onSnapshot,
+    orderBy,
+    query,
+    serverTimestamp,
+    Timestamp,
+    updateDoc
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import {
-  Calendar,
-  Camera,
-  CheckCircle,
-  ChevronLeft,
-  MapPin,
-  Package,
-  Truck
+    Calendar,
+    Camera,
+    CheckCircle,
+    ChevronLeft,
+    Clock,
+    MapPin,
+    Navigation,
+    Recycle,
+    Shield,
+    Trash2,
+    Truck,
+    Zap
 } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Image,
+    ScrollView,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { db, storage } from "../../../services/firebaseConfig";
 
@@ -180,57 +185,118 @@ export default function WcHome({ userId }: { userId: string }) {
   ];
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <View className="flex-1 bg-gradient-to-br from-green-50 to-emerald-100">
       {!selected ? (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 }}>
-          <Text className="text-2xl font-bold text-gray-900 text-center mt-6 mb-4">
-            Assigned Cleanups
-          </Text>
+          <View className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 mb-6 shadow-lg">
+            <View className="flex-row items-center justify-center mb-4">
+              <View className="bg-green-100 p-3 rounded-full mr-3">
+                <Truck color="#16a34a" size={24} />
+              </View>
+              <Text className="text-2xl font-bold text-green-800">
+                Waste Collection Hub
+              </Text>
+            </View>
+            <Text className="text-green-600 text-center text-sm">
+              Manage your assigned cleanups and upcoming destinations
+            </Text>
+          </View>
           {loading ? (
             <View className="py-10 items-center">
-              <ActivityIndicator />
-              <Text className="text-gray-500 mt-2">Loading events...</Text>
+              <View className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg">
+                <ActivityIndicator color="#16a34a" size="large" />
+                <Text className="text-green-600 mt-4 font-medium">Loading your assignments...</Text>
+              </View>
             </View>
           ) : (
             <>
               {/* 🧹 Assigned Cleanups (Today & Past) */}
               {assignedCleanups.length > 0 ? (
                 <View className="mb-8">
+                  <View className="flex-row items-center mb-4">
+                    <View className="bg-orange-100 p-2 rounded-full mr-3">
+                      <Trash2 color="#ea580c" size={20} />
+                    </View>
+                    <Text className="text-xl font-bold text-orange-800">
+                      Active Assignments
+                    </Text>
+                  </View>
                   {assignedCleanups.map((ev) => {
                     const d = tsToDate(ev.eventAt);
                     const dateStr = d ? `${formatDate(d)} • ${formatTime(d)}` : "No date";
+                    const isToday = d && new Date(d).toDateString() === new Date().toDateString();
                     return (
                       <TouchableOpacity
                         key={ev.id}
-                        className="mb-3 bg-white border border-gray-200 rounded-xl p-4"
+                        className="mb-4 bg-white/90 backdrop-blur-sm border border-green-200 rounded-2xl p-5 shadow-md"
                         onPress={() => {
                           setSelected(ev);
                           setCurrentStep(0);
                           setPhotos([]);
                         }}
                       >
-                        {/* Removed status badge */}
-                        <Text className="text-lg font-semibold text-gray-900 mb-1">
-                          {ev.title}
-                        </Text>
-                        <Text className="text-gray-500">{dateStr}</Text>
-                        {!!ev.location?.label && (
-                          <Text className="text-gray-700 mt-1">{ev.location.label}</Text>
+                        <View className="flex-row items-start justify-between mb-3">
+                          <View className="flex-1">
+                            <Text className="text-lg font-bold text-gray-900 mb-1">
+                              {ev.title}
+                            </Text>
+                            <View className="flex-row items-center mb-2">
+                              <Clock size={14} color="#6b7280" />
+                              <Text className="text-gray-600 ml-2 text-sm">{dateStr}</Text>
+                              {isToday && (
+                                <View className="bg-green-100 px-2 py-1 rounded-full ml-2">
+                                  <Text className="text-green-700 text-xs font-semibold">TODAY</Text>
+                                </View>
+                              )}
+                            </View>
+                            {!!ev.location?.label && (
+                              <View className="flex-row items-center">
+                                <MapPin size={14} color="#6b7280" />
+                                <Text className="text-gray-700 ml-2 text-sm">{ev.location.label}</Text>
+                              </View>
+                            )}
+                          </View>
+                          <View className="bg-green-100 p-2 rounded-full">
+                            <Truck color="#16a34a" size={20} />
+                          </View>
+                        </View>
+                        {ev.wasteTypes && (
+                          <View className="flex-row items-center">
+                            <Recycle size={14} color="#6b7280" />
+                            <Text className="text-gray-600 ml-2 text-sm">
+                              {ev.wasteTypes.join(", ")}
+                            </Text>
+                          </View>
                         )}
                       </TouchableOpacity>
                     );
                   })}
                 </View>
               ) : (
-                <Text className="text-gray-500 text-center mb-6">
-                  No completed/today tasks
-                </Text>
+                <View className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg mb-6">
+                  <View className="items-center">
+                    <View className="bg-gray-100 p-4 rounded-full mb-4">
+                      <CheckCircle color="#6b7280" size={32} />
+                    </View>
+                    <Text className="text-gray-600 text-center font-medium">
+                      No active assignments
+                    </Text>
+                    <Text className="text-gray-500 text-center text-sm mt-1">
+                      All caught up! Check back later for new tasks.
+                    </Text>
+                  </View>
+                </View>
               )}
 
               {/* 🗓 Upcoming Destinations */}
-              <Text className="text-xl font-bold text-gray-900 mb-3">
-                Upcoming Destinations
-              </Text>
+              <View className="flex-row items-center mb-4">
+                <View className="bg-blue-100 p-2 rounded-full mr-3">
+                  <Calendar color="#2563eb" size={20} />
+                </View>
+                <Text className="text-xl font-bold text-blue-800">
+                  Upcoming Destinations
+                </Text>
+              </View>
               {upcomingDestinations.length > 0 ? (
                 upcomingDestinations.map((ev) => {
                   const d = tsToDate(ev.eventAt);
@@ -238,22 +304,53 @@ export default function WcHome({ userId }: { userId: string }) {
                   return (
                     <View
                       key={ev.id}
-                      className="mb-3 bg-white border border-gray-200 rounded-xl p-4"
+                      className="mb-4 bg-white/90 backdrop-blur-sm border border-blue-200 rounded-2xl p-5 shadow-md"
                     >
-                      <Text className="text-lg font-semibold text-gray-900">
-                        {ev.title}
-                      </Text>
-                      <Text className="text-gray-500 mt-1">{dateStr}</Text>
-                      {!!ev.location?.label && (
-                        <Text className="text-gray-700 mt-1">{ev.location.label}</Text>
+                      <View className="flex-row items-start justify-between mb-3">
+                        <View className="flex-1">
+                          <Text className="text-lg font-bold text-gray-900 mb-1">
+                            {ev.title}
+                          </Text>
+                          <View className="flex-row items-center mb-2">
+                            <Clock size={14} color="#6b7280" />
+                            <Text className="text-gray-600 ml-2 text-sm">{dateStr}</Text>
+                          </View>
+                          {!!ev.location?.label && (
+                            <View className="flex-row items-center">
+                              <MapPin size={14} color="#6b7280" />
+                              <Text className="text-gray-700 ml-2 text-sm">{ev.location.label}</Text>
+                            </View>
+                          )}
+                        </View>
+                        <View className="bg-blue-100 p-2 rounded-full">
+                          <Calendar color="#2563eb" size={20} />
+                        </View>
+                      </View>
+                      {ev.wasteTypes && (
+                        <View className="flex-row items-center">
+                          <Recycle size={14} color="#6b7280" />
+                          <Text className="text-gray-600 ml-2 text-sm">
+                            {ev.wasteTypes.join(", ")}
+                          </Text>
+                        </View>
                       )}
                     </View>
                   );
                 })
               ) : (
-                <Text className="text-gray-500 text-center">
-                  No upcoming destinations
-                </Text>
+                <View className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg">
+                  <View className="items-center">
+                    <View className="bg-blue-100 p-4 rounded-full mb-4">
+                      <Calendar color="#6b7280" size={32} />
+                    </View>
+                    <Text className="text-gray-600 text-center font-medium">
+                      No upcoming destinations
+                    </Text>
+                    <Text className="text-gray-500 text-center text-sm mt-1">
+                      New assignments will appear here when available.
+                    </Text>
+                  </View>
+                </View>
               )}
             </>
           )}
@@ -261,44 +358,72 @@ export default function WcHome({ userId }: { userId: string }) {
       ) : (
         // 🔹 Assignment Detail View (Steps)
         <ScrollView contentContainerStyle={{ padding: 16 }}>
-          <View className="flex-row items-center mb-6">
-            <TouchableOpacity onPress={() => setSelected(null)} className="mr-2">
-              <ChevronLeft color="#16a34a" size={20} />
-            </TouchableOpacity>
-            <Text className="text-2xl font-bold text-gray-800">
-              Assignment Details
-            </Text>
-          </View>
-
-          <View className="bg-white rounded-xl p-4 mb-4">
-            <Text className="text-xl font-bold text-gray-800 mb-2">
-              {selected.title}
-            </Text>
-            <View className="flex-row items-center text-gray-600 mb-1">
-              <MapPin size={16} color="#4b5563" />
-              <Text className="ml-2">{selected.location?.label}</Text>
-            </View>
-            <View className="flex-row items-center text-gray-600 mb-1">
-              <Calendar size={16} color="#4b5563" />
-              <Text className="ml-2">
-                {formatDate(tsToDate(selected.eventAt))} •{" "}
-                {formatTime(tsToDate(selected.eventAt))}
-              </Text>
-            </View>
-            {!!selected.wasteTypes && (
-              <View className="flex-row items-center text-gray-600">
-                <Package size={16} color="#4b5563" />
-                <Text className="ml-2">
-                  {selected.wasteTypes.join(", ")} •{" "}
-                  {selected.estimatedQuantity || "N/A"}
+          <View className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 mb-6 shadow-lg">
+            <View className="flex-row items-center mb-4">
+              <TouchableOpacity 
+                onPress={() => setSelected(null)} 
+                className="bg-green-100 p-2 rounded-full mr-3"
+              >
+                <ChevronLeft color="#16a34a" size={20} />
+              </TouchableOpacity>
+              <View className="flex-1">
+                <Text className="text-2xl font-bold text-green-800">
+                  Assignment Details
+                </Text>
+                <Text className="text-green-600 text-sm">
+                  Track your collection progress
                 </Text>
               </View>
-            )}
+            </View>
+          </View>
+
+          <View className="bg-white/90 backdrop-blur-sm rounded-2xl p-5 mb-4 shadow-lg">
+            <View className="flex-row items-start justify-between mb-4">
+              <Text className="text-xl font-bold text-gray-800 flex-1">
+                {selected.title}
+              </Text>
+              <View className="bg-green-100 p-2 rounded-full">
+                <Shield color="#16a34a" size={20} />
+              </View>
+            </View>
+            <View className="space-y-3">
+              <View className="flex-row items-center">
+                <View className="bg-blue-100 p-2 rounded-full mr-3">
+                  <MapPin size={16} color="#2563eb" />
+                </View>
+                <Text className="text-gray-700 font-medium">{selected.location?.label}</Text>
+              </View>
+              <View className="flex-row items-center">
+                <View className="bg-orange-100 p-2 rounded-full mr-3">
+                  <Calendar size={16} color="#ea580c" />
+                </View>
+                <Text className="text-gray-700 font-medium">
+                  {formatDate(tsToDate(selected.eventAt))} •{" "}
+                  {formatTime(tsToDate(selected.eventAt))}
+                </Text>
+              </View>
+              {!!selected.wasteTypes && (
+                <View className="flex-row items-center">
+                  <View className="bg-purple-100 p-2 rounded-full mr-3">
+                    <Recycle size={16} color="#7c3aed" />
+                  </View>
+                  <Text className="text-gray-700 font-medium">
+                    {selected.wasteTypes.join(", ")} •{" "}
+                    {selected.estimatedQuantity || "N/A"}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
 
           {/* Navigate to Location Button */}
-          <View className="bg-white rounded-xl p-4 mb-4">
-            <Text className="text-lg font-semibold mb-3">Navigation</Text>
+          <View className="bg-white/90 backdrop-blur-sm rounded-2xl p-5 mb-4 shadow-lg">
+            <View className="flex-row items-center mb-4">
+              <View className="bg-blue-100 p-2 rounded-full mr-3">
+                <Navigation color="#2563eb" size={20} />
+              </View>
+              <Text className="text-lg font-bold text-blue-800">Navigation</Text>
+            </View>
             <TouchableOpacity
               onPress={() => {
                 const destLabel = selected?.location?.label || "";
@@ -314,63 +439,98 @@ export default function WcHome({ userId }: { userId: string }) {
                   params,
                 });
               }}
-              className="bg-blue-600 px-4 py-3 rounded-lg"
+              className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 rounded-xl shadow-md"
             >
-              <Text className="text-white text-center font-medium">
-                Navigate to Location
-              </Text>
+              <View className="flex-row items-center justify-center">
+                <Navigation color="white" size={20} />
+                <Text className="text-white text-center font-bold ml-2">
+                  Navigate to Location
+                </Text>
+              </View>
             </TouchableOpacity>
           </View>
 
           {/* Steps */}
-          <View className="bg-white rounded-xl p-4 mb-6">
-            <Text className="text-lg font-semibold mb-3">Collection Progress</Text>
+          <View className="bg-white/90 backdrop-blur-sm rounded-2xl p-5 mb-6 shadow-lg">
+            <View className="flex-row items-center mb-6">
+              <View className="bg-green-100 p-2 rounded-full mr-3">
+                <Zap color="#16a34a" size={20} />
+              </View>
+              <Text className="text-lg font-bold text-green-800">Collection Progress</Text>
+            </View>
             {steps.map((step, index) => (
-              <View key={index} className="flex-row items-center mb-4">
-                <View
-                  className={`w-10 h-10 rounded-full items-center justify-center mr-4 ${
-                    index <= currentStep ? "bg-green-600" : "bg-gray-200"
-                  }`}
-                >
-                  <step.icon
-                    color={index <= currentStep ? "white" : "#4b5563"}
-                    size={20}
-                  />
-                </View>
-                <View className="flex-1">
-                  <Text
-                    className={`${
-                      index <= currentStep ? "text-green-600" : "text-gray-600"
-                    } font-medium`}
+              <View key={index} className="mb-6">
+                <View className="flex-row items-center">
+                  <View
+                    className={`w-12 h-12 rounded-full items-center justify-center mr-4 shadow-md ${
+                      index <= currentStep 
+                        ? "bg-gradient-to-br from-green-500 to-green-600" 
+                        : "bg-gray-200"
+                    }`}
                   >
-                    {step.title}
-                  </Text>
-                  <Text className="text-xs text-gray-400">
-                    {index < currentStep
-                      ? "COMPLETED"
-                      : index === currentStep
-                      ? "IN PROGRESS"
-                      : "PENDING"}
-                  </Text>
-                </View>
-                {index === currentStep && (
-                  <TouchableOpacity
-                    disabled={uploading}
-                    onPress={async () => {
-                      if (index === 0) setCurrentStep(1);
-                      else if (index === 1) await handleTakePhoto(selected);
-                      else if (index === 2) await handleComplete(selected);
-                    }}
-                    className="bg-green-600 px-4 py-2 rounded-lg"
-                  >
-                    <Text className="text-white">
-                      {index === 0
-                        ? "Mark Collected"
-                        : index === 1
-                        ? "Take Photo"
-                        : "Complete"}
+                    <step.icon
+                      color={index <= currentStep ? "white" : "#6b7280"}
+                      size={22}
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Text
+                      className={`text-lg font-bold ${
+                        index <= currentStep ? "text-green-700" : "text-gray-600"
+                      }`}
+                    >
+                      {step.title}
                     </Text>
-                  </TouchableOpacity>
+                    <View className="flex-row items-center mt-1">
+                      <View className={`px-2 py-1 rounded-full ${
+                        index < currentStep
+                          ? "bg-green-100"
+                          : index === currentStep
+                          ? "bg-blue-100"
+                          : "bg-gray-100"
+                      }`}>
+                        <Text className={`text-xs font-semibold ${
+                          index < currentStep
+                            ? "text-green-700"
+                            : index === currentStep
+                            ? "text-blue-700"
+                            : "text-gray-500"
+                        }`}>
+                          {index < currentStep
+                            ? "✓ COMPLETED"
+                            : index === currentStep
+                            ? "⚡ IN PROGRESS"
+                            : "⏳ PENDING"}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                  {index === currentStep && (
+                    <TouchableOpacity
+                      disabled={uploading}
+                      onPress={async () => {
+                        if (index === 0) setCurrentStep(1);
+                        else if (index === 1) await handleTakePhoto(selected);
+                        else if (index === 2) await handleComplete(selected);
+                      }}
+                      className="bg-gradient-to-r from-green-600 to-green-700 px-6 py-3 rounded-xl shadow-md"
+                    >
+                      <Text className="text-white font-bold">
+                        {index === 0
+                          ? "Mark Collected"
+                          : index === 1
+                          ? "Take Photo"
+                          : "Complete"}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {index < steps.length - 1 && (
+                  <View className="ml-6 mt-2 mb-2">
+                    <View className={`w-0.5 h-4 ${
+                      index < currentStep ? "bg-green-300" : "bg-gray-200"
+                    }`} />
+                  </View>
                 )}
               </View>
             ))}
@@ -378,11 +538,28 @@ export default function WcHome({ userId }: { userId: string }) {
 
           {/* Photos */}
           {photos.length > 0 && (
-            <View className="bg-white p-4 rounded-xl mb-6">
-              <Text className="text-lg font-semibold mb-3">Disposal Photos</Text>
-              {photos.map((p, i) => (
-                <Image key={i} source={{ uri: p }} className="w-full h-40 rounded-lg mb-2" />
-              ))}
+            <View className="bg-white/90 backdrop-blur-sm rounded-2xl p-5 mb-6 shadow-lg">
+              <View className="flex-row items-center mb-4">
+                <View className="bg-purple-100 p-2 rounded-full mr-3">
+                  <Camera color="#7c3aed" size={20} />
+                </View>
+                <Text className="text-lg font-bold text-purple-800">Disposal Photos</Text>
+              </View>
+              <View className="space-y-3">
+                {photos.map((p, i) => (
+                  <View key={i} className="relative">
+                    <Image 
+                      source={{ uri: p }} 
+                      className="w-full h-48 rounded-xl shadow-md" 
+                    />
+                    <View className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full">
+                      <Text className="text-xs font-semibold text-gray-700">
+                        Photo {i + 1}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
             </View>
           )}
         </ScrollView>
