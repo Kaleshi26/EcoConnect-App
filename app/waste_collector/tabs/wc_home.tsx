@@ -16,12 +16,14 @@ import {
     Calendar,
     Camera,
     CheckCircle,
+    CheckCircle2,
     ChevronLeft,
     Clock,
     MapPin,
     Navigation,
-    Recycle,
-    Shield,
+    Package,
+    PlayCircle,
+    Target,
     Trash2,
     Truck,
     Zap
@@ -71,18 +73,31 @@ function formatTime(d?: Date | null) {
   return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
-// ✅ We keep StatusBadge component in case you need it later, but not using it
+// Enhanced StatusBadge with better colors and icons
 function StatusBadge({ status }: { status: EventDoc["status"] }) {
   if (!status) return null;
-  let bgColor = "", textColor = "";
+  let bgColor = "", textColor = "", icon = null;
   switch (status) {
-    case "Pending": bgColor = "bg-yellow-100"; textColor = "text-yellow-800"; break;
-    case "In-progress": bgColor = "bg-blue-100"; textColor = "text-blue-800"; break;
-    case "Completed": bgColor = "bg-green-100"; textColor = "text-green-800"; break;
+    case "Pending": 
+      bgColor = "bg-amber-100"; 
+      textColor = "text-amber-800"; 
+      icon = <Clock size={12} color="#92400e" />;
+      break;
+    case "In-progress": 
+      bgColor = "bg-blue-100"; 
+      textColor = "text-blue-800"; 
+      icon = <PlayCircle size={12} color="#1e40af" />;
+      break;
+    case "Completed": 
+      bgColor = "bg-emerald-100"; 
+      textColor = "text-emerald-800"; 
+      icon = <CheckCircle2 size={12} color="#065f46" />;
+      break;
   }
   return (
-    <View className={`px-2 py-0.5 rounded-full ${bgColor}`}>
-      <Text className={`text-[10px] font-semibold ${textColor}`}>{status}</Text>
+    <View className={`px-3 py-1.5 rounded-full ${bgColor} flex-row items-center`}>
+      {icon}
+      <Text className={`text-xs font-semibold ${textColor} ml-1`}>{status}</Text>
     </View>
   );
 }
@@ -179,33 +194,55 @@ export default function WcHome({ userId }: { userId: string }) {
   }
 
   const steps = [
-    { title: "Collect Waste", icon: Truck },
-    { title: "Take Disposal Photos", icon: Camera },
-    { title: "Confirm Completion", icon: CheckCircle },
+    { title: "Collect Waste", icon: Truck, description: "Navigate to location and collect waste materials" },
+    { title: "Take Disposal Photos", icon: Camera, description: "Capture proof of proper disposal" },
+    { title: "Confirm Completion", icon: CheckCircle, description: "Mark assignment as completed" },
   ];
 
   return (
-    <View className="flex-1 bg-gradient-to-br from-green-50 to-emerald-100">
+    <View className="flex-1 bg-gradient-to-br from-slate-50 to-blue-50">
       {!selected ? (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 }}>
-          <View className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 mb-6 shadow-lg">
-            <View className="flex-row items-center justify-center mb-4">
-              <View className="bg-green-100 p-3 rounded-full mr-3">
-                <Truck color="#16a34a" size={24} />
+          <View className="bg-white rounded-2xl p-6 mb-6 shadow-lg shadow-blue-100">
+            <View className="flex-row items-center mb-4">
+              <View className="bg-blue-100 p-3 rounded-xl mr-4">
+                <Truck size={24} color="#2563eb" />
               </View>
-              <Text className="text-2xl font-bold text-green-800">
-                Waste Collection Hub
-              </Text>
+              <View className="flex-1">
+                <Text className="text-2xl font-bold text-gray-900">
+                  Waste Collection
+                </Text>
+                <Text className="text-gray-600 text-sm">
+                  Manage your assigned cleanups
+                </Text>
+              </View>
             </View>
-            <Text className="text-green-600 text-center text-sm">
-              Manage your assigned cleanups and upcoming destinations
-            </Text>
+            <View className="flex-row justify-between">
+              <View className="items-center">
+                <Text className="text-2xl font-bold text-blue-600">
+                  {assignedCleanups.length}
+                </Text>
+                <Text className="text-xs text-gray-500">Active Tasks</Text>
+              </View>
+              <View className="items-center">
+                <Text className="text-2xl font-bold text-emerald-600">
+                  {events.filter(e => e.status === "Completed").length}
+                </Text>
+                <Text className="text-xs text-gray-500">Completed</Text>
+              </View>
+              <View className="items-center">
+                <Text className="text-2xl font-bold text-amber-600">
+                  {upcomingDestinations.length}
+                </Text>
+                <Text className="text-xs text-gray-500">Upcoming</Text>
+              </View>
+            </View>
           </View>
           {loading ? (
             <View className="py-10 items-center">
-              <View className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg">
-                <ActivityIndicator color="#16a34a" size="large" />
-                <Text className="text-green-600 mt-4 font-medium">Loading your assignments...</Text>
+              <View className="bg-white p-6 rounded-2xl shadow-sm">
+                <ActivityIndicator size="large" color="#2563eb" />
+                <Text className="text-gray-600 mt-3 font-medium">Loading assignments...</Text>
               </View>
             </View>
           ) : (
@@ -214,21 +251,18 @@ export default function WcHome({ userId }: { userId: string }) {
               {assignedCleanups.length > 0 ? (
                 <View className="mb-8">
                   <View className="flex-row items-center mb-4">
-                    <View className="bg-orange-100 p-2 rounded-full mr-3">
-                      <Trash2 color="#ea580c" size={20} />
+                    <View className="bg-emerald-100 p-2 rounded-lg mr-3">
+                      <Trash2 size={20} color="#059669" />
                     </View>
-                    <Text className="text-xl font-bold text-orange-800">
-                      Active Assignments
-                    </Text>
+                    <Text className="text-xl font-bold text-gray-900">Active Assignments</Text>
                   </View>
                   {assignedCleanups.map((ev) => {
                     const d = tsToDate(ev.eventAt);
                     const dateStr = d ? `${formatDate(d)} • ${formatTime(d)}` : "No date";
-                    const isToday = d && new Date(d).toDateString() === new Date().toDateString();
                     return (
                       <TouchableOpacity
                         key={ev.id}
-                        className="mb-4 bg-white/90 backdrop-blur-sm border border-green-200 rounded-2xl p-5 shadow-md"
+                        className="mb-4 bg-white rounded-2xl p-5 shadow-sm border-l-4 border-blue-400"
                         onPress={() => {
                           setSelected(ev);
                           setCurrentStep(0);
@@ -243,11 +277,6 @@ export default function WcHome({ userId }: { userId: string }) {
                             <View className="flex-row items-center mb-2">
                               <Clock size={14} color="#6b7280" />
                               <Text className="text-gray-600 ml-2 text-sm">{dateStr}</Text>
-                              {isToday && (
-                                <View className="bg-green-100 px-2 py-1 rounded-full ml-2">
-                                  <Text className="text-green-700 text-xs font-semibold">TODAY</Text>
-                                </View>
-                              )}
                             </View>
                             {!!ev.location?.label && (
                               <View className="flex-row items-center">
@@ -256,16 +285,22 @@ export default function WcHome({ userId }: { userId: string }) {
                               </View>
                             )}
                           </View>
-                          <View className="bg-green-100 p-2 rounded-full">
-                            <Truck color="#16a34a" size={20} />
+                          <View className="bg-blue-50 p-2 rounded-lg">
+                            <Truck size={20} color="#2563eb" />
                           </View>
                         </View>
-                        {ev.wasteTypes && (
-                          <View className="flex-row items-center">
-                            <Recycle size={14} color="#6b7280" />
-                            <Text className="text-gray-600 ml-2 text-sm">
-                              {ev.wasteTypes.join(", ")}
-                            </Text>
+                        {ev.wasteTypes && ev.wasteTypes.length > 0 && (
+                          <View className="flex-row flex-wrap">
+                            {ev.wasteTypes.slice(0, 3).map((type, idx) => (
+                              <View key={idx} className="bg-gray-100 px-3 py-1 rounded-full mr-2 mb-1">
+                                <Text className="text-gray-700 text-xs">{type}</Text>
+                              </View>
+                            ))}
+                            {ev.wasteTypes.length > 3 && (
+                              <View className="bg-gray-100 px-3 py-1 rounded-full">
+                                <Text className="text-gray-700 text-xs">+{ev.wasteTypes.length - 3} more</Text>
+                              </View>
+                            )}
                           </View>
                         )}
                       </TouchableOpacity>
@@ -273,29 +308,25 @@ export default function WcHome({ userId }: { userId: string }) {
                   })}
                 </View>
               ) : (
-                <View className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg mb-6">
-                  <View className="items-center">
-                    <View className="bg-gray-100 p-4 rounded-full mb-4">
-                      <CheckCircle color="#6b7280" size={32} />
-                    </View>
-                    <Text className="text-gray-600 text-center font-medium">
-                      No active assignments
-                    </Text>
-                    <Text className="text-gray-500 text-center text-sm mt-1">
-                      All caught up! Check back later for new tasks.
-                    </Text>
+                <View className="bg-white rounded-2xl p-8 items-center mb-6">
+                  <View className="bg-gray-100 p-4 rounded-full mb-4">
+                    <CheckCircle size={32} color="#6b7280" />
                   </View>
+                  <Text className="text-gray-600 text-center font-medium mb-2">
+                    No active assignments
+                  </Text>
+                  <Text className="text-gray-500 text-center text-sm">
+                    All caught up! Check back for new assignments.
+                  </Text>
                 </View>
               )}
 
               {/* 🗓 Upcoming Destinations */}
               <View className="flex-row items-center mb-4">
-                <View className="bg-blue-100 p-2 rounded-full mr-3">
-                  <Calendar color="#2563eb" size={20} />
+                <View className="bg-amber-100 p-2 rounded-lg mr-3">
+                  <Calendar size={20} color="#d97706" />
                 </View>
-                <Text className="text-xl font-bold text-blue-800">
-                  Upcoming Destinations
-                </Text>
+                <Text className="text-xl font-bold text-gray-900">Upcoming Assignments</Text>
               </View>
               {upcomingDestinations.length > 0 ? (
                 upcomingDestinations.map((ev) => {
@@ -304,11 +335,11 @@ export default function WcHome({ userId }: { userId: string }) {
                   return (
                     <View
                       key={ev.id}
-                      className="mb-4 bg-white/90 backdrop-blur-sm border border-blue-200 rounded-2xl p-5 shadow-md"
+                      className="mb-4 bg-white rounded-2xl p-5 shadow-sm border-l-4 border-amber-400"
                     >
-                      <View className="flex-row items-start justify-between mb-3">
+                      <View className="flex-row items-start justify-between">
                         <View className="flex-1">
-                          <Text className="text-lg font-bold text-gray-900 mb-1">
+                          <Text className="text-lg font-bold text-gray-900 mb-2">
                             {ev.title}
                           </Text>
                           <View className="flex-row items-center mb-2">
@@ -322,34 +353,24 @@ export default function WcHome({ userId }: { userId: string }) {
                             </View>
                           )}
                         </View>
-                        <View className="bg-blue-100 p-2 rounded-full">
-                          <Calendar color="#2563eb" size={20} />
+                        <View className="bg-amber-50 p-2 rounded-lg">
+                          <Target size={20} color="#d97706" />
                         </View>
                       </View>
-                      {ev.wasteTypes && (
-                        <View className="flex-row items-center">
-                          <Recycle size={14} color="#6b7280" />
-                          <Text className="text-gray-600 ml-2 text-sm">
-                            {ev.wasteTypes.join(", ")}
-                          </Text>
-                        </View>
-                      )}
                     </View>
                   );
                 })
               ) : (
-                <View className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg">
-                  <View className="items-center">
-                    <View className="bg-blue-100 p-4 rounded-full mb-4">
-                      <Calendar color="#6b7280" size={32} />
-                    </View>
-                    <Text className="text-gray-600 text-center font-medium">
-                      No upcoming destinations
-                    </Text>
-                    <Text className="text-gray-500 text-center text-sm mt-1">
-                      New assignments will appear here when available.
-                    </Text>
+                <View className="bg-white rounded-2xl p-8 items-center">
+                  <View className="bg-gray-100 p-4 rounded-full mb-4">
+                    <Calendar size={32} color="#6b7280" />
                   </View>
+                  <Text className="text-gray-600 text-center font-medium mb-2">
+                    No upcoming assignments
+                  </Text>
+                  <Text className="text-gray-500 text-center text-sm">
+                    New assignments will appear here when available.
+                  </Text>
                 </View>
               )}
             </>
@@ -358,71 +379,69 @@ export default function WcHome({ userId }: { userId: string }) {
       ) : (
         // 🔹 Assignment Detail View (Steps)
         <ScrollView contentContainerStyle={{ padding: 16 }}>
-          <View className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 mb-6 shadow-lg">
-            <View className="flex-row items-center mb-4">
-              <TouchableOpacity 
-                onPress={() => setSelected(null)} 
-                className="bg-green-100 p-2 rounded-full mr-3"
-              >
-                <ChevronLeft color="#16a34a" size={20} />
-              </TouchableOpacity>
-              <View className="flex-1">
-                <Text className="text-2xl font-bold text-green-800">
-                  Assignment Details
-                </Text>
-                <Text className="text-green-600 text-sm">
-                  Track your collection progress
-                </Text>
-              </View>
+          <View className="flex-row items-center mb-6">
+            <TouchableOpacity 
+              onPress={() => setSelected(null)} 
+              className="bg-white p-2 rounded-xl shadow-sm mr-4"
+            >
+              <ChevronLeft color="#2563eb" size={24} />
+            </TouchableOpacity>
+            <View className="flex-1">
+              <Text className="text-2xl font-bold text-gray-900">
+                Assignment Details
+              </Text>
+              <Text className="text-gray-600 text-sm">
+                Follow the steps to complete your task
+              </Text>
             </View>
           </View>
 
-          <View className="bg-white/90 backdrop-blur-sm rounded-2xl p-5 mb-4 shadow-lg">
+          <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm border-l-4 border-blue-400">
             <View className="flex-row items-start justify-between mb-4">
-              <Text className="text-xl font-bold text-gray-800 flex-1">
-                {selected.title}
-              </Text>
-              <View className="bg-green-100 p-2 rounded-full">
-                <Shield color="#16a34a" size={20} />
-              </View>
-            </View>
-            <View className="space-y-3">
-              <View className="flex-row items-center">
-                <View className="bg-blue-100 p-2 rounded-full mr-3">
-                  <MapPin size={16} color="#2563eb" />
-                </View>
-                <Text className="text-gray-700 font-medium">{selected.location?.label}</Text>
-              </View>
-              <View className="flex-row items-center">
-                <View className="bg-orange-100 p-2 rounded-full mr-3">
-                  <Calendar size={16} color="#ea580c" />
-                </View>
-                <Text className="text-gray-700 font-medium">
-                  {formatDate(tsToDate(selected.eventAt))} •{" "}
-                  {formatTime(tsToDate(selected.eventAt))}
+              <View className="flex-1">
+                <Text className="text-xl font-bold text-gray-900 mb-2">
+                  {selected.title}
                 </Text>
-              </View>
-              {!!selected.wasteTypes && (
-                <View className="flex-row items-center">
-                  <View className="bg-purple-100 p-2 rounded-full mr-3">
-                    <Recycle size={16} color="#7c3aed" />
+                <View className="flex-row items-center mb-2">
+                  <View className="bg-blue-100 p-1.5 rounded-lg mr-3">
+                    <MapPin size={16} color="#2563eb" />
                   </View>
-                  <Text className="text-gray-700 font-medium">
-                    {selected.wasteTypes.join(", ")} •{" "}
-                    {selected.estimatedQuantity || "N/A"}
+                  <Text className="text-gray-700 font-medium">{selected.location?.label}</Text>
+                </View>
+                <View className="flex-row items-center mb-2">
+                  <View className="bg-amber-100 p-1.5 rounded-lg mr-3">
+                    <Calendar size={16} color="#d97706" />
+                  </View>
+                  <Text className="text-gray-700">
+                    {formatDate(tsToDate(selected.eventAt))} •{" "}
+                    {formatTime(tsToDate(selected.eventAt))}
                   </Text>
                 </View>
-              )}
+                {!!selected.wasteTypes && (
+                  <View className="flex-row items-center">
+                    <View className="bg-emerald-100 p-1.5 rounded-lg mr-3">
+                      <Package size={16} color="#059669" />
+                    </View>
+                    <Text className="text-gray-700">
+                      {selected.wasteTypes.join(", ")} •{" "}
+                      {selected.estimatedQuantity || "N/A"}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <View className="bg-blue-50 p-3 rounded-xl">
+                <Truck size={24} color="#2563eb" />
+              </View>
             </View>
           </View>
 
           {/* Navigate to Location Button */}
-          <View className="bg-white/90 backdrop-blur-sm rounded-2xl p-5 mb-4 shadow-lg">
+          <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm">
             <View className="flex-row items-center mb-4">
-              <View className="bg-blue-100 p-2 rounded-full mr-3">
-                <Navigation color="#2563eb" size={20} />
+              <View className="bg-green-100 p-2 rounded-lg mr-3">
+                <Navigation size={20} color="#059669" />
               </View>
-              <Text className="text-lg font-bold text-blue-800">Navigation</Text>
+              <Text className="text-lg font-bold text-gray-900">Navigation</Text>
             </View>
             <TouchableOpacity
               onPress={() => {
@@ -439,32 +458,32 @@ export default function WcHome({ userId }: { userId: string }) {
                   params,
                 });
               }}
-              className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 rounded-xl shadow-md"
+              className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 rounded-xl flex-row items-center justify-center shadow-lg"
             >
-              <View className="flex-row items-center justify-center">
-                <Navigation color="white" size={20} />
-                <Text className="text-white text-center font-bold ml-2">
-                  Navigate to Location
-                </Text>
-              </View>
+              <Navigation size={20} color="white" />
+              <Text className="text-white text-center font-semibold ml-2">
+                Navigate to Location
+              </Text>
             </TouchableOpacity>
           </View>
 
           {/* Steps */}
-          <View className="bg-white/90 backdrop-blur-sm rounded-2xl p-5 mb-6 shadow-lg">
+          <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm">
             <View className="flex-row items-center mb-6">
-              <View className="bg-green-100 p-2 rounded-full mr-3">
-                <Zap color="#16a34a" size={20} />
+              <View className="bg-purple-100 p-2 rounded-lg mr-3">
+                <Zap size={20} color="#7c3aed" />
               </View>
-              <Text className="text-lg font-bold text-green-800">Collection Progress</Text>
+              <Text className="text-lg font-bold text-gray-900">Collection Progress</Text>
             </View>
             {steps.map((step, index) => (
               <View key={index} className="mb-6">
-                <View className="flex-row items-center">
+                <View className="flex-row items-start">
                   <View
-                    className={`w-12 h-12 rounded-full items-center justify-center mr-4 shadow-md ${
-                      index <= currentStep 
-                        ? "bg-gradient-to-br from-green-500 to-green-600" 
+                    className={`w-12 h-12 rounded-full items-center justify-center mr-4 shadow-sm ${
+                      index < currentStep 
+                        ? "bg-emerald-500" 
+                        : index === currentStep 
+                        ? "bg-blue-500" 
                         : "bg-gray-200"
                     }`}
                   >
@@ -475,37 +494,44 @@ export default function WcHome({ userId }: { userId: string }) {
                   </View>
                   <View className="flex-1">
                     <Text
-                      className={`text-lg font-bold ${
-                        index <= currentStep ? "text-green-700" : "text-gray-600"
+                      className={`text-lg font-bold mb-1 ${
+                        index < currentStep 
+                          ? "text-emerald-600" 
+                          : index === currentStep 
+                          ? "text-blue-600" 
+                          : "text-gray-600"
                       }`}
                     >
                       {step.title}
                     </Text>
-                    <View className="flex-row items-center mt-1">
-                      <View className={`px-2 py-1 rounded-full ${
-                        index < currentStep
-                          ? "bg-green-100"
-                          : index === currentStep
-                          ? "bg-blue-100"
-                          : "bg-gray-100"
+                    <Text className="text-gray-600 text-sm mb-2">
+                      {step.description}
+                    </Text>
+                    <View className={`px-3 py-1 rounded-full self-start ${
+                      index < currentStep 
+                        ? "bg-emerald-100" 
+                        : index === currentStep 
+                        ? "bg-blue-100" 
+                        : "bg-gray-100"
+                    }`}>
+                      <Text className={`text-xs font-semibold ${
+                        index < currentStep 
+                          ? "text-emerald-700" 
+                          : index === currentStep 
+                          ? "text-blue-700" 
+                          : "text-gray-500"
                       }`}>
-                        <Text className={`text-xs font-semibold ${
-                          index < currentStep
-                            ? "text-green-700"
-                            : index === currentStep
-                            ? "text-blue-700"
-                            : "text-gray-500"
-                        }`}>
-                          {index < currentStep
-                            ? "✓ COMPLETED"
-                            : index === currentStep
-                            ? "⚡ IN PROGRESS"
-                            : "⏳ PENDING"}
-                        </Text>
-                      </View>
+                        {index < currentStep
+                          ? "✓ COMPLETED"
+                          : index === currentStep
+                          ? "● IN PROGRESS"
+                          : "○ PENDING"}
+                      </Text>
                     </View>
                   </View>
-                  {index === currentStep && (
+                </View>
+                {index === currentStep && (
+                  <View className="mt-4 ml-16">
                     <TouchableOpacity
                       disabled={uploading}
                       onPress={async () => {
@@ -513,23 +539,36 @@ export default function WcHome({ userId }: { userId: string }) {
                         else if (index === 1) await handleTakePhoto(selected);
                         else if (index === 2) await handleComplete(selected);
                       }}
-                      className="bg-gradient-to-r from-green-600 to-green-700 px-6 py-3 rounded-xl shadow-md"
+                      className={`px-6 py-3 rounded-xl flex-row items-center justify-center shadow-lg ${
+                        index === 0 
+                          ? "bg-emerald-600" 
+                          : index === 1 
+                          ? "bg-blue-600" 
+                          : "bg-green-600"
+                      }`}
                     >
-                      <Text className="text-white font-bold">
-                        {index === 0
-                          ? "Mark Collected"
-                          : index === 1
-                          ? "Take Photo"
-                          : "Complete"}
-                      </Text>
+                      {uploading ? (
+                        <ActivityIndicator color="white" size="small" />
+                      ) : (
+                        <>
+                          {index === 0 && <Truck size={18} color="white" />}
+                          {index === 1 && <Camera size={18} color="white" />}
+                          {index === 2 && <CheckCircle size={18} color="white" />}
+                          <Text className="text-white font-semibold ml-2">
+                            {index === 0
+                              ? "Mark Collected"
+                              : index === 1
+                              ? "Take Photo"
+                              : "Complete"}
+                          </Text>
+                        </>
+                      )}
                     </TouchableOpacity>
-                  )}
-                </View>
+                  </View>
+                )}
                 {index < steps.length - 1 && (
                   <View className="ml-6 mt-2 mb-2">
-                    <View className={`w-0.5 h-4 ${
-                      index < currentStep ? "bg-green-300" : "bg-gray-200"
-                    }`} />
+                    <View className="w-0.5 h-6 bg-gray-200"></View>
                   </View>
                 )}
               </View>
@@ -538,22 +577,23 @@ export default function WcHome({ userId }: { userId: string }) {
 
           {/* Photos */}
           {photos.length > 0 && (
-            <View className="bg-white/90 backdrop-blur-sm rounded-2xl p-5 mb-6 shadow-lg">
+            <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm">
               <View className="flex-row items-center mb-4">
-                <View className="bg-purple-100 p-2 rounded-full mr-3">
-                  <Camera color="#7c3aed" size={20} />
+                <View className="bg-green-100 p-2 rounded-lg mr-3">
+                  <Camera size={20} color="#059669" />
                 </View>
-                <Text className="text-lg font-bold text-purple-800">Disposal Photos</Text>
+                <Text className="text-lg font-bold text-gray-900">Disposal Photos</Text>
               </View>
               <View className="space-y-3">
                 {photos.map((p, i) => (
                   <View key={i} className="relative">
                     <Image 
                       source={{ uri: p }} 
-                      className="w-full h-48 rounded-xl shadow-md" 
+                      className="w-full h-48 rounded-xl shadow-sm" 
+                      resizeMode="cover"
                     />
-                    <View className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full">
-                      <Text className="text-xs font-semibold text-gray-700">
+                    <View className="absolute top-2 right-2 bg-black bg-opacity-50 px-2 py-1 rounded">
+                      <Text className="text-white text-xs font-semibold">
                         Photo {i + 1}
                       </Text>
                     </View>

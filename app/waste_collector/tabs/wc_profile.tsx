@@ -7,7 +7,7 @@ import { useAuth } from "../../../contexts/AuthContext";
 import { auth } from "../../../services/firebaseConfig";
 
 export default function WcProfile() {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
 
   async function handleLogout() {
@@ -20,11 +20,11 @@ export default function WcProfile() {
   }
 
   function handleAssignmentHistory() {
-    router.push("/assignment-history");
+    Alert.alert("Coming Soon", "Assignment history feature will be available soon!");
   }
 
   function handleTerms() {
-    router.push("/(public)/terms");
+    Alert.alert("Coming Soon", "Terms & Conditions will be available soon!");
   }
 
   return (
