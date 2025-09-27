@@ -1,42 +1,42 @@
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import {
-  collection,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  Timestamp,
-  updateDoc
+    collection,
+    doc,
+    onSnapshot,
+    orderBy,
+    query,
+    serverTimestamp,
+    Timestamp,
+    updateDoc
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import {
-  Calendar,
-  Camera,
-  CheckCircle,
-  CheckCircle2,
-  ChevronLeft,
-  Clock,
-  MapPin,
-  Navigation,
-  Package,
-  PlayCircle,
-  Target,
-  Trash2,
-  Truck,
-  Zap
+    Calendar,
+    Camera,
+    CheckCircle,
+    CheckCircle2,
+    ChevronLeft,
+    Clock,
+    MapPin,
+    Navigation,
+    Package,
+    PlayCircle,
+    Target,
+    Trash2,
+    Truck,
+    Zap
 } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Image,
+    ScrollView,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { db, storage } from "../../../services/firebaseConfig";
 
@@ -103,13 +103,25 @@ function StatusBadge({ status }: { status: EventDoc["status"] }) {
 }
 
 export default function WcHome({ userId }: { userId: string }) {
+  const params = useLocalSearchParams();
   const [events, setEvents] = useState<EventDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<EventDoc | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'available' | 'upcoming'>('available');
+  const [activeTab, setActiveTab] = useState<'available' | 'upcoming'>(
+    (params.tab as string) === 'upcoming' ? 'upcoming' : 'available'
+  );
+
+  // 🔹 Handle tab parameter changes
+  useEffect(() => {
+    if (params.tab === 'upcoming') {
+      setActiveTab('upcoming');
+    } else if (params.tab === 'available') {
+      setActiveTab('available');
+    }
+  }, [params.tab]);
 
   // 🔹 Fetch assigned events
   useEffect(() => {
