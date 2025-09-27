@@ -1,6 +1,6 @@
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import {
     collection,
     doc,
@@ -13,19 +13,18 @@ import {
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import {
-    BarChart3,
     Calendar,
     Camera,
     CheckCircle,
     CheckCircle2,
     ChevronLeft,
-    ChevronRight,
-    ClipboardList,
     Clock,
     MapPin,
     Navigation,
     Package,
     PlayCircle,
+    Target,
+    Trash2,
     Truck,
     Zap
 } from "lucide-react-native";
@@ -74,43 +73,6 @@ function formatTime(d?: Date | null) {
   return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
-// Calendar helper functions
-function getDaysInMonth(date: Date) {
-  const year = date.getFullYear();
-  const month = date.getMonth();
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const daysInMonth = lastDay.getDate();
-  const startingDayOfWeek = firstDay.getDay();
-  
-  const days = [];
-  
-  // Add empty cells for days before the first day of the month
-  for (let i = 0; i < startingDayOfWeek; i++) {
-    days.push(null);
-  }
-  
-  // Add days of the month
-  for (let day = 1; day <= daysInMonth; day++) {
-    days.push(new Date(year, month, day));
-  }
-  
-  return days;
-}
-
-function isSameDay(date1: Date, date2: Date) {
-  return date1.getDate() === date2.getDate() &&
-         date1.getMonth() === date2.getMonth() &&
-         date1.getFullYear() === date2.getFullYear();
-}
-
-function getEventsForDate(date: Date, events: EventDoc[]) {
-  return events.filter(event => {
-    const eventDate = tsToDate(event.eventAt);
-    return eventDate && isSameDay(eventDate, date);
-  });
-}
-
 // Enhanced StatusBadge with better colors and icons
 function StatusBadge({ status }: { status: EventDoc["status"] }) {
   if (!status) return null;
@@ -141,13 +103,25 @@ function StatusBadge({ status }: { status: EventDoc["status"] }) {
 }
 
 export default function WcHome({ userId }: { userId: string }) {
+  const params = useLocalSearchParams();
   const [events, setEvents] = useState<EventDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<EventDoc | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [activeTab, setActiveTab] = useState<'available' | 'upcoming'>(
+    (params.tab as string) === 'upcoming' ? 'upcoming' : 'available'
+  );
+
+  // 🔹 Handle tab parameter changes
+  useEffect(() => {
+    if (params.tab === 'upcoming') {
+      setActiveTab('upcoming');
+    } else if (params.tab === 'available') {
+      setActiveTab('available');
+    }
+  }, [params.tab]);
 
   // 🔹 Fetch assigned events
   useEffect(() => {
@@ -166,6 +140,26 @@ export default function WcHome({ userId }: { userId: string }) {
     );
     return () => unsub();
   }, [userId]);
+
+  // 🔹 Group by date
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const availableCleanups = events.filter((ev) => {
+    const date = tsToDate(ev.eventAt);
+    if (!date) return false;
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    return d <= today; // past or today
+  });
+
+  const upcomingCleanups = events.filter((ev) => {
+    const date = tsToDate(ev.eventAt);
+    if (!date) return false;
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    return d > today; // future
+  });
 
   // 🔹 Handle photo upload + location
   async function handleTakePhoto(ev: EventDoc) {
@@ -222,227 +216,42 @@ export default function WcHome({ userId }: { userId: string }) {
     <View className="flex-1 bg-gradient-to-br from-slate-50 to-blue-50">
       {!selected ? (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 }}>
-          <View className="bg-white rounded-2xl p-6 mb-6 shadow-lg shadow-blue-100">
-            <View className="flex-row items-center mb-4">
-              <View className="bg-blue-100 p-3 rounded-xl mr-4">
-                <Truck size={24} color="#2563eb" />
-              </View>
-              <View className="flex-1">
-                <Text className="text-2xl font-bold text-gray-900">
-                  Waste Collection
-                </Text>
-                <Text className="text-gray-600 text-sm">
-                  Manage your assigned cleanups
-                </Text>
-              </View>
-            </View>
-            <View className="flex-row justify-between">
-              <View className="items-center">
-                <Text className="text-2xl font-bold text-blue-600">
-                  {events.filter(e => e.status !== "Completed").length}
-                </Text>
-                <Text className="text-xs text-gray-500">Active Tasks</Text>
-              </View>
-              <View className="items-center">
-                <Text className="text-2xl font-bold text-emerald-600">
-                  {events.filter(e => e.status === "Completed").length}
-                </Text>
-                <Text className="text-xs text-gray-500">Completed</Text>
-              </View>
-              <View className="items-center">
-                <Text className="text-2xl font-bold text-gray-600">
-                  {events.length}
-                </Text>
-                <Text className="text-xs text-gray-500">Total</Text>
-              </View>
-            </View>
+          {/* Tabs */}
+          <View className="bg-white rounded-2xl p-2 mb-6 shadow-sm flex-row">
+            <TouchableOpacity
+              onPress={() => setActiveTab('available')}
+              className={`flex-1 py-3 px-4 rounded-xl items-center ${
+                activeTab === 'available' 
+                  ? 'bg-blue-500 shadow-sm' 
+                  : 'bg-transparent'
+              }`}
+            >
+              <Text className={`font-semibold ${
+                activeTab === 'available' 
+                  ? 'text-white' 
+                  : 'text-gray-600'
+              }`}>
+                Available
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setActiveTab('upcoming')}
+              className={`flex-1 py-3 px-4 rounded-xl items-center ${
+                activeTab === 'upcoming' 
+                  ? 'bg-blue-500 shadow-sm' 
+                  : 'bg-transparent'
+              }`}
+            >
+              <Text className={`font-semibold ${
+                activeTab === 'upcoming' 
+                  ? 'text-white' 
+                  : 'text-gray-600'
+              }`}>
+                Upcoming
+              </Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Quick Actions Section - Grid Layout */}
-          <View className="mb-6">
-            <View className="flex-row items-center mb-4">
-              <View className="bg-gradient-to-r from-indigo-500 to-purple-600 p-3 rounded-xl mr-4">
-                <Zap size={24} color="white" />
-              </View>
-              <View className="flex-1">
-                <Text className="text-2xl font-bold text-gray-900">
-                  Quick Actions
-                </Text>
-                <Text className="text-gray-600 text-sm">
-                  Access your assignments and analytics
-                </Text>
-              </View>
-            </View>
-            
-            {/* Grid Layout for Quick Actions */}
-            <View className="flex-row flex-wrap justify-between">
-              {/* View Available Assignments */}
-              <TouchableOpacity
-                onPress={() => router.push({
-                  pathname: "/waste_collector/tabs/wc_assignment",
-                  params: { tab: "available" }
-                })}
-                className="w-[48%] bg-white rounded-2xl p-4 mb-3 shadow-lg border border-blue-100"
-              >
-                <View className="items-center">
-                  <View className="bg-blue-100 p-4 rounded-2xl mb-3">
-                    <ClipboardList size={28} color="#2563eb" />
-                  </View>
-                  <Text className="text-gray-900 font-bold text-center mb-1">Available</Text>
-                  <Text className="text-gray-600 text-xs text-center">Current Tasks</Text>
-                </View>
-              </TouchableOpacity>
-
-              {/* View Upcoming Assignments */}
-              <TouchableOpacity
-                onPress={() => router.push({
-                  pathname: "/waste_collector/tabs/wc_assignment",
-                  params: { tab: "upcoming" }
-                })}
-                className="w-[48%] bg-white rounded-2xl p-4 mb-3 shadow-lg border border-amber-100"
-              >
-                <View className="items-center">
-                  <View className="bg-amber-100 p-4 rounded-2xl mb-3">
-                    <Calendar size={28} color="#d97706" />
-                  </View>
-                  <Text className="text-gray-900 font-bold text-center mb-1">Upcoming</Text>
-                  <Text className="text-gray-600 text-xs text-center">Scheduled Tasks</Text>
-                </View>
-              </TouchableOpacity>
-
-              {/* View Analytics - Full Width */}
-              <TouchableOpacity
-                onPress={() => router.navigate("/waste_collector/tabs/wc_analytics")}
-                className="w-full bg-white rounded-2xl p-4 shadow-lg border border-emerald-100"
-              >
-                <View className="flex-row items-center">
-                  <View className="bg-emerald-100 p-4 rounded-2xl mr-4">
-                    <BarChart3 size={28} color="#059669" />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-gray-900 font-bold text-lg">Analytics Dashboard</Text>
-                    <Text className="text-gray-600 text-sm">Track your performance metrics</Text>
-                  </View>
-                  <View className="bg-emerald-50 p-2 rounded-lg">
-                    <Navigation size={16} color="#059669" />
-                  </View>
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Assignment Calendar View */}
-          <View className="mb-6">
-            <View className="flex-row items-center mb-4">
-              <View className="bg-gradient-to-r from-purple-500 to-pink-600 p-3 rounded-xl mr-4">
-                <Calendar size={24} color="white" />
-              </View>
-              <View className="flex-1">
-                <Text className="text-2xl font-bold text-gray-900">
-                  Assignment Calendar
-                </Text>
-                <Text className="text-gray-600 text-sm">
-                  View your assignments by date
-                </Text>
-              </View>
-            </View>
-
-            <View className="bg-white rounded-2xl p-6 shadow-lg border border-purple-100">
-              {/* Calendar Header */}
-              <View className="flex-row items-center justify-between mb-6">
-                <TouchableOpacity
-                  onPress={() => {
-                    const newDate = new Date(currentDate);
-                    newDate.setMonth(newDate.getMonth() - 1);
-                    setCurrentDate(newDate);
-                  }}
-                  className="bg-gray-100 p-2 rounded-lg"
-                >
-                  <ChevronLeft size={20} color="#6b7280" />
-                </TouchableOpacity>
-                
-                <Text className="text-xl font-bold text-gray-900">
-                  {currentDate.toLocaleDateString(undefined, { 
-                    month: 'long', 
-                    year: 'numeric' 
-                  })}
-                </Text>
-                
-                <TouchableOpacity
-                  onPress={() => {
-                    const newDate = new Date(currentDate);
-                    newDate.setMonth(newDate.getMonth() + 1);
-                    setCurrentDate(newDate);
-                  }}
-                  className="bg-gray-100 p-2 rounded-lg"
-                >
-                  <ChevronRight size={20} color="#6b7280" />
-                </TouchableOpacity>
-              </View>
-
-              {/* Calendar Grid */}
-              <View className="mb-4">
-                {/* Day headers */}
-                <View className="flex-row mb-2">
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                    <View key={day} className="flex-1 items-center py-2">
-                      <Text className="text-xs font-semibold text-gray-500">{day}</Text>
-                    </View>
-                  ))}
-                </View>
-
-                {/* Calendar days */}
-                <View className="flex-row flex-wrap">
-                  {getDaysInMonth(currentDate).map((day, index) => {
-                    if (!day) {
-                      return <View key={index} className="w-[14.28%] h-12" />;
-                    }
-
-                    const dayEvents = getEventsForDate(day, events);
-                    const isToday = isSameDay(day, new Date());
-                    const hasEvents = dayEvents.length > 0;
-
-                    return (
-                      <TouchableOpacity
-                        key={day.getTime()}
-                        onPress={() => {
-                          console.log('Date clicked:', day);
-                        }}
-                        className={`w-[14.28%] h-12 items-center justify-center border-b border-r border-gray-100 ${
-                          isToday ? 'bg-blue-50' : ''
-                        }`}
-                      >
-                        <Text className={`text-sm font-medium ${
-                          isToday ? 'text-blue-600' : 'text-gray-700'
-                        }`}>
-                          {day.getDate()}
-                        </Text>
-                        {hasEvents && (
-                          <View className="flex-row mt-1">
-                            {dayEvents.slice(0, 3).map((_, eventIndex) => (
-                              <View
-                                key={eventIndex}
-                                className={`w-1.5 h-1.5 rounded-full mx-0.5 ${
-                                  dayEvents[eventIndex]?.status === 'Completed' ? 'bg-emerald-500' :
-                                  dayEvents[eventIndex]?.status === 'In-progress' ? 'bg-blue-500' :
-                                  'bg-amber-500'
-                                }`}
-                              />
-                            ))}
-                            {dayEvents.length > 3 && (
-                              <Text className="text-xs text-gray-500 ml-1">+</Text>
-                            )}
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-            </View>
-          </View>
-          
           {loading ? (
             <View className="py-10 items-center">
               <View className="bg-white p-6 rounded-2xl shadow-sm">
@@ -450,7 +259,160 @@ export default function WcHome({ userId }: { userId: string }) {
                 <Text className="text-gray-600 mt-3 font-medium">Loading assignments...</Text>
               </View>
             </View>
-          ) : null}
+          ) : (
+            <>
+              {/* Available Assignments Tab */}
+              {activeTab === 'available' && (
+                <>
+                  {availableCleanups.length > 0 ? (
+                    <View className="mb-8">
+                      <View className="flex-row items-center mb-4">
+                        <View className="bg-emerald-100 p-2 rounded-lg mr-3">
+                          <Trash2 size={20} color="#059669" />
+                        </View>
+                        <Text className="text-xl font-bold text-gray-900">Available Assignments</Text>
+                      </View>
+                      {availableCleanups.map((ev) => {
+                        const d = tsToDate(ev.eventAt);
+                        const dateStr = d ? `${formatDate(d)} • ${formatTime(d)}` : "No date";
+                        return (
+                          <TouchableOpacity
+                            key={ev.id}
+                            className="mb-4 bg-white rounded-2xl p-5 shadow-sm border-l-4 border-blue-400"
+                            onPress={() => {
+                              setSelected(ev);
+                              setCurrentStep(0);
+                              setPhotos([]);
+                            }}
+                          >
+                            <View className="flex-row items-start justify-between mb-3">
+                              <View className="flex-1">
+                                <Text className="text-lg font-bold text-gray-900 mb-1">
+                                  {ev.title}
+                                </Text>
+                                <View className="flex-row items-center mb-2">
+                                  <Clock size={14} color="#6b7280" />
+                                  <Text className="text-gray-600 ml-2 text-sm">{dateStr}</Text>
+                                </View>
+                                {!!ev.location?.label && (
+                                  <View className="flex-row items-center">
+                                    <MapPin size={14} color="#6b7280" />
+                                    <Text className="text-gray-700 ml-2 text-sm">{ev.location.label}</Text>
+                                  </View>
+                                )}
+                              </View>
+                              <View className="bg-blue-50 p-2 rounded-lg">
+                                <Truck size={20} color="#2563eb" />
+                              </View>
+                            </View>
+                            {ev.wasteTypes && ev.wasteTypes.length > 0 && (
+                              <View className="flex-row flex-wrap">
+                                {ev.wasteTypes.slice(0, 3).map((type, idx) => (
+                                  <View key={idx} className="bg-gray-100 px-3 py-1 rounded-full mr-2 mb-1">
+                                    <Text className="text-gray-700 text-xs">{type}</Text>
+                                  </View>
+                                ))}
+                                {ev.wasteTypes.length > 3 && (
+                                  <View className="bg-gray-100 px-3 py-1 rounded-full">
+                                    <Text className="text-gray-700 text-xs">+{ev.wasteTypes.length - 3} more</Text>
+                                  </View>
+                                )}
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <View className="bg-white rounded-2xl p-8 items-center mb-6">
+                      <View className="bg-gray-100 p-4 rounded-full mb-4">
+                        <CheckCircle size={32} color="#6b7280" />
+                      </View>
+                      <Text className="text-gray-600 text-center font-medium mb-2">
+                        No available assignments
+                      </Text>
+                      <Text className="text-gray-500 text-center text-sm">
+                        All caught up! Check back for new assignments.
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
+
+              {/* Upcoming Assignments Tab */}
+              {activeTab === 'upcoming' && (
+                <>
+                  {upcomingCleanups.length > 0 ? (
+                    <View className="mb-8">
+                      <View className="flex-row items-center mb-4">
+                        <View className="bg-amber-100 p-2 rounded-lg mr-3">
+                          <Calendar size={20} color="#d97706" />
+                        </View>
+                        <Text className="text-xl font-bold text-gray-900">Upcoming Assignments</Text>
+                      </View>
+                      {upcomingCleanups.map((ev) => {
+                        const d = tsToDate(ev.eventAt);
+                        const dateStr = d ? `${formatDate(d)} • ${formatTime(d)}` : "No date";
+                        return (
+                          <View
+                            key={ev.id}
+                            className="mb-4 bg-white rounded-2xl p-5 shadow-sm border-l-4 border-amber-400"
+                          >
+                            <View className="flex-row items-start justify-between">
+                              <View className="flex-1">
+                                <Text className="text-lg font-bold text-gray-900 mb-2">
+                                  {ev.title}
+                                </Text>
+                                <View className="flex-row items-center mb-2">
+                                  <Clock size={14} color="#6b7280" />
+                                  <Text className="text-gray-600 ml-2 text-sm">{dateStr}</Text>
+                                </View>
+                                {!!ev.location?.label && (
+                                  <View className="flex-row items-center mb-2">
+                                    <MapPin size={14} color="#6b7280" />
+                                    <Text className="text-gray-700 ml-2 text-sm">{ev.location.label}</Text>
+                                  </View>
+                                )}
+                                {ev.wasteTypes && ev.wasteTypes.length > 0 && (
+                                  <View className="flex-row flex-wrap">
+                                    {ev.wasteTypes.slice(0, 3).map((type, idx) => (
+                                      <View key={idx} className="bg-gray-100 px-3 py-1 rounded-full mr-2 mb-1">
+                                        <Text className="text-gray-700 text-xs">{type}</Text>
+                                      </View>
+                                    ))}
+                                    {ev.wasteTypes.length > 3 && (
+                                      <View className="bg-gray-100 px-3 py-1 rounded-full">
+                                        <Text className="text-gray-700 text-xs">+{ev.wasteTypes.length - 3} more</Text>
+                                      </View>
+                                    )}
+                                  </View>
+                                )}
+                              </View>
+                              <View className="bg-amber-50 p-2 rounded-lg">
+                                <Target size={20} color="#d97706" />
+                              </View>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <View className="bg-white rounded-2xl p-8 items-center">
+                      <View className="bg-gray-100 p-4 rounded-full mb-4">
+                        <Calendar size={32} color="#6b7280" />
+                      </View>
+                      <Text className="text-gray-600 text-center font-medium mb-2">
+                        No upcoming assignments
+                      </Text>
+                      <Text className="text-gray-500 text-center text-sm">
+                        New assignments will appear here when available.
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
+            </>
+          )}
         </ScrollView>
       ) : (
         // 🔹 Assignment Detail View (Steps)
