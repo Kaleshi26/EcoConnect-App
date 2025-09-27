@@ -23,6 +23,8 @@ import {
   Navigation,
   Package,
   PlayCircle,
+  Target,
+  Trash2,
   Truck,
   Zap
 } from "lucide-react-native";
@@ -107,6 +109,7 @@ export default function WcHome({ userId }: { userId: string }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'available' | 'upcoming'>('available');
 
   // 🔹 Fetch assigned events
   useEffect(() => {
@@ -125,6 +128,26 @@ export default function WcHome({ userId }: { userId: string }) {
     );
     return () => unsub();
   }, [userId]);
+
+  // 🔹 Group by date
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const availableCleanups = events.filter((ev) => {
+    const date = tsToDate(ev.eventAt);
+    if (!date) return false;
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    return d <= today; // past or today
+  });
+
+  const upcomingCleanups = events.filter((ev) => {
+    const date = tsToDate(ev.eventAt);
+    if (!date) return false;
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    return d > today; // future
+  });
 
   // 🔹 Handle photo upload + location
   async function handleTakePhoto(ev: EventDoc) {
@@ -181,42 +204,42 @@ export default function WcHome({ userId }: { userId: string }) {
     <View className="flex-1 bg-gradient-to-br from-slate-50 to-blue-50">
       {!selected ? (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 }}>
-          <View className="bg-white rounded-2xl p-6 mb-6 shadow-lg shadow-blue-100">
-            <View className="flex-row items-center mb-4">
-              <View className="bg-blue-100 p-3 rounded-xl mr-4">
-                <Truck size={24} color="#2563eb" />
-              </View>
-              <View className="flex-1">
-                <Text className="text-2xl font-bold text-gray-900">
-                  Waste Collection
-                </Text>
-                <Text className="text-gray-600 text-sm">
-                  Manage your assigned cleanups
-                </Text>
-              </View>
-            </View>
-            <View className="flex-row justify-between">
-              <View className="items-center">
-                <Text className="text-2xl font-bold text-blue-600">
-                  {events.filter(e => e.status !== "Completed").length}
-                </Text>
-                <Text className="text-xs text-gray-500">Active Tasks</Text>
-              </View>
-              <View className="items-center">
-                <Text className="text-2xl font-bold text-emerald-600">
-                  {events.filter(e => e.status === "Completed").length}
-                </Text>
-                <Text className="text-xs text-gray-500">Completed</Text>
-              </View>
-              <View className="items-center">
-                <Text className="text-2xl font-bold text-gray-600">
-                  {events.length}
-                </Text>
-                <Text className="text-xs text-gray-500">Total</Text>
-              </View>
-            </View>
+          {/* Tabs */}
+          <View className="bg-white rounded-2xl p-2 mb-6 shadow-sm flex-row">
+            <TouchableOpacity
+              onPress={() => setActiveTab('available')}
+              className={`flex-1 py-3 px-4 rounded-xl items-center ${
+                activeTab === 'available' 
+                  ? 'bg-blue-500 shadow-sm' 
+                  : 'bg-transparent'
+              }`}
+            >
+              <Text className={`font-semibold ${
+                activeTab === 'available' 
+                  ? 'text-white' 
+                  : 'text-gray-600'
+              }`}>
+                Available
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setActiveTab('upcoming')}
+              className={`flex-1 py-3 px-4 rounded-xl items-center ${
+                activeTab === 'upcoming' 
+                  ? 'bg-blue-500 shadow-sm' 
+                  : 'bg-transparent'
+              }`}
+            >
+              <Text className={`font-semibold ${
+                activeTab === 'upcoming' 
+                  ? 'text-white' 
+                  : 'text-gray-600'
+              }`}>
+                Upcoming
+              </Text>
+            </TouchableOpacity>
           </View>
-          
+
           {loading ? (
             <View className="py-10 items-center">
               <View className="bg-white p-6 rounded-2xl shadow-sm">
@@ -225,17 +248,158 @@ export default function WcHome({ userId }: { userId: string }) {
               </View>
             </View>
           ) : (
-            <View className="bg-white rounded-2xl p-8 items-center">
-              <View className="bg-gray-100 p-4 rounded-full mb-4">
-                <CheckCircle size={32} color="#6b7280" />
-              </View>
-              <Text className="text-gray-600 text-center font-medium mb-2">
-                Assignment management coming soon
-              </Text>
-              <Text className="text-gray-500 text-center text-sm">
-                Your waste collection assignments will be displayed here.
-              </Text>
-            </View>
+            <>
+              {/* Available Assignments Tab */}
+              {activeTab === 'available' && (
+                <>
+                  {availableCleanups.length > 0 ? (
+                    <View className="mb-8">
+                      <View className="flex-row items-center mb-4">
+                        <View className="bg-emerald-100 p-2 rounded-lg mr-3">
+                          <Trash2 size={20} color="#059669" />
+                        </View>
+                        <Text className="text-xl font-bold text-gray-900">Available Assignments</Text>
+                      </View>
+                      {availableCleanups.map((ev) => {
+                        const d = tsToDate(ev.eventAt);
+                        const dateStr = d ? `${formatDate(d)} • ${formatTime(d)}` : "No date";
+                        return (
+                          <TouchableOpacity
+                            key={ev.id}
+                            className="mb-4 bg-white rounded-2xl p-5 shadow-sm border-l-4 border-blue-400"
+                            onPress={() => {
+                              setSelected(ev);
+                              setCurrentStep(0);
+                              setPhotos([]);
+                            }}
+                          >
+                            <View className="flex-row items-start justify-between mb-3">
+                              <View className="flex-1">
+                                <Text className="text-lg font-bold text-gray-900 mb-1">
+                                  {ev.title}
+                                </Text>
+                                <View className="flex-row items-center mb-2">
+                                  <Clock size={14} color="#6b7280" />
+                                  <Text className="text-gray-600 ml-2 text-sm">{dateStr}</Text>
+                                </View>
+                                {!!ev.location?.label && (
+                                  <View className="flex-row items-center">
+                                    <MapPin size={14} color="#6b7280" />
+                                    <Text className="text-gray-700 ml-2 text-sm">{ev.location.label}</Text>
+                                  </View>
+                                )}
+                              </View>
+                              <View className="bg-blue-50 p-2 rounded-lg">
+                                <Truck size={20} color="#2563eb" />
+                              </View>
+                            </View>
+                            {ev.wasteTypes && ev.wasteTypes.length > 0 && (
+                              <View className="flex-row flex-wrap">
+                                {ev.wasteTypes.slice(0, 3).map((type, idx) => (
+                                  <View key={idx} className="bg-gray-100 px-3 py-1 rounded-full mr-2 mb-1">
+                                    <Text className="text-gray-700 text-xs">{type}</Text>
+                                  </View>
+                                ))}
+                                {ev.wasteTypes.length > 3 && (
+                                  <View className="bg-gray-100 px-3 py-1 rounded-full">
+                                    <Text className="text-gray-700 text-xs">+{ev.wasteTypes.length - 3} more</Text>
+                                  </View>
+                                )}
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <View className="bg-white rounded-2xl p-8 items-center mb-6">
+                      <View className="bg-gray-100 p-4 rounded-full mb-4">
+                        <CheckCircle size={32} color="#6b7280" />
+                      </View>
+                      <Text className="text-gray-600 text-center font-medium mb-2">
+                        No available assignments
+                      </Text>
+                      <Text className="text-gray-500 text-center text-sm">
+                        All caught up! Check back for new assignments.
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
+
+              {/* Upcoming Assignments Tab */}
+              {activeTab === 'upcoming' && (
+                <>
+                  {upcomingCleanups.length > 0 ? (
+                    <View className="mb-8">
+                      <View className="flex-row items-center mb-4">
+                        <View className="bg-amber-100 p-2 rounded-lg mr-3">
+                          <Calendar size={20} color="#d97706" />
+                        </View>
+                        <Text className="text-xl font-bold text-gray-900">Upcoming Assignments</Text>
+                      </View>
+                      {upcomingCleanups.map((ev) => {
+                        const d = tsToDate(ev.eventAt);
+                        const dateStr = d ? `${formatDate(d)} • ${formatTime(d)}` : "No date";
+                        return (
+                          <View
+                            key={ev.id}
+                            className="mb-4 bg-white rounded-2xl p-5 shadow-sm border-l-4 border-amber-400"
+                          >
+                            <View className="flex-row items-start justify-between">
+                              <View className="flex-1">
+                                <Text className="text-lg font-bold text-gray-900 mb-2">
+                                  {ev.title}
+                                </Text>
+                                <View className="flex-row items-center mb-2">
+                                  <Clock size={14} color="#6b7280" />
+                                  <Text className="text-gray-600 ml-2 text-sm">{dateStr}</Text>
+                                </View>
+                                {!!ev.location?.label && (
+                                  <View className="flex-row items-center mb-2">
+                                    <MapPin size={14} color="#6b7280" />
+                                    <Text className="text-gray-700 ml-2 text-sm">{ev.location.label}</Text>
+                                  </View>
+                                )}
+                                {ev.wasteTypes && ev.wasteTypes.length > 0 && (
+                                  <View className="flex-row flex-wrap">
+                                    {ev.wasteTypes.slice(0, 3).map((type, idx) => (
+                                      <View key={idx} className="bg-gray-100 px-3 py-1 rounded-full mr-2 mb-1">
+                                        <Text className="text-gray-700 text-xs">{type}</Text>
+                                      </View>
+                                    ))}
+                                    {ev.wasteTypes.length > 3 && (
+                                      <View className="bg-gray-100 px-3 py-1 rounded-full">
+                                        <Text className="text-gray-700 text-xs">+{ev.wasteTypes.length - 3} more</Text>
+                                      </View>
+                                    )}
+                                  </View>
+                                )}
+                              </View>
+                              <View className="bg-amber-50 p-2 rounded-lg">
+                                <Target size={20} color="#d97706" />
+                              </View>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <View className="bg-white rounded-2xl p-8 items-center">
+                      <View className="bg-gray-100 p-4 rounded-full mb-4">
+                        <Calendar size={32} color="#6b7280" />
+                      </View>
+                      <Text className="text-gray-600 text-center font-medium mb-2">
+                        No upcoming assignments
+                      </Text>
+                      <Text className="text-gray-500 text-center text-sm">
+                        New assignments will appear here when available.
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
+            </>
           )}
         </ScrollView>
       ) : (
