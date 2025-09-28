@@ -119,6 +119,15 @@ export default function WcHome({ userId }: { userId: string }) {
   );
   const [showCompletionForm, setShowCompletionForm] = useState(false);
   const [collectedWeights, setCollectedWeights] = useState<Record<string, string>>({});
+  const [wasteStats, setWasteStats] = useState({
+    totalWeight: 0,
+    plasticBottles: 0,
+    plasticBags: 0,
+    fishingGear: 0,
+    glass: 0,
+    cans: 0,
+    other: 0
+  });
 
   // 🔹 Handle tab parameter changes
   useEffect(() => {
@@ -131,6 +140,70 @@ export default function WcHome({ userId }: { userId: string }) {
     }
   }, [params.tab]);
 
+  // 🔹 Calculate waste statistics from completed assignments
+  const calculateWasteStats = (events: EventDoc[]) => {
+    const completedEvents = events.filter(ev => ev.status === "Completed");
+    let stats = {
+      totalWeight: 0,
+      plasticBottles: 0,
+      plasticBags: 0,
+      fishingGear: 0,
+      glass: 0,
+      cans: 0,
+      other: 0
+    };
+
+    completedEvents.forEach(ev => {
+      if (ev.collectedWeights) {
+        Object.entries(ev.collectedWeights).forEach(([type, weight]) => {
+          const weightNum = parseFloat(weight) || 0;
+          const normalizedType = type.toLowerCase().replace(/\s+/g, '');
+          
+          stats.totalWeight += weightNum;
+          
+          switch (normalizedType) {
+            case 'plasticbottles':
+              stats.plasticBottles += weightNum;
+              break;
+            case 'plasticbags':
+              stats.plasticBags += weightNum;
+              break;
+            case 'fishinggear':
+              stats.fishingGear += weightNum;
+              break;
+            case 'glass':
+              stats.glass += weightNum;
+              break;
+            case 'cans':
+              stats.cans += weightNum;
+              break;
+            case 'other':
+              stats.other += weightNum;
+              break;
+            default:
+              // Handle other waste types
+              if (type.toLowerCase().includes('plastic') && type.toLowerCase().includes('bottle')) {
+                stats.plasticBottles += weightNum;
+              } else if (type.toLowerCase().includes('plastic') && type.toLowerCase().includes('bag')) {
+                stats.plasticBags += weightNum;
+              } else if (type.toLowerCase().includes('fishing')) {
+                stats.fishingGear += weightNum;
+              } else if (type.toLowerCase().includes('glass')) {
+                stats.glass += weightNum;
+              } else if (type.toLowerCase().includes('can')) {
+                stats.cans += weightNum;
+              } else {
+                stats.other += weightNum;
+              }
+              break;
+          }
+        });
+      }
+    });
+
+    return stats;
+  };
+
   // 🔹 Fetch assigned events
   useEffect(() => {
     setLoading(true);
@@ -142,6 +215,11 @@ export default function WcHome({ userId }: { userId: string }) {
           .map((d) => ({ id: d.id, ...(d.data() as any) }))
           .filter((ev) => ev.assignedTo === userId);
         setEvents(all);
+        
+        // Calculate waste statistics
+        const stats = calculateWasteStats(all);
+        setWasteStats(stats);
+        
         setLoading(false);
       },
       () => setLoading(false)
@@ -459,6 +537,7 @@ export default function WcHome({ userId }: { userId: string }) {
               {/* Completed Assignments Tab */}
               {activeTab === 'completed' && (
                 <>
+
                   {completedCleanups.length > 0 ? (
                     <View className="mb-8">
                       <View className="flex-row items-center mb-4">
