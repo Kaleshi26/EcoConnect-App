@@ -2,41 +2,42 @@ import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { router, useLocalSearchParams } from "expo-router";
 import {
-    collection,
-    doc,
-    onSnapshot,
-    orderBy,
-    query,
-    serverTimestamp,
-    Timestamp,
-    updateDoc
+  collection,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  Timestamp,
+  updateDoc
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import {
-    Calendar,
-    Camera,
-    CheckCircle,
-    CheckCircle2,
-    ChevronLeft,
-    Clock,
-    MapPin,
-    Navigation,
-    Package,
-    PlayCircle,
-    Target,
-    Trash2,
-    Truck,
-    Zap
+  Calendar,
+  Camera,
+  CheckCircle,
+  CheckCircle2,
+  ChevronLeft,
+  Clock,
+  MapPin,
+  Navigation,
+  Package,
+  PlayCircle,
+  Target,
+  Trash2,
+  Truck,
+  Zap
 } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { db, storage } from "../../../services/firebaseConfig";
 
@@ -52,6 +53,8 @@ type EventDoc = {
   status?: "Pending" | "In-progress" | "Completed";
   assignedTo?: string;
   proofUrl?: string;
+  completedAt?: Timestamp;
+  collectedWeights?: Record<string, string>;
 };
 
 function tsToDate(ts?: Timestamp) {
@@ -110,9 +113,21 @@ export default function WcHome({ userId }: { userId: string }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'available' | 'upcoming'>(
-    (params.tab as string) === 'upcoming' ? 'upcoming' : 'available'
+  const [activeTab, setActiveTab] = useState<'available' | 'upcoming' | 'completed'>(
+    (params.tab as string) === 'upcoming' ? 'upcoming' : 
+    (params.tab as string) === 'completed' ? 'completed' : 'available'
   );
+  const [showCompletionForm, setShowCompletionForm] = useState(false);
+  const [collectedWeights, setCollectedWeights] = useState<Record<string, string>>({});
+  const [wasteStats, setWasteStats] = useState({
+    totalWeight: 0,
+    plasticBottles: 0,
+    plasticBags: 0,
+    fishingGear: 0,
+    glass: 0,
+    cans: 0,
+    other: 0
+  });
 
   // 🔹 Handle tab parameter changes
   useEffect(() => {
@@ -120,8 +135,74 @@ export default function WcHome({ userId }: { userId: string }) {
       setActiveTab('upcoming');
     } else if (params.tab === 'available') {
       setActiveTab('available');
+    } else if (params.tab === 'completed') {
+      setActiveTab('completed');
     }
   }, [params.tab]);
+
+  // 🔹 Calculate waste statistics from completed assignments
+  const calculateWasteStats = (events: EventDoc[]) => {
+    const completedEvents = events.filter(ev => ev.status === "Completed");
+    let stats = {
+      totalWeight: 0,
+      plasticBottles: 0,
+      plasticBags: 0,
+      fishingGear: 0,
+      glass: 0,
+      cans: 0,
+      other: 0
+    };
+
+    completedEvents.forEach(ev => {
+      if (ev.collectedWeights) {
+        Object.entries(ev.collectedWeights).forEach(([type, weight]) => {
+          const weightNum = parseFloat(weight) || 0;
+          const normalizedType = type.toLowerCase().replace(/\s+/g, '');
+          
+          stats.totalWeight += weightNum;
+          
+          switch (normalizedType) {
+            case 'plasticbottles':
+              stats.plasticBottles += weightNum;
+              break;
+            case 'plasticbags':
+              stats.plasticBags += weightNum;
+              break;
+            case 'fishinggear':
+              stats.fishingGear += weightNum;
+              break;
+            case 'glass':
+              stats.glass += weightNum;
+              break;
+            case 'cans':
+              stats.cans += weightNum;
+              break;
+            case 'other':
+              stats.other += weightNum;
+              break;
+            default:
+              // Handle other waste types
+              if (type.toLowerCase().includes('plastic') && type.toLowerCase().includes('bottle')) {
+                stats.plasticBottles += weightNum;
+              } else if (type.toLowerCase().includes('plastic') && type.toLowerCase().includes('bag')) {
+                stats.plasticBags += weightNum;
+              } else if (type.toLowerCase().includes('fishing')) {
+                stats.fishingGear += weightNum;
+              } else if (type.toLowerCase().includes('glass')) {
+                stats.glass += weightNum;
+              } else if (type.toLowerCase().includes('can')) {
+                stats.cans += weightNum;
+              } else {
+                stats.other += weightNum;
+              }
+              break;
+          }
+        });
+      }
+    });
+
+    return stats;
+  };
 
   // 🔹 Fetch assigned events
   useEffect(() => {
@@ -134,6 +215,11 @@ export default function WcHome({ userId }: { userId: string }) {
           .map((d) => ({ id: d.id, ...(d.data() as any) }))
           .filter((ev) => ev.assignedTo === userId);
         setEvents(all);
+        
+        // Calculate waste statistics
+        const stats = calculateWasteStats(all);
+        setWasteStats(stats);
+        
         setLoading(false);
       },
       () => setLoading(false)
@@ -150,7 +236,7 @@ export default function WcHome({ userId }: { userId: string }) {
     if (!date) return false;
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
-    return d <= today; // past or today
+    return d <= today && ev.status !== "Completed"; // past or today but not completed
   });
 
   const upcomingCleanups = events.filter((ev) => {
@@ -159,6 +245,10 @@ export default function WcHome({ userId }: { userId: string }) {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
     return d > today; // future
+  });
+
+  const completedCleanups = events.filter((ev) => {
+    return ev.status === "Completed";
   });
 
   // 🔹 Handle photo upload + location
@@ -194,16 +284,32 @@ export default function WcHome({ userId }: { userId: string }) {
     }
   }
 
-  // 🔹 Handle completion
+  // 🔹 Handle completion form submission
   async function handleComplete(ev: EventDoc) {
-    await updateDoc(doc(db, "events", ev.id), {
-      status: "Completed",
-      completedAt: serverTimestamp(),
-    });
-    Alert.alert("Success", "Assignment marked completed ✅");
-    setSelected(null);
-    setCurrentStep(0);
-    setPhotos([]);
+    try {
+      setUploading(true);
+      await updateDoc(doc(db, "events", ev.id), {
+        status: "Completed",
+        completedAt: serverTimestamp(),
+        collectedWeights: collectedWeights,
+      });
+      Alert.alert("Success", "Assignment marked completed ✅");
+      setSelected(null);
+      setCurrentStep(0);
+      setPhotos([]);
+      setShowCompletionForm(false);
+      setCollectedWeights({});
+      setActiveTab('completed');
+    } catch (error) {
+      Alert.alert("Error", "Failed to complete assignment");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  // 🔹 Handle completion button click
+  function handleCompleteClick() {
+    setShowCompletionForm(true);
   }
 
   const steps = [
@@ -220,13 +326,13 @@ export default function WcHome({ userId }: { userId: string }) {
           <View className="bg-white rounded-2xl p-2 mb-6 shadow-sm flex-row">
             <TouchableOpacity
               onPress={() => setActiveTab('available')}
-              className={`flex-1 py-3 px-4 rounded-xl items-center ${
+              className={`flex-1 py-3 px-3 rounded-xl items-center ${
                 activeTab === 'available' 
                   ? 'bg-blue-500 shadow-sm' 
                   : 'bg-transparent'
               }`}
             >
-              <Text className={`font-semibold ${
+              <Text className={`font-semibold text-xs ${
                 activeTab === 'available' 
                   ? 'text-white' 
                   : 'text-gray-600'
@@ -236,18 +342,34 @@ export default function WcHome({ userId }: { userId: string }) {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setActiveTab('upcoming')}
-              className={`flex-1 py-3 px-4 rounded-xl items-center ${
+              className={`flex-1 py-3 px-3 rounded-xl items-center ${
                 activeTab === 'upcoming' 
                   ? 'bg-blue-500 shadow-sm' 
                   : 'bg-transparent'
               }`}
             >
-              <Text className={`font-semibold ${
+              <Text className={`font-semibold text-xs ${
                 activeTab === 'upcoming' 
                   ? 'text-white' 
                   : 'text-gray-600'
               }`}>
                 Upcoming
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setActiveTab('completed')}
+              className={`flex-1 py-3 px-3 rounded-xl items-center ${
+                activeTab === 'completed' 
+                  ? 'bg-green-500 shadow-sm' 
+                  : 'bg-transparent'
+              }`}
+            >
+              <Text className={`font-semibold text-xs ${
+                activeTab === 'completed' 
+                  ? 'text-white' 
+                  : 'text-gray-600'
+              }`}>
+                Completed
               </Text>
             </TouchableOpacity>
           </View>
@@ -406,6 +528,98 @@ export default function WcHome({ userId }: { userId: string }) {
                       </Text>
                       <Text className="text-gray-500 text-center text-sm">
                         New assignments will appear here when available.
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
+
+              {/* Completed Assignments Tab */}
+              {activeTab === 'completed' && (
+                <>
+
+                  {completedCleanups.length > 0 ? (
+                    <View className="mb-8">
+                      <View className="flex-row items-center mb-4">
+                        <View className="bg-green-100 p-2 rounded-lg mr-3">
+                          <CheckCircle size={20} color="#059669" />
+                        </View>
+                        <Text className="text-xl font-bold text-gray-900">Completed Assignments</Text>
+                      </View>
+                      {completedCleanups.map((ev) => {
+                        const d = tsToDate(ev.eventAt);
+                        const completedDate = ev.completedAt ? tsToDate(ev.completedAt) : null;
+                        const dateStr = d ? `${formatDate(d)} • ${formatTime(d)}` : "No date";
+                        const completedStr = completedDate ? `Completed: ${formatDate(completedDate)}` : "Completed";
+                        return (
+                          <View
+                            key={ev.id}
+                            className="mb-4 bg-white rounded-2xl p-5 shadow-sm border-l-4 border-green-400"
+                          >
+                            <View className="flex-row items-start justify-between mb-3">
+                              <View className="flex-1">
+                                <Text className="text-lg font-bold text-gray-900 mb-2">
+                                  {ev.title}
+                                </Text>
+                                <View className="flex-row items-center mb-2">
+                                  <Clock size={14} color="#6b7280" />
+                                  <Text className="text-gray-600 ml-2 text-sm">{dateStr}</Text>
+                                </View>
+                                <View className="flex-row items-center mb-2">
+                                  <CheckCircle size={14} color="#059669" />
+                                  <Text className="text-green-600 ml-2 text-sm font-medium">{completedStr}</Text>
+                                </View>
+                                {!!ev.location?.label && (
+                                  <View className="flex-row items-center mb-2">
+                                    <MapPin size={14} color="#6b7280" />
+                                    <Text className="text-gray-700 ml-2 text-sm">{ev.location.label}</Text>
+                                  </View>
+                                )}
+                                {ev.wasteTypes && ev.wasteTypes.length > 0 && (
+                                  <View className="flex-row flex-wrap mb-2">
+                                    {ev.wasteTypes.slice(0, 3).map((type, idx) => (
+                                      <View key={idx} className="bg-gray-100 px-3 py-1 rounded-full mr-2 mb-1">
+                                        <Text className="text-gray-700 text-xs">{type}</Text>
+                                      </View>
+                                    ))}
+                                    {ev.wasteTypes.length > 3 && (
+                                      <View className="bg-gray-100 px-3 py-1 rounded-full">
+                                        <Text className="text-gray-700 text-xs">+{ev.wasteTypes.length - 3} more</Text>
+                                      </View>
+                                    )}
+                                  </View>
+                                )}
+                                {ev.collectedWeights && Object.keys(ev.collectedWeights).length > 0 && (
+                                  <View className="bg-green-50 p-3 rounded-lg">
+                                    <Text className="text-green-800 font-semibold text-sm mb-1">Collected Weights:</Text>
+                                    {Object.entries(ev.collectedWeights)
+                                      .filter(([type, weight]) => weight && weight.trim() !== '')
+                                      .map(([type, weight]) => (
+                                        <Text key={type} className="text-green-700 text-xs">
+                                          {type}: {weight} kg
+                                        </Text>
+                                      ))}
+                                  </View>
+                                )}
+                              </View>
+                              <View className="bg-green-50 p-2 rounded-lg">
+                                <CheckCircle size={20} color="#059669" />
+                              </View>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <View className="bg-white rounded-2xl p-8 items-center">
+                      <View className="bg-gray-100 p-4 rounded-full mb-4">
+                        <CheckCircle size={32} color="#6b7280" />
+                      </View>
+                      <Text className="text-gray-600 text-center font-medium mb-2">
+                        No completed assignments
+                      </Text>
+                      <Text className="text-gray-500 text-center text-sm">
+                        Completed assignments will appear here.
                       </Text>
                     </View>
                   )}
@@ -575,7 +789,7 @@ export default function WcHome({ userId }: { userId: string }) {
                       onPress={async () => {
                         if (index === 0) setCurrentStep(1);
                         else if (index === 1) await handleTakePhoto(selected);
-                        else if (index === 2) await handleComplete(selected);
+                        else if (index === 2) handleCompleteClick();
                       }}
                       className={`px-6 py-3 rounded-xl flex-row items-center justify-center shadow-lg ${
                         index === 0 
@@ -602,6 +816,21 @@ export default function WcHome({ userId }: { userId: string }) {
                         </>
                       )}
                     </TouchableOpacity>
+                    
+                    {/* Skip button for Take Disposal Photos step */}
+                    {index === 1 && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          setCurrentStep(2);
+                          Alert.alert("Skipped", "Photo step skipped. You can still take photos later if needed.");
+                        }}
+                        className="mt-3 px-6 py-3 rounded-xl flex-row items-center justify-center border-2 border-gray-300 bg-white"
+                      >
+                        <Text className="text-gray-600 font-semibold">
+                          Skip Photo
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 )}
                 {index < steps.length - 1 && (
@@ -637,6 +866,71 @@ export default function WcHome({ userId }: { userId: string }) {
                     </View>
                   </View>
                 ))}
+              </View>
+            </View>
+          )}
+
+          {/* Completion Form */}
+          {showCompletionForm && (
+            <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm border-l-4 border-green-400">
+              <View className="flex-row items-center mb-6">
+                <View className="bg-green-100 p-2 rounded-lg mr-3">
+                  <CheckCircle size={20} color="#059669" />
+                </View>
+                <Text className="text-lg font-bold text-gray-900">Complete Assignment</Text>
+              </View>
+              
+              <Text className="text-gray-600 mb-4">
+                Please enter the actual weight collected for each waste type (in kg):
+              </Text>
+
+              <View className="space-y-4">
+                {selected?.wasteTypes && selected.wasteTypes.length > 0 ? (
+                  selected.wasteTypes.map((wasteType, index) => (
+                    <View key={index}>
+                      <Text className="text-gray-700 font-semibold mb-2">{wasteType} (kg)</Text>
+                      <TextInput
+                        value={collectedWeights[wasteType] || ''}
+                        onChangeText={(text) => setCollectedWeights(prev => ({ ...prev, [wasteType]: text }))}
+                        placeholder="Enter weight in kg"
+                        keyboardType="numeric"
+                        className="border border-gray-300 rounded-xl px-4 py-3 bg-gray-50"
+                      />
+                    </View>
+                  ))
+                ) : (
+                  <View>
+                    <Text className="text-gray-700 font-semibold mb-2">Other Waste (kg)</Text>
+                    <TextInput
+                      value={collectedWeights['Other'] || ''}
+                      onChangeText={(text) => setCollectedWeights(prev => ({ ...prev, 'Other': text }))}
+                      placeholder="Enter weight in kg"
+                      keyboardType="numeric"
+                      className="border border-gray-300 rounded-xl px-4 py-3 bg-gray-50"
+                    />
+                  </View>
+                )}
+              </View>
+
+              {/* Form Actions */}
+              <View className="flex-row space-x-3 mt-6">
+                <TouchableOpacity
+                  onPress={() => setShowCompletionForm(false)}
+                  className="flex-1 px-6 py-3 rounded-xl border-2 border-gray-300 bg-white"
+                >
+                  <Text className="text-gray-600 font-semibold text-center">Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleComplete(selected)}
+                  disabled={uploading}
+                  className="flex-1 px-6 py-3 rounded-xl bg-green-600 shadow-lg"
+                >
+                  {uploading ? (
+                    <ActivityIndicator color="white" size="small" />
+                  ) : (
+                    <Text className="text-white font-semibold text-center">Complete Assignment</Text>
+                  )}
+                </TouchableOpacity>
               </View>
             </View>
           )}

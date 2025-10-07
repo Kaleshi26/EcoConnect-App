@@ -2,42 +2,42 @@ import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { router } from "expo-router";
 import {
-    collection,
-    doc,
-    onSnapshot,
-    orderBy,
-    query,
-    serverTimestamp,
-    Timestamp,
-    updateDoc
+  collection,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  Timestamp,
+  updateDoc
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import {
-    BarChart3,
-    Calendar,
-    Camera,
-    CheckCircle,
-    CheckCircle2,
-    ChevronLeft,
-    ChevronRight,
-    ClipboardList,
-    Clock,
-    MapPin,
-    Navigation,
-    Package,
-    PlayCircle,
-    Truck,
-    Zap
+  BarChart3,
+  Calendar,
+  Camera,
+  CheckCircle,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  Clock,
+  MapPin,
+  Navigation,
+  Package,
+  PlayCircle,
+  Truck,
+  Zap
 } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { db, storage } from "../../../services/firebaseConfig";
 
