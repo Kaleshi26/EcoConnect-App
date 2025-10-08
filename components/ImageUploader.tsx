@@ -1,67 +1,69 @@
-import * as ImagePicker from "expo-image-picker";
-import { doc, updateDoc } from "firebase/firestore";
-import React, { useState } from "react";
-import { ActivityIndicator, Alert, Button, Image, View } from "react-native";
-import { uploadImageToCloudinary } from "../services/cloudinaryUpload";
-import { db } from "../services/firebaseConfig"; // your existing Firebase config
+// org_event.tsx
+import * as FileSystem from 'expo-file-system';
+import * as ImagePicker from 'expo-image-picker';
+import { doc, setDoc } from 'firebase/firestore';
+import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
+import { useState } from 'react';
+import { Button, Image } from 'react-native';
+import { db } from '../services/firebaseConfig'; // your firestore instance
 
-export default function ImageUploader({ userId }: { userId: string }) {
-  const [image, setImage] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+const storage = getStorage();
+
+export default function OrgEvent() {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   const pickImage = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert("Permission required", "Please allow access to your photos.");
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-    });
-
-    if (!result.canceled) {
-      setImage(result.assets[0].uri);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!image) return;
-    setUploading(true);
     try {
-      const cloudUrl = await uploadImageToCloudinary(image);
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaType.Images, // NEW API
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
 
-      // Store the Cloudinary image URL in Firebase Firestore
-      const userRef = doc(db, "users", userId);
-      await updateDoc(userRef, { profileImage: cloudUrl });
+      if (result.canceled) return;
 
-      Alert.alert("Success", "Image uploaded successfully!");
-      setImage(null);
-    } catch (err) {
-      console.error(err);
-      Alert.alert("Error", "Failed to upload image");
-    } finally {
-      setUploading(false);
+      const uri = result.assets[0].uri;
+
+      // Convert local file to blob
+      let blob: Blob;
+      if (Platform.OS === 'web') {
+        const response = await fetch(uri);
+        blob = await response.blob();
+      } else {
+        const response = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+        const byteCharacters = atob(response);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        blob = new Blob([byteArray], { type: 'image/jpeg' });
+      }
+
+      // Upload to Firebase Storage
+      const filename = `events/${Date.now()}-${Math.random().toString(36).substring(2)}.jpg`;
+      const storageRef = ref(storage, filename);
+      await uploadBytes(storageRef, blob);
+
+      // Get download URL
+      const downloadURL = await getDownloadURL(storageRef);
+      setImageUrl(downloadURL);
+
+      // Save URL to Firestore (example, adapt as needed)
+      await setDoc(doc(db, 'events', 'YOUR_EVENT_ID'), { image: downloadURL }, { merge: true });
+
+      console.log('Image uploaded successfully:', downloadURL);
+    } catch (error) {
+      console.error('Image upload error:', error);
     }
   };
 
   return (
-    <View style={{ alignItems: "center", marginTop: 20 }}>
-      {image && (
-        <Image
-          source={{ uri: image }}
-          style={{ width: 200, height: 200, borderRadius: 12, marginBottom: 10 }}
-        />
-      )}
-      {uploading ? (
-        <ActivityIndicator size="large" color="#00AA88" />
-      ) : (
-        <>
-          <Button title="Choose Image" onPress={pickImage} />
-          {image && <Button title="Upload to Cloudinary" onPress={handleUpload} />}
-        </>
-      )}
-    </View>
+    <>
+      <Button title="Pick Image" onPress={pickImage} />
+      {imageUrl && <Image source={{ uri: imageUrl }} style={{ width: 200, height: 200 }} />}
+    </>
   );
 }
