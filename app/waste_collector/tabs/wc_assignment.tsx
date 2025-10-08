@@ -1,5 +1,4 @@
-import * as ImagePicker from "expo-image-picker";
-import * as Location from "expo-location";
+// Photo upload temporarily disabled: remove ImagePicker and Location
 import { router, useLocalSearchParams } from "expo-router";
 import {
   collection,
@@ -11,18 +10,21 @@ import {
   Timestamp,
   updateDoc
 } from "firebase/firestore";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+// Photo upload temporarily disabled: remove Firebase Storage helpers
 import {
+  AlertCircle,
+  Brain,
   Calendar,
-  Camera,
   CheckCircle,
   CheckCircle2,
   ChevronLeft,
   Clock,
+  Leaf,
   MapPin,
   Navigation,
   Package,
   PlayCircle,
+  Recycle,
   Target,
   Trash2,
   Truck,
@@ -32,14 +34,14 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
+  Modal,
   ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
   View
 } from "react-native";
-import { db, storage } from "../../../services/firebaseConfig";
+import { db } from "../../../services/firebaseConfig";
 
 type EventDoc = {
   id: string;
@@ -74,6 +76,289 @@ function formatDate(d?: Date | null) {
 function formatTime(d?: Date | null) {
   if (!d) return undefined;
   return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+// AI/ML Suggestions Modal Component
+function AISuggestionsModal({ 
+  visible, 
+  onClose, 
+  wasteTypes, 
+  collectedWeights 
+}: { 
+  visible: boolean;
+  onClose: () => void;
+  wasteTypes?: string[];
+  collectedWeights?: Record<string, string>;
+}) {
+  const [suggestions, setSuggestions] = useState<Array<{
+    type: 'recycle' | 'compost' | 'special' | 'warning';
+    title: string;
+    description: string;
+    facility: string;
+    contact?: string;
+    distance?: string;
+    icon: React.ComponentType<any>;
+    color: string;
+    bgColor: string;
+    borderColor: string;
+  }>>([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  useEffect(() => {
+    if (!visible || !wasteTypes || wasteTypes.length === 0) {
+      setSuggestions([]);
+      return;
+    }
+
+    setIsAnalyzing(true);
+    
+    // Simulate AI processing time
+    setTimeout(() => {
+      const newSuggestions: typeof suggestions = [];
+      
+      // Analyze waste types and generate suggestions
+      wasteTypes.forEach(wasteType => {
+        const lowerType = wasteType.toLowerCase();
+        const weight = collectedWeights?.[wasteType] ? parseFloat(collectedWeights[wasteType]) : 0;
+        
+        // Plastic recycling suggestions
+        if (lowerType.includes('plastic') && (lowerType.includes('bottle') || lowerType.includes('container'))) {
+          newSuggestions.push({
+            type: 'recycle',
+            title: '♻️ Recycle Plastic Bottles',
+            description: `Perfect for recycling! Clean bottles and containers can be processed into new products.`,
+            facility: 'Green Valley Recycling Center',
+            contact: '📞 (555) 123-4567',
+            distance: '📍 2.3 km away',
+            icon: Recycle,
+            color: '#059669',
+            bgColor: 'bg-green-50',
+            borderColor: 'border-green-200'
+          });
+        }
+        
+        // Organic waste composting
+        if (lowerType.includes('organic') || lowerType.includes('food') || lowerType.includes('vegetable') || lowerType.includes('fruit')) {
+          newSuggestions.push({
+            type: 'compost',
+            title: '🌱 Compost Organic Waste',
+            description: `Transform organic matter into nutrient-rich compost for community gardens.`,
+            facility: 'EcoGarden Composting Center',
+            contact: '📞 (555) 234-5678',
+            distance: '📍 1.8 km away',
+            icon: Leaf,
+            color: '#16a34a',
+            bgColor: 'bg-emerald-50',
+            borderColor: 'border-emerald-200'
+          });
+        }
+        
+        // Glass recycling
+        if (lowerType.includes('glass')) {
+          newSuggestions.push({
+            type: 'recycle',
+            title: '🪟 Recycle Glass Materials',
+            description: `Glass can be recycled infinitely without losing quality. Specialized processing available.`,
+            facility: 'ClearGlass Recycling Facility',
+            contact: '📞 (555) 345-6789',
+            distance: '📍 3.1 km away',
+            icon: Recycle,
+            color: '#059669',
+            bgColor: 'bg-green-50',
+            borderColor: 'border-green-200'
+          });
+        }
+        
+        // Metal/can recycling
+        if (lowerType.includes('can') || lowerType.includes('metal') || lowerType.includes('aluminum')) {
+          newSuggestions.push({
+            type: 'recycle',
+            title: '🥫 Recycle Metal Cans',
+            description: `Metal recycling saves 95% energy compared to producing new metal from ore.`,
+            facility: 'MetalMasters Recycling Center',
+            contact: '📞 (555) 456-7890',
+            distance: '📍 2.7 km away',
+            icon: Recycle,
+            color: '#059669',
+            bgColor: 'bg-green-50',
+            borderColor: 'border-green-200'
+          });
+        }
+        
+        // Fishing gear special handling
+        if (lowerType.includes('fishing') || lowerType.includes('gear') || lowerType.includes('net')) {
+          newSuggestions.push({
+            type: 'special',
+            title: '🚨 Special Fishing Gear Disposal',
+            description: `Prevent marine pollution! Fishing gear requires specialized disposal to protect ocean life.`,
+            facility: 'OceanGuard Marine Conservation',
+            contact: '📞 (555) 567-8901',
+            distance: '📍 4.2 km away',
+            icon: AlertCircle,
+            color: '#dc2626',
+            bgColor: 'bg-red-50',
+            borderColor: 'border-red-200'
+          });
+        }
+        
+        // High volume warnings
+        if (weight > 50) {
+          newSuggestions.push({
+            type: 'warning',
+            title: '⚠️ High Volume Alert',
+            description: `Large quantity detected (${weight}kg). Bulk collection service recommended for efficiency.`,
+            facility: 'Bulk Waste Collection Service',
+            contact: '📞 (555) 678-9012',
+            distance: '📍 Contact for pickup',
+            icon: AlertCircle,
+            color: '#d97706',
+            bgColor: 'bg-amber-50',
+            borderColor: 'border-amber-200'
+          });
+        }
+      });
+
+      // Remove duplicates and set suggestions
+      const uniqueSuggestions = newSuggestions.filter((suggestion, index, self) => 
+        index === self.findIndex(s => s.title === suggestion.title)
+      );
+      
+      setSuggestions(uniqueSuggestions);
+      setIsAnalyzing(false);
+    }, 1000); // Simulate AI processing time
+  }, [visible, wasteTypes, collectedWeights]);
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <View className="flex-1 bg-gray-50">
+        {/* Header */}
+        <View className="bg-white px-6 pt-12 pb-4 shadow-sm">
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center">
+              <View className="bg-purple-100 p-2 rounded-lg mr-3">
+                <Brain size={24} color="#7c3aed" />
+              </View>
+              <View>
+                <Text className="text-xl font-bold text-gray-900">AI Disposal Guide</Text>
+                <Text className="text-sm text-gray-500">Smart eco-friendly recommendations</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              onPress={onClose}
+              className="bg-gray-100 p-2 rounded-full"
+            >
+              <Text className="text-gray-600 text-lg font-bold">×</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Content */}
+        <ScrollView className="flex-1 px-6 py-4">
+          {isAnalyzing ? (
+            <View className="py-16 items-center">
+              <View className="bg-purple-50 p-6 rounded-full mb-4">
+                <ActivityIndicator size="large" color="#7c3aed" />
+              </View>
+              <Text className="text-gray-700 text-lg font-semibold mb-2">Analyzing Waste Composition</Text>
+              <Text className="text-gray-500 text-sm text-center">
+                Our AI is analyzing your waste mix to provide optimal disposal recommendations...
+              </Text>
+            </View>
+          ) : suggestions.length > 0 ? (
+            <>
+              <View className="mb-6">
+                <Text className="text-gray-800 text-lg font-semibold mb-2">
+                  🎯 Eco-Friendly Disposal Recommendations
+                </Text>
+                <Text className="text-gray-600 text-sm">
+                  Based on your waste mix, here are {suggestions.length} optimized suggestion{suggestions.length !== 1 ? 's' : ''}:
+                </Text>
+              </View>
+
+              <View className="space-y-4 mb-6">
+                {suggestions.map((suggestion, index) => (
+                  <View 
+                    key={index} 
+                    className={`${suggestion.bgColor} ${suggestion.borderColor} border-2 p-5 rounded-xl shadow-sm`}
+                  >
+                    <View className="flex-row items-start">
+                      <View className="mr-4 mt-1">
+                        <suggestion.icon size={22} color={suggestion.color} />
+                      </View>
+                      <View className="flex-1">
+                        <Text className={`font-bold text-base mb-2`} style={{ color: suggestion.color }}>
+                          {suggestion.title}
+                        </Text>
+                        <Text className="text-gray-700 text-sm leading-relaxed mb-4">
+                          {suggestion.description}
+                        </Text>
+                        
+                        <View className="space-y-2">
+                          <Text className="text-gray-700 text-sm font-semibold">
+                            {suggestion.facility}
+                          </Text>
+                          <Text className="text-gray-600 text-sm">
+                            {suggestion.contact}
+                          </Text>
+                          <Text className="text-gray-600 text-sm">
+                            {suggestion.distance}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+
+              <View className="p-5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 mb-6">
+                <View className="flex-row items-start">
+                  <Text className="text-blue-600 text-xl mr-3">💡</Text>
+                  <View className="flex-1">
+                    <Text className="text-blue-800 text-base font-semibold mb-2">
+                      Environmental Impact
+                    </Text>
+                    <Text className="text-blue-700 text-sm leading-relaxed">
+                      Following these suggestions helps maximize recycling rates and reduces environmental impact by up to 80%. 
+                      You're making a real difference for our planet! 🌍
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </>
+          ) : (
+            <View className="py-16 items-center">
+              <View className="bg-gray-100 p-6 rounded-full mb-4">
+                <Package size={32} color="#6b7280" />
+              </View>
+              <Text className="text-gray-700 text-lg font-semibold mb-2">
+                No Specific Recommendations
+              </Text>
+              <Text className="text-gray-500 text-sm text-center">
+                General waste disposal guidelines apply for this collection
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+
+        {/* Footer */}
+        <View className="bg-white px-6 py-4 border-t border-gray-200">
+          <TouchableOpacity
+            onPress={onClose}
+            className="bg-purple-600 py-4 rounded-xl shadow-lg"
+          >
+            <Text className="text-white text-center font-semibold text-lg">
+              Got it! Close Guide
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
 }
 
 // Enhanced StatusBadge with better colors and icons
@@ -111,7 +396,7 @@ export default function WcHome({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<EventDoc | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
-  const [photos, setPhotos] = useState<string[]>([]);
+  // Photos feature removed
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<'available' | 'upcoming' | 'completed'>(
     (params.tab as string) === 'upcoming' ? 'upcoming' : 
@@ -119,6 +404,7 @@ export default function WcHome({ userId }: { userId: string }) {
   );
   const [showCompletionForm, setShowCompletionForm] = useState(false);
   const [collectedWeights, setCollectedWeights] = useState<Record<string, string>>({});
+  const [showAISuggestions, setShowAISuggestions] = useState(false);
   const [wasteStats, setWasteStats] = useState({
     totalWeight: 0,
     plasticBottles: 0,
@@ -251,38 +537,7 @@ export default function WcHome({ userId }: { userId: string }) {
     return ev.status === "Completed";
   });
 
-  // 🔹 Handle photo upload + location
-  async function handleTakePhoto(ev: EventDoc) {
-    try {
-      setUploading(true);
-      const img = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-      if (img.canceled) return;
-
-      const perm = await Location.requestForegroundPermissionsAsync();
-      if (perm.status !== "granted") {
-        Alert.alert("Permission required", "Location permission is needed.");
-        return;
-      }
-      const loc = await Location.getCurrentPositionAsync({});
-      const blob = await fetch(img.assets[0].uri).then((r) => r.blob());
-      const storageRef = ref(storage, `proofs/${ev.id}_${Date.now()}.jpg`);
-      await uploadBytes(storageRef, blob);
-      const url = await getDownloadURL(storageRef);
-
-      setPhotos([...photos, url]);
-      await updateDoc(doc(db, "events", ev.id), {
-        proofUrl: url,
-        geo: { lat: loc.coords.latitude, lng: loc.coords.longitude },
-      });
-
-      setCurrentStep(3);
-      Alert.alert("Photo Uploaded", "Disposal proof added successfully ✅");
-    } catch (e: any) {
-      Alert.alert("Error", String(e));
-    } finally {
-      setUploading(false);
-    }
-  }
+  // Photo step removed
 
   // 🔹 Handle completion form submission
   async function handleComplete(ev: EventDoc) {
@@ -296,7 +551,6 @@ export default function WcHome({ userId }: { userId: string }) {
       Alert.alert("Success", "Assignment marked completed ✅");
       setSelected(null);
       setCurrentStep(0);
-      setPhotos([]);
       setShowCompletionForm(false);
       setCollectedWeights({});
       setActiveTab('completed');
@@ -314,7 +568,6 @@ export default function WcHome({ userId }: { userId: string }) {
 
   const steps = [
     { title: "Collect Waste", icon: Truck, description: "Navigate to location and collect waste materials" },
-    { title: "Take Disposal Photos", icon: Camera, description: "Capture proof of proper disposal" },
     { title: "Confirm Completion", icon: CheckCircle, description: "Mark assignment as completed" },
   ];
 
@@ -404,7 +657,6 @@ export default function WcHome({ userId }: { userId: string }) {
                             onPress={() => {
                               setSelected(ev);
                               setCurrentStep(0);
-                              setPhotos([]);
                             }}
                           >
                             <View className="flex-row items-start justify-between mb-3">
@@ -788,14 +1040,11 @@ export default function WcHome({ userId }: { userId: string }) {
                       disabled={uploading}
                       onPress={async () => {
                         if (index === 0) setCurrentStep(1);
-                        else if (index === 1) await handleTakePhoto(selected);
-                        else if (index === 2) handleCompleteClick();
+                        else if (index === 1) handleCompleteClick();
                       }}
                       className={`px-6 py-3 rounded-xl flex-row items-center justify-center shadow-lg ${
                         index === 0 
                           ? "bg-emerald-600" 
-                          : index === 1 
-                          ? "bg-blue-600" 
                           : "bg-green-600"
                       }`}
                     >
@@ -804,33 +1053,15 @@ export default function WcHome({ userId }: { userId: string }) {
                       ) : (
                         <>
                           {index === 0 && <Truck size={18} color="white" />}
-                          {index === 1 && <Camera size={18} color="white" />}
-                          {index === 2 && <CheckCircle size={18} color="white" />}
+                          {index === 1 && <CheckCircle size={18} color="white" />}
                           <Text className="text-white font-semibold ml-2">
                             {index === 0
                               ? "Mark Collected"
-                              : index === 1
-                              ? "Take Photo"
                               : "Complete"}
                           </Text>
                         </>
                       )}
                     </TouchableOpacity>
-                    
-                    {/* Skip button for Take Disposal Photos step */}
-                    {index === 1 && (
-                      <TouchableOpacity
-                        onPress={() => {
-                          setCurrentStep(2);
-                          Alert.alert("Skipped", "Photo step skipped. You can still take photos later if needed.");
-                        }}
-                        className="mt-3 px-6 py-3 rounded-xl flex-row items-center justify-center border-2 border-gray-300 bg-white"
-                      >
-                        <Text className="text-gray-600 font-semibold">
-                          Skip Photo
-                        </Text>
-                      </TouchableOpacity>
-                    )}
                   </View>
                 )}
                 {index < steps.length - 1 && (
@@ -842,33 +1073,28 @@ export default function WcHome({ userId }: { userId: string }) {
             ))}
           </View>
 
-          {/* Photos */}
-          {photos.length > 0 && (
-            <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm">
-              <View className="flex-row items-center mb-4">
-                <View className="bg-green-100 p-2 rounded-lg mr-3">
-                  <Camera size={20} color="#059669" />
+          {/* Photos section removed */}
+
+          {/* AI/ML Suggestions Button */}
+          <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm border-l-4 border-purple-400">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center">
+                <View className="bg-purple-100 p-2 rounded-lg mr-3">
+                  <Brain size={20} color="#7c3aed" />
                 </View>
-                <Text className="text-lg font-bold text-gray-900">Disposal Photos</Text>
+                <View>
+                  <Text className="text-lg font-bold text-gray-900">AI Disposal Guide</Text>
+                  <Text className="text-sm text-gray-600">Get smart eco-friendly recommendations</Text>
+                </View>
               </View>
-              <View className="space-y-3">
-                {photos.map((p, i) => (
-                  <View key={i} className="relative">
-                    <Image 
-                      source={{ uri: p }} 
-                      className="w-full h-48 rounded-xl shadow-sm" 
-                      resizeMode="cover"
-                    />
-                    <View className="absolute top-2 right-2 bg-black bg-opacity-50 px-2 py-1 rounded">
-                      <Text className="text-white text-xs font-semibold">
-                        Photo {i + 1}
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
+              <TouchableOpacity
+                onPress={() => setShowAISuggestions(true)}
+                className="bg-purple-600 px-4 py-2 rounded-xl shadow-sm"
+              >
+                <Text className="text-white font-semibold text-sm">Get Suggestions</Text>
+              </TouchableOpacity>
             </View>
-          )}
+          </View>
 
           {/* Completion Form */}
           {showCompletionForm && (
@@ -936,6 +1162,14 @@ export default function WcHome({ userId }: { userId: string }) {
           )}
         </ScrollView>
       )}
+
+      {/* AI Suggestions Modal */}
+      <AISuggestionsModal
+        visible={showAISuggestions}
+        onClose={() => setShowAISuggestions(false)}
+        wasteTypes={selected?.wasteTypes}
+        collectedWeights={collectedWeights}
+      />
     </View>
   );
 }
