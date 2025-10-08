@@ -225,44 +225,41 @@ function ImageUploader({
     }
 
     try {
-      // Request permissions first
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission required', 'Sorry, we need camera roll permissions to upload images.');
+        Alert.alert('Permission required', 'We need permissions to access your images.');
         return;
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType.Images,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
       });
 
-      if (!result.canceled && result.assets[0].uri) {
-        setUploading(true);
-        const imageUri = result.assets[0].uri;
-        
-        // Upload to Firebase Storage
-        try {
-          const response = await fetch(imageUri);
-          const blob = await response.blob();
-          const filename = `events/${Date.now()}-${Math.random().toString(36).substring(2)}.jpg`;
-          const storageRef = ref(storage, filename);
-          
-          await uploadBytes(storageRef, blob);
-          const downloadURL = await getDownloadURL(storageRef);
-          
-          onImagesChange([...images, downloadURL]);
-        } catch (uploadError) {
-          console.error("Firebase upload error:", uploadError);
-          Alert.alert("Upload Failed", "Failed to upload image to storage. Please try again.");
-        }
-        setUploading(false);
+      if (result.canceled || !result.assets[0].uri) return;
+
+      const imageUri = result.assets[0].uri;
+      setUploading(true);
+
+      // Native vs Web upload
+      let downloadURL = imageUri;
+
+      if (!isWeb) {
+        const response = await fetch(imageUri);
+        const blob = await response.blob();
+        const filename = `events/${Date.now()}-${Math.random().toString(36).substring(2)}.jpg`;
+        const storageRef = ref(storage, filename);
+        await uploadBytes(storageRef, blob);
+        downloadURL = await getDownloadURL(storageRef);
       }
-    } catch (error) {
-      console.error("Image picker error:", error);
-      Alert.alert("Error", "Failed to pick image. Please try again.");
+
+      onImagesChange([...images, downloadURL]);
+      setUploading(false);
+    } catch (err) {
+      console.error("Image upload error:", err);
+      Alert.alert("Upload Failed", "Could not upload image. Please try again.");
       setUploading(false);
     }
   };
@@ -282,11 +279,15 @@ function ImageUploader({
 
   return (
     <View className="mb-4">
-      <Text className="text-gray-900 text-base font-semibold mb-3">{title}</Text>
+      {title ? <Text className="text-gray-900 text-base font-semibold mb-3">{title}</Text> : null}
       <View className="flex-row flex-wrap">
         {images.map((image, index) => (
           <View key={index} className="relative mr-3 mb-3">
-            <Image source={{ uri: image }} className="w-20 h-20 rounded-xl" />
+            <Image 
+              source={{ uri: image }} 
+              className="w-20 h-20 rounded-xl" 
+              resizeMode="cover" 
+            />
             <Pressable
               onPress={() => removeImage(index)}
               className="absolute -top-2 -right-2 bg-red-500 rounded-full w-6 h-6 items-center justify-center"
@@ -315,6 +316,7 @@ function ImageUploader({
     </View>
   );
 }
+
 
 // Date helpers for web inputs
 function pad(n: number) {
