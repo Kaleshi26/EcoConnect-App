@@ -20,6 +20,8 @@ import {
   Alert,
   Animated,
   Image,
+  Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -41,7 +43,7 @@ type EventDoc = {
   title: string;
   description: string;
   eventAt?: Timestamp;
-  location?: { label?: string };
+  location?: { label?: string; latitude?: number; longitude?: number };
   wasteTypes?: string[];
   volunteersNeeded?: number;
   sponsorshipRequired?: boolean;
@@ -388,14 +390,49 @@ function EventCard({ ev, onClosePress }: { ev: EventDoc; onClosePress: () => voi
 
   const statusConfig = statusColors[status] || { bg: "bg-gray-100", text: "text-gray-700" };
 
+  const openInMaps = () => {
+    const { latitude, longitude, label } = ev.location || {};
+    if (!latitude || !longitude) return;
+
+    const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
+    const latLng = `${latitude},${longitude}`;
+    const url = Platform.select({
+      ios: `${scheme}${label}@${latLng}`,
+      android: `${scheme}${latLng}(${label})`
+    });
+    
+    if (url) Linking.openURL(url);
+  };
+
   return (
     <View className="mb-6 bg-white rounded-3xl overflow-hidden shadow-2xl border-2 border-gray-100">
-      <Image
-        source={{
-          uri: ev.imageUrl || "https://images.unsplash.com/photo-1581579438747-1dc8d17bbce4?w=400",
-        }}
-        className="w-full h-48"
-      />
+      {ev.location?.latitude && ev.location?.longitude ? (
+        <Pressable onPress={openInMaps}>
+          <MapView
+            provider={PROVIDER_GOOGLE}
+            style={{ width: "100%", height: 192 }} // h-48 is 192px
+            scrollEnabled={false}
+            zoomEnabled={false}
+            pitchEnabled={false}
+            rotateEnabled={false}
+            initialRegion={{
+              latitude: ev.location.latitude,
+              longitude: ev.location.longitude,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
+            }}
+          >
+            <Marker coordinate={{ latitude: ev.location.latitude, longitude: ev.location.longitude }} />
+          </MapView>
+        </Pressable>
+      ) : (
+        <Image
+          source={{
+            uri: ev.imageUrl || "https://images.unsplash.com/photo-1581579438747-1dc8d17bbce4?w=400",
+          }}
+          className="w-full h-48"
+        />
+      )}
       <View className="p-6">
         <Row className="justify-between mb-3">
           <Text className="text-xl font-bold flex-1 text-gray-900 mr-3">{ev.title}</Text>
@@ -463,6 +500,138 @@ function EventCard({ ev, onClosePress }: { ev: EventDoc; onClosePress: () => voi
 }
 
 /* ------------------------------------------------------------------ */
+/* NEW: Location Picker Modal                                         */
+/* ------------------------------------------------------------------ */
+function LocationPickerModal({
+  visible,
+  onClose,
+  onLocationSelect,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onLocationSelect: (coords: { latitude: number; longitude: number }) => void;
+}) {
+  const [initialRegion, setInitialRegion] = useState<{
+    latitude: number;
+    longitude: number;
+    latitudeDelta: number;
+    longitudeDelta: number;
+  } | null>(null);
+
+  const [markerCoords, setMarkerCoords] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+
+  useEffect(() => {
+    // A default location (e.g., San Francisco) in case everything fails
+    const defaultRegion = {
+      latitude: 37.78825,
+      longitude: -122.4324,
+      latitudeDelta: 0.0922,
+      longitudeDelta: 0.0421,
+    };
+
+    const setupLocation = async () => {
+      // --- WEB PLATFORM LOGIC ---
+      if (Platform.OS === 'web') {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              const { latitude, longitude } = position.coords;
+              const region = { latitude, longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 };
+              setInitialRegion(region);
+              setMarkerCoords(region);
+            },
+            (err) => {
+              console.warn(`Geolocation error on web: ${err.message}`);
+              setInitialRegion(defaultRegion);
+              setMarkerCoords(defaultRegion);
+            }
+          );
+        } else {
+          Alert.alert("Location not supported", "Your browser does not support geolocation.");
+          setInitialRegion(defaultRegion);
+          setMarkerCoords(defaultRegion);
+        }
+      // --- MOBILE PLATFORM LOGIC (iOS & Android) ---
+      } else {
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert("Permission denied", "We need permission to access your location to center the map.");
+          setInitialRegion(defaultRegion);
+          setMarkerCoords(defaultRegion);
+          return;
+        }
+
+        let location = await Location.getCurrentPositionAsync({});
+        const region = {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        };
+        setInitialRegion(region);
+        setMarkerCoords(region);
+      }
+    };
+
+    setupLocation();
+  }, []);
+
+  const handleConfirm = () => {
+    if (markerCoords) {
+      onLocationSelect(markerCoords);
+      onClose();
+    }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <View className="flex-1">
+        {initialRegion ? (
+          <MapView
+            provider={PROVIDER_GOOGLE}
+            style={{ flex: 1 }}
+            initialRegion={initialRegion}
+            showsUserLocation
+          >
+            {markerCoords && (
+              <Marker
+                draggable
+                coordinate={markerCoords}
+                onDragEnd={(e) => setMarkerCoords(e.nativeEvent.coordinate)}
+                title="Event Location"
+                description="Drag to move"
+              />
+            )}
+          </MapView>
+        ) : (
+          <View className="flex-1 items-center justify-center">
+            <ActivityIndicator size="large" />
+            <Text className="mt-4">Fetching map...</Text>
+          </View>
+        )}
+        <View className="absolute bottom-6 left-6 right-6 flex-row gap-4">
+          <Pressable
+            onPress={onClose}
+            className="flex-1 bg-gray-500 rounded-2xl py-4 items-center"
+          >
+            <Text className="text-white font-bold text-lg">Cancel</Text>
+          </Pressable>
+          <Pressable
+            onPress={handleConfirm}
+            className="flex-1 bg-blue-600 rounded-2xl py-4 items-center"
+          >
+            <Text className="text-white font-bold text-lg">Confirm Location</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Create Event Form (with image upload)                             */
 /* ------------------------------------------------------------------ */
 function CreateEventForm({
@@ -485,6 +654,9 @@ function CreateEventForm({
   const combinedDate = useMemo(() => combineDateTime(date, time), [date, time]);
 
   const [locationLabel, setLocationLabel] = useState("");
+  const [locationCoords, setLocationCoords] = useState<{latitude: number; longitude: number} | null>(null);
+  const [isMapModalVisible, setMapModalVisible] = useState(false);
+
   const [wasteTypes, setWasteTypes] = useState<string[]>([]);
   const [volunteers, setVolunteers] = useState(20);
   const [sponsorshipRequired, setSponsorshipRequired] = useState(false);
@@ -501,6 +673,9 @@ function CreateEventForm({
     if (!combinedDate) return "Please select date and time.";
     if (combinedDate.getTime() < Date.now()) return "Event time must be in the future.";
     if (!locationLabel.trim()) return "Please enter a location/meeting point.";
+
+    if (!locationCoords) return "Please select the event location on the map.";
+
     if (description.trim().length < 10) return "Description should be at least 10 characters.";
     if (eventImages.length === 0) return "Please add at least one event image.";
     return null;
@@ -526,7 +701,11 @@ function CreateEventForm({
         title: title.trim(),
         description: description.trim(),
         eventAt: Timestamp.fromDate(combinedDate!),
-        location: { label: locationLabel.trim() },
+        location: { 
+          label: locationLabel.trim(),
+          latitude: locationCoords?.latitude,
+          longitude: locationCoords?.longitude,
+        },
         wasteTypes,
         volunteersNeeded: volunteers,
         sponsorshipRequired,
@@ -556,6 +735,13 @@ function CreateEventForm({
 
   return (
     <View className="flex-1 bg-gradient-to-b from-blue-50 to-purple-50">
+      <LocationPickerModal
+        visible={isMapModalVisible}
+        onClose={() => setMapModalVisible(false)}
+        onLocationSelect={(coords) => {
+          setLocationCoords(coords);
+        }}
+      />
       <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 80 }} keyboardShouldPersistTaps="handled">
         <View className="items-center mb-6">
           <View className="bg-white rounded-3xl px-6 py-4 shadow-lg mb-2">
@@ -671,6 +857,14 @@ function CreateEventForm({
             placeholder="🏖️ Beach Point, Coastal Road..."
             className="px-4 py-4 text-lg font-medium"
             placeholderTextColor="#9ca3af"
+          />
+          <View className="h-[2px] bg-orange-100 mx-4" />
+          <FieldButton
+            icon="map-outline"
+            label="Set on Map"
+            value={locationCoords ? "Location Set" : "Select"}
+            onPress={() => setMapModalVisible(true)}
+            color="orange"
           />
         </Section>
 

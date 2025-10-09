@@ -16,7 +16,13 @@
         "foregroundImage": "./assets/images/logo.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyAcpZRqUS-gkAlomb-ZsO2Zdbed50xQO0A"
+        }
+      },
+      "package": "com.anonymous.EcoConnectApp"
     },
     "web": {
       "bundler": "metro",

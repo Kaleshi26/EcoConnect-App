@@ -1,32 +1,52 @@
 // app.config.js
 
-import 'dotenv/config'; // Loads your .env file
-import appJson from './app.json'; // Imports your existing app.json
+import 'dotenv/config';
 
-export default {
-  // Start with the entire existing app.json config
-  ...appJson,
-  
-  // Now, we'll dive into the 'expo' object to add our new keys
-  expo: {
-    ...appJson.expo, // Keep all existing settings from expo object
+// No need to import app.json here, expo-cli does it automatically when we export a function.
 
-    // Safely add our new android config
-    android: {
-      ...(appJson.expo.android || {}), // Keep existing android settings or use an empty object
-      config: {
-        googleMaps: {
-          apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
-        },
+export default ({ config }) => {
+  // `config` is the evaluated app.json | app.config.js content.
+  // We can modify it and return it.
+
+  console.log("Reading Google Maps API Key:", process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY);
+
+  // Add the Google Maps API Key configuration
+  config.android = {
+    ...(config.android || {}),
+
+    permissions: [
+      "android.permission.ACCESS_COARSE_LOCATION",
+      "android.permission.ACCESS_FINE_LOCATION"
+    ],
+    
+    config: {
+      ...(config.android?.config || {}),
+      googleMaps: {
+        apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
       },
     },
+  };
 
-    // Safely add our new ios config
-    ios: {
-      ...(appJson.expo.ios || {}), // Keep existing ios settings or use an empty object
-      config: {
-        googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
+  config.ios = {
+    ...(config.ios || {}),
+    config: {
+      ...(config.ios?.config || {}),
+      googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
+    },
+  };
+
+  config.web = {
+    ...(config.web || {}),
+    config: {
+      ...(config.web?.config || {}),
+      googleMaps: {
+        apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
       },
     },
-  },
+  };
+
+  // Return the modified config.
+  return {
+    ...config,
+  };
 };
