@@ -2,276 +2,492 @@ import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/services/firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { collection, doc, getDoc, getDocs, limit, orderBy, query, where } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, StatusBar, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+type SponsorshipDoc = {
+  id: string;
+  eventId: string;
+  eventTitle: string;
+  sponsorId: string;
+  sponsorEmail: string;
+  sponsorName: string;
+  amount: number;
+  sponsorshipType: 'financial' | 'in_kind' | 'both';
+  companyName?: string;
+  contactEmail: string;
+  contactPhone: string;
+  message?: string;
+  inKindDescription?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'completed';
+  createdAt: any;
+  updatedAt: any;
+};
 
 type EventDoc = {
   id: string;
   title: string;
+  eventAt?: any;
   location?: { label?: string };
-};
-
-type PledgeDoc = {
-  id: string;
-  amount?: number;
-  purpose?: string;
-  paymentMethod?: string;
-  message?: string;
-  showCompanyName?: boolean;
-  isAnonymous?: boolean;
-  createdAt?: any;
+  status?: string;
+  wasteCollected?: number;
 };
 
 export default function SponsorConfirmation() {
-  const { user } = useAuth();
-  const router = useRouter();
-  const { eventId, amount, eventName } = useLocalSearchParams();
+  const { sponsorshipId, eventId, fromReports } = useLocalSearchParams();
+  const [sponsorship, setSponsorship] = useState<SponsorshipDoc | null>(null);
   const [event, setEvent] = useState<EventDoc | null>(null);
-  const [pledge, setPledge] = useState<PledgeDoc | null>(null);
   const [loading, setLoading] = useState(true);
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { user } = useAuth();
 
+  // Real-time listener for sponsorship updates
   useEffect(() => {
-    if (!eventId || !user) return;
-    
-    const fetchData = async () => {
-      try {
-        // Fetch event details
-        const eventDoc = await getDoc(doc(db, "events", eventId as string));
-        if (eventDoc.exists()) {
-          setEvent({ id: eventDoc.id, ...eventDoc.data() } as EventDoc);
-        }
+    if (!sponsorshipId) return;
 
-        // Fetch the most recent pledge for this event by the current user
-        const pledgeQuery = query(
-          collection(db, "pledges"), 
-          where("userId", "==", user.uid), 
-          where("eventId", "==", eventId),
-          orderBy("createdAt", "desc"),
-          limit(1)
-        );
-        
-        const pledgeSnap = await getDocs(pledgeQuery);
-        if (!pledgeSnap.empty) {
-          const pledgeDoc = pledgeSnap.docs[0];
-          const pledgeData = pledgeDoc.data();
-          // Create the pledge object without spreading to avoid id conflicts
-          setPledge({
-            id: pledgeDoc.id,
-            amount: pledgeData.amount,
-            purpose: pledgeData.purpose,
-            paymentMethod: pledgeData.paymentMethod,
-            message: pledgeData.message,
-            showCompanyName: pledgeData.showCompanyName,
-            isAnonymous: pledgeData.isAnonymous,
-            createdAt: pledgeData.createdAt
-          });
-        }
-        
+    const sponsorshipRef = doc(db, "sponsorships", sponsorshipId as string);
+    
+    const unsubscribe = onSnapshot(sponsorshipRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const sponsorshipData = {
+          id: docSnap.id,
+          ...docSnap.data(),
+        } as SponsorshipDoc;
+        setSponsorship(sponsorshipData);
         setLoading(false);
-      } catch (error) {
-        console.error("Error fetching confirmation data:", error);
+      } else {
         setLoading(false);
       }
-    };
+    }, (error) => {
+      console.error("Error listening to sponsorship:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [sponsorshipId]);
+
+  // Fetch event details
+  useEffect(() => {
+    if (!eventId) return;
+
+    const eventRef = doc(db, "events", eventId as string);
     
-    fetchData();
-  }, [eventId, user]);
-
-  const getPledgeAmount = () => {
-    if (pledge?.amount) return pledge.amount;
-    if (amount) return parseInt(amount as string);
-    return 0;
-  };
-
-  const getEventTitle = () => {
-    if (event?.title) return event.title;
-    if (eventName) return eventName as string;
-    return "the event";
-  };
-
-  const formatDate = () => {
-    if (pledge?.createdAt) {
-      try {
-        const date = pledge.createdAt.toDate();
-        return date.toLocaleDateString();
-      } catch {
-        return new Date().toLocaleDateString();
+    const unsubscribe = onSnapshot(eventRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const eventData = {
+          id: docSnap.id,
+          ...docSnap.data(),
+        } as EventDoc;
+        setEvent(eventData);
       }
+    });
+
+    return () => unsubscribe();
+  }, [eventId]);
+
+  const formatCurrency = (amount: number): string => {
+    return new Intl.NumberFormat('en-LK', {
+      style: 'currency',
+      currency: 'LKR',
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const formatDate = (timestamp: any): string => {
+    if (!timestamp) return "TBA";
+    try {
+      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch {
+      return "TBA";
     }
-    return new Date().toLocaleDateString();
   };
 
-  if (loading) {
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case "completed":
+      case "approved":
+        return "#10B981";
+      case "ongoing":
+        return "#3B82F6";
+      case "pending":
+        return "#F59E0B";
+      case "rejected":
+        return "#EF4444";
+      default:
+        return "#6B7280";
+    }
+  };
+
+  const getStatusBackground = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case "completed":
+      case "approved":
+        return "#DCFCE7";
+      case "ongoing":
+        return "#DBEAFE";
+      case "pending":
+        return "#FEF3C7";
+      case "rejected":
+        return "#FEE2E2";
+      default:
+        return "#F3F4F6";
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case "pending":
+        return "Under Review";
+      case "approved":
+        return "Approved ✅";
+      case "rejected":
+        return "Rejected ❌";
+      case "completed":
+        return "Completed 🎉";
+      default:
+        return status || "Pending";
+    }
+  };
+
+  const getSponsorshipTypeText = (type: string) => {
+    switch (type) {
+      case 'financial': return 'Financial Sponsorship';
+      case 'in_kind': return 'In-Kind Sponsorship';
+      case 'both': return 'Combined Sponsorship';
+      default: return 'Sponsorship';
+    }
+  };
+
+  const getSponsorshipTypeDescription = (type: string) => {
+    switch (type) {
+      case 'financial': 
+        return 'Monetary contribution to support the event';
+      case 'in_kind': 
+        return 'Providing goods, services, or resources';
+      case 'both': 
+        return 'Combination of financial and in-kind support';
+      default: return 'Event sponsorship';
+    }
+  };
+
+  const handleViewDashboard = () => {
+    router.push("/sponsor/tabs/sponsorDashboard");
+  };
+
+  const handleViewMySponsorships = () => {
+    router.push("/sponsor/tabs/sponsorReports");
+  };
+
+  const handleBack = () => {
+    if (fromReports === "true" || router.canGoBack()) {
+      router.back();
+    } else {
+      router.push("/sponsor/tabs/sponsorDashboard");
+    }
+  };
+
+  if (loading || !sponsorship) {
     return (
-      <View className="flex-1 justify-center items-center bg-slate-50">
-        <ActivityIndicator size="large" color="#4FB7B3" />
-        <Text className="text-teal-700 mt-4 font-medium">Loading confirmation...</Text>
+      <View className="flex-1 bg-gray-50 justify-center items-center">
+        <StatusBar barStyle="dark-content" />
+        <Text className="text-gray-600 font-medium text-base">
+          Loading sponsorship details...
+        </Text>
       </View>
     );
   }
 
-  const pledgeAmount = getPledgeAmount();
-  const eventTitle = getEventTitle();
-  const pledgeDate = formatDate();
+  const statusColor = getStatusColor(sponsorship.status);
+  const statusBackground = getStatusBackground(sponsorship.status);
 
   return (
-    <ScrollView className="flex-1 bg-slate-50" contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
-      <View className="space-y-6">
-        {/* Success Icon */}
-        <View className="items-center">
-          <View className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
-            <Ionicons name="checkmark-circle" size={48} color="#4FB7B3" />
-          </View>
-        </View>
-
-        {/* Success Message */}
-        <View className="items-center">
-          <Text className="text-2xl font-bold text-teal-700 mb-2 text-center">
-            Sponsorship Successful!
-          </Text>
-          <Text className="text-gray-600 text-center">
-            Thank you for supporting {eventTitle}
-          </Text>
-        </View>
-
-        {/* Sponsorship Details */}
-        <View className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
-          <Text className="text-lg font-bold text-teal-700 mb-4">Sponsorship Details</Text>
-          
-          <View className="space-y-3">
-            <View className="flex-row justify-between">
-              <Text className="text-gray-600">Event:</Text>
-              <Text className="text-right font-medium">{eventTitle}</Text>
-            </View>
-            
-            <View className="flex-row justify-between">
-              <Text className="text-gray-600">Amount:</Text>
-              <Text className="text-teal-700 font-bold">LKR {pledgeAmount.toLocaleString()}</Text>
-            </View>
-            
-            {pledge?.purpose && (
-              <View className="flex-row justify-between">
-                <Text className="text-gray-600">Purpose:</Text>
-                <Text className="text-right">{pledge.purpose}</Text>
-              </View>
-            )}
-            
-            {pledge?.paymentMethod && (
-              <View className="flex-row justify-between">
-                <Text className="text-gray-600">Payment Method:</Text>
-                <Text className="text-right capitalize">{pledge.paymentMethod}</Text>
-              </View>
-            )}
-            
-            <View className="flex-row justify-between">
-              <Text className="text-gray-600">Date:</Text>
-              <Text>{pledgeDate}</Text>
-            </View>
-
-            {pledge?.message && (
-              <View className="mt-3 pt-3 border-t border-gray-100">
-                <Text className="text-gray-600 mb-1">Your Message:</Text>
-                <Text className="text-gray-700 italic">&ldquo;{pledge.message}&rdquo;</Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* Privacy Settings Summary */}
-        <View className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
-          <Text className="text-lg font-bold text-teal-700 mb-4">Privacy Settings</Text>
-          
-          <View className="space-y-2">
-            <View className="flex-row items-center">
-              <Ionicons 
-                name={pledge?.showCompanyName ? "eye-outline" : "eye-off-outline"} 
-                size={16} 
-                color="#4FB7B3" 
-              />
-              <Text className="text-gray-600 ml-2">
-                Company name {pledge?.showCompanyName ? "will" : "will not"} be displayed
-              </Text>
-            </View>
-            
-            <View className="flex-row items-center">
-              <Ionicons 
-                name={pledge?.isAnonymous ? "person-remove-outline" : "person-outline"} 
-                size={16} 
-                color="#4FB7B3" 
-              />
-              <Text className="text-gray-600 ml-2">
-                Contribution is {pledge?.isAnonymous ? "anonymous" : "not anonymous"}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Certificate Section */}
-        <View className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
-          <View className="flex-row items-center justify-between mb-3">
-            <View className="flex-row items-center">
-              <Ionicons name="medal-outline" size={20} color="#4FB7B3" />
-              <Text className="text-teal-700 font-medium ml-2">Digital Certificate</Text>
-            </View>
-            <Pressable className="bg-teal-100 rounded-lg py-2 px-4">
-              <Text className="text-teal-700 font-bold">Download PDF</Text>
-            </Pressable>
-          </View>
-          <Text className="text-sm text-gray-600">
-            Your certificate of appreciation is ready for download
-          </Text>
-        </View>
-
-        {/* Share Options */}
-        <View className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
-          <Text className="text-lg font-bold text-teal-700 mb-4 flex-row items-center justify-center">
-            <Ionicons name="share-social" size={20} color="#4FB7B3" />
-            <Text className="ml-2">Share Your Impact</Text>
-          </Text>
-          
-          <View className="flex-row justify-between space-x-2">
-            <Pressable className="bg-blue-100 rounded-lg py-3 px-4 flex-1 items-center">
-              <Ionicons name="logo-linkedin" size={20} color="#0077B5" />
-              <Text className="text-blue-700 font-medium text-xs mt-1">LinkedIn</Text>
-            </Pressable>
-            
-            <Pressable className="bg-blue-50 rounded-lg py-3 px-4 flex-1 items-center">
-              <Ionicons name="logo-twitter" size={20} color="#1DA1F2" />
-              <Text className="text-blue-500 font-medium text-xs mt-1">Twitter</Text>
-            </Pressable>
-            
-            <Pressable className="bg-blue-200 rounded-lg py-3 px-4 flex-1 items-center">
-              <Ionicons name="logo-facebook" size={20} color="#1877F2" />
-              <Text className="text-blue-800 font-medium text-xs mt-1">Facebook</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Action Buttons */}
-        <View className="space-y-3">
+    <View className="flex-1 bg-gray-50">
+      <StatusBar barStyle="dark-content" />
+      
+      {/* Header */}
+      <View 
+        className="bg-white pt-4 px-4 border-b border-gray-200"
+        style={{ paddingTop: insets.top + 16 }}
+      >
+        <View className="flex-row items-center justify-between mb-4">
           <Pressable
-            onPress={() => router.push("/sponsor/tabs/sponsorDashboard")}
-            className="bg-teal-600 rounded-xl py-4 items-center shadow-md"
+            onPress={handleBack}
+            className="w-10 h-10 items-center justify-center rounded-full bg-gray-100"
           >
-            <Text className="text-white font-bold text-base">View on Dashboard</Text>
+            <Ionicons name="chevron-back" size={24} color="#374151" />
           </Pressable>
           
-          <Pressable
-            onPress={() => router.push("/sponsor/tabs/sponsorDashboard")}
-            className="bg-gray-200 rounded-xl py-4 items-center shadow-md"
-          >
-            <Text className="text-gray-700 font-bold text-base">Back to Events</Text>
-          </Pressable>
+          <Text className="text-lg font-semibold text-gray-900">Sponsorship Details</Text>
           
-          <Pressable
-            onPress={() => router.push("/sponsor/tabs/sponsorDashboard")}
-            className="border border-teal-600 rounded-xl py-4 items-center"
-          >
-            <Text className="text-teal-600 font-bold text-base">Sponsor Another Event</Text>
-          </Pressable>
+          <View className="w-10" />
         </View>
       </View>
-    </ScrollView>
+
+      <ScrollView 
+        className="flex-1"
+        contentContainerStyle={{
+          paddingBottom: 40,
+        }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View className="px-4 pt-6 pb-8">
+          {/* Success Header */}
+          <View className="items-center mb-8">
+            <View className="bg-green-100 rounded-full p-6 mb-4">
+              <Ionicons 
+                name={
+                  sponsorship.status === 'approved' ? "checkmark-circle" :
+                  sponsorship.status === 'rejected' ? "close-circle" :
+                  "time"
+                } 
+                size={80} 
+                color={statusColor} 
+              />
+            </View>
+            
+            <Text className="text-3xl font-bold text-gray-900 text-center mb-2">
+              {sponsorship.status === 'approved' ? 'Sponsorship Approved!' :
+               sponsorship.status === 'rejected' ? 'Sponsorship Rejected' :
+               'Thank You!'}
+            </Text>
+            
+            <Text className="text-gray-600 text-lg text-center">
+              {sponsorship.status === 'approved' ? 'Your sponsorship has been approved by the event organizer.' :
+               sponsorship.status === 'rejected' ? 'Unfortunately, your sponsorship was not approved.' :
+               'Your sponsorship request has been submitted and is under review.'}
+            </Text>
+          </View>
+
+          {/* Event Card */}
+          <View className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-200">
+            <Text className="text-xl font-bold text-teal-700 mb-2">
+              {sponsorship.eventTitle}
+            </Text>
+            {event?.location?.label && (
+              <Text className="text-gray-600 text-sm mb-3">
+                📍 {event.location.label}
+              </Text>
+            )}
+            {event?.eventAt && (
+              <Text className="text-gray-600 text-sm">
+                📅 {formatDate(event.eventAt)}
+              </Text>
+            )}
+          </View>
+
+          {/* Sponsorship Details Card */}
+          <View className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-200">
+            <View className="flex-row items-center mb-4">
+              <Ionicons name="receipt" size={24} color="#14B8A6" />
+              <Text className="text-xl font-bold text-gray-900 ml-3">
+                Sponsorship Details
+              </Text>
+            </View>
+            
+            <View className="space-y-4">
+              {/* Status - Highlighted */}
+              <View className="flex-row justify-between items-center p-3 rounded-lg bg-gray-50">
+                <Text className="text-gray-700 font-medium">Status</Text>
+                <View className="px-3 py-2 rounded-full" style={{ backgroundColor: statusBackground }}>
+                  <Text className="font-semibold" style={{ color: statusColor }}>
+                    {getStatusText(sponsorship.status)}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Amount */}
+              {sponsorship.amount > 0 && (
+                <View className="flex-row justify-between items-center">
+                  <Text className="text-gray-600">Amount</Text>
+                  <Text className="text-2xl font-bold text-teal-600">
+                    {formatCurrency(sponsorship.amount)}
+                  </Text>
+                </View>
+              )}
+
+              {/* Sponsorship Type */}
+              <View className="flex-row justify-between items-start">
+                <Text className="text-gray-600">Sponsorship Type</Text>
+                <View className="flex-1 ml-4">
+                  <Text className="text-gray-900 font-medium text-right">
+                    {getSponsorshipTypeText(sponsorship.sponsorshipType)}
+                  </Text>
+                  <Text className="text-gray-500 text-sm text-right mt-1">
+                    {getSponsorshipTypeDescription(sponsorship.sponsorshipType)}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Company Name */}
+              {sponsorship.companyName && (
+                <View className="flex-row justify-between items-center">
+                  <Text className="text-gray-600">Company/Organization</Text>
+                  <Text className="text-gray-900 font-medium">{sponsorship.companyName}</Text>
+                </View>
+              )}
+
+              {/* Contact Information */}
+              <View className="border-t border-gray-200 pt-4">
+                <Text className="text-gray-700 font-medium mb-2">Contact Information</Text>
+                <View className="space-y-2">
+                  <View className="flex-row justify-between">
+                    <Text className="text-gray-600">Email</Text>
+                    <Text className="text-gray-900">{sponsorship.contactEmail}</Text>
+                  </View>
+                  <View className="flex-row justify-between">
+                    <Text className="text-gray-600">Phone</Text>
+                    <Text className="text-gray-900">{sponsorship.contactPhone}</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* In-Kind Description */}
+              {sponsorship.inKindDescription && (
+                <View className="border-t border-gray-200 pt-4">
+                  <Text className="text-gray-700 font-medium mb-2">In-Kind Contribution</Text>
+                  <Text className="text-gray-600 text-sm bg-gray-50 p-3 rounded-lg">
+                    {sponsorship.inKindDescription}
+                  </Text>
+                </View>
+              )}
+
+              {/* Message */}
+              {sponsorship.message && (
+                <View className="border-t border-gray-200 pt-4">
+                  <Text className="text-gray-700 font-medium mb-2">Your Message</Text>
+                  <Text className="text-gray-600 text-sm bg-blue-50 p-3 rounded-lg">
+                    {sponsorship.message}
+                  </Text>
+                </View>
+              )}
+
+              {/* Dates */}
+              <View className="border-t border-gray-200 pt-4 space-y-2">
+                <View className="flex-row justify-between">
+                  <Text className="text-gray-600">Submitted</Text>
+                  <Text className="text-gray-900">{formatDate(sponsorship.createdAt)}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-gray-600">Last Updated</Text>
+                  <Text className="text-gray-900">{formatDate(sponsorship.updatedAt)}</Text>
+                </View>
+              </View>
+
+              {/* Reference ID */}
+              <View className="border-t border-gray-200 pt-4">
+                <View className="flex-row justify-between items-center">
+                  <Text className="text-gray-600">Reference ID</Text>
+                  <Text className="text-gray-900 font-mono text-sm">
+                    #{sponsorship.id.substring(0, 8).toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* Next Steps Based on Status */}
+          <View className="bg-blue-50 rounded-2xl p-5 mb-6 border border-blue-200">
+            <View className="flex-row items-center mb-4">
+              <Ionicons name="information-circle" size={24} color="#2563EB" />
+              <Text className="text-xl font-bold text-blue-900 ml-3">
+                {sponsorship.status === 'approved' ? 'Next Steps' :
+                 sponsorship.status === 'rejected' ? 'What Happens Next?' :
+                 'What to Expect'}
+              </Text>
+            </View>
+            
+            {sponsorship.status === 'approved' ? (
+              <View className="space-y-3">
+                <View className="flex-row items-start">
+                  <Ionicons name="checkmark-circle" size={20} color="#059669" className="mt-0.5 mr-3" />
+                  <Text className="text-blue-800 flex-1">
+                    Your sponsorship has been approved! The event organizer may contact you for further coordination.
+                  </Text>
+                </View>
+                <View className="flex-row items-start">
+                  <Ionicons name="calendar" size={20} color="#2563EB" className="mt-0.5 mr-3" />
+                  <Text className="text-blue-800 flex-1">
+                    You will receive updates about the event and your sponsorship impact.
+                  </Text>
+                </View>
+                <View className="flex-row items-start">
+                  <Ionicons name="document-text" size={20} color="#7C3AED" className="mt-0.5 mr-3" />
+                  <Text className="text-blue-800 flex-1">
+                    Look out for impact reports after the event completion.
+                  </Text>
+                </View>
+              </View>
+            ) : sponsorship.status === 'rejected' ? (
+              <View className="space-y-3">
+                <View className="flex-row items-start">
+                  <Ionicons name="close-circle" size={20} color="#DC2626" className="mt-0.5 mr-3" />
+                  <Text className="text-blue-800 flex-1">
+                    Unfortunately, your sponsorship request was not approved for this event.
+                  </Text>
+                </View>
+                <View className="flex-row items-start">
+                  <Ionicons name="search" size={20} color="#2563EB" className="mt-0.5 mr-3" />
+                  <Text className="text-blue-800 flex-1">
+                    You can explore other events that need sponsorship support.
+                  </Text>
+                </View>
+                <View className="flex-row items-start">
+                  <Ionicons name="mail" size={20} color="#7C3AED" className="mt-0.5 mr-3" />
+                  <Text className="text-blue-800 flex-1">
+                    The event organizer may contact you with more information.
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <View className="space-y-3">
+                <View className="flex-row items-start">
+                  <Ionicons name="time" size={20} color="#D97706" className="mt-0.5 mr-3" />
+                  <Text className="text-blue-800 flex-1">
+                    The event organizer will review your request within 2-3 business days.
+                  </Text>
+                </View>
+                <View className="flex-row items-start">
+                  <Ionicons name="mail" size={20} color="#2563EB" className="mt-0.5 mr-3" />
+                  <Text className="text-blue-800 flex-1">
+                    You will be notified via email when your sponsorship is approved or if more information is needed.
+                  </Text>
+                </View>
+                <View className="flex-row items-start">
+                  <Ionicons name="refresh" size={20} color="#7C3AED" className="mt-0.5 mr-3" />
+                  <Text className="text-blue-800 flex-1">
+                    This page will update automatically when your sponsorship status changes.
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* Action Buttons */}
+          <View className="space-y-3">
+            <Pressable
+              onPress={handleViewMySponsorships}
+              className="bg-teal-500 rounded-xl py-4 items-center shadow-lg"
+            >
+              <Text className="text-white font-bold text-lg">View All My Sponsorships</Text>
+            </Pressable>
+            
+            <Pressable
+              onPress={handleViewDashboard}
+              className="bg-white border border-teal-300 rounded-xl py-4 items-center shadow-sm"
+            >
+              <Text className="text-teal-700 font-semibold text-lg">Back to Dashboard</Text>
+            </Pressable>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
