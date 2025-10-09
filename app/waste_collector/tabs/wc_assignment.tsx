@@ -1,45 +1,42 @@
 // Photo upload temporarily disabled: remove ImagePicker and Location
 import { router, useLocalSearchParams } from "expo-router";
 import {
-  collection,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  Timestamp,
-  updateDoc
+    collection,
+    doc,
+    onSnapshot,
+    orderBy,
+    query,
+    serverTimestamp,
+    Timestamp,
+    updateDoc
 } from "firebase/firestore";
 // Photo upload temporarily disabled: remove Firebase Storage helpers
 import {
-  AlertCircle,
-  Brain,
-  Calendar,
-  CheckCircle,
-  CheckCircle2,
-  ChevronLeft,
-  Clock,
-  Leaf,
-  MapPin,
-  Navigation,
-  Package,
-  PlayCircle,
-  Recycle,
-  Target,
-  Trash2,
-  Truck,
-  Zap
+    Brain,
+    Calendar,
+    CheckCircle,
+    CheckCircle2,
+    ChevronLeft,
+    Clock,
+    MapPin,
+    Navigation,
+    Package,
+    PlayCircle,
+    Target,
+    Trash2,
+    Truck,
+    Zap
 } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Modal,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { db } from "../../../services/firebaseConfig";
 
@@ -91,16 +88,9 @@ function AISuggestionsModal({
   collectedWeights?: Record<string, string>;
 }) {
   const [suggestions, setSuggestions] = useState<Array<{
-    type: 'recycle' | 'compost' | 'special' | 'warning';
-    title: string;
-    description: string;
-    facility: string;
-    contact?: string;
-    distance?: string;
-    icon: React.ComponentType<any>;
-    color: string;
-    bgColor: string;
-    borderColor: string;
+    category: string;
+    suggestion: string;
+    tip: string;
   }>>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
@@ -121,106 +111,73 @@ function AISuggestionsModal({
         const lowerType = wasteType.toLowerCase();
         const weight = collectedWeights?.[wasteType] ? parseFloat(collectedWeights[wasteType]) : 0;
         
-        // Plastic recycling suggestions
-        if (lowerType.includes('plastic') && (lowerType.includes('bottle') || lowerType.includes('container'))) {
+        // Plastic Bottles
+        if (lowerType.includes('plastic') && lowerType.includes('bottle')) {
           newSuggestions.push({
-            type: 'recycle',
-            title: '♻️ Recycle Plastic Bottles',
-            description: `Perfect for recycling! Clean bottles and containers can be processed into new products.`,
-            facility: 'Green Valley Recycling Center',
-            contact: '📞 (555) 123-4567',
-            distance: '📍 2.3 km away',
-            icon: Recycle,
-            color: '#059669',
-            bgColor: 'bg-green-50',
-            borderColor: 'border-green-200'
+            category: "Plastic Bottles",
+            suggestion: "Recycle at nearest plastic recycling center",
+            tip: "Rinse bottles thoroughly and remove caps before recycling. Crushing bottles saves 70% storage space."
           });
         }
         
-        // Organic waste composting
-        if (lowerType.includes('organic') || lowerType.includes('food') || lowerType.includes('vegetable') || lowerType.includes('fruit')) {
+        // Plastic Bags
+        if (lowerType.includes('plastic') && lowerType.includes('bag')) {
           newSuggestions.push({
-            type: 'compost',
-            title: '🌱 Compost Organic Waste',
-            description: `Transform organic matter into nutrient-rich compost for community gardens.`,
-            facility: 'EcoGarden Composting Center',
-            contact: '📞 (555) 234-5678',
-            distance: '📍 1.8 km away',
-            icon: Leaf,
-            color: '#16a34a',
-            bgColor: 'bg-emerald-50',
-            borderColor: 'border-emerald-200'
+            category: "Plastic Bags",
+            suggestion: "Sort and recycle at grocery store collection points",
+            tip: "Sort bags separately before recycling. Clean, dry plastic bags can be recycled into composite lumber."
           });
         }
         
-        // Glass recycling
-        if (lowerType.includes('glass')) {
-          newSuggestions.push({
-            type: 'recycle',
-            title: '🪟 Recycle Glass Materials',
-            description: `Glass can be recycled infinitely without losing quality. Specialized processing available.`,
-            facility: 'ClearGlass Recycling Facility',
-            contact: '📞 (555) 345-6789',
-            distance: '📍 3.1 km away',
-            icon: Recycle,
-            color: '#059669',
-            bgColor: 'bg-green-50',
-            borderColor: 'border-green-200'
-          });
-        }
-        
-        // Metal/can recycling
-        if (lowerType.includes('can') || lowerType.includes('metal') || lowerType.includes('aluminum')) {
-          newSuggestions.push({
-            type: 'recycle',
-            title: '🥫 Recycle Metal Cans',
-            description: `Metal recycling saves 95% energy compared to producing new metal from ore.`,
-            facility: 'MetalMasters Recycling Center',
-            contact: '📞 (555) 456-7890',
-            distance: '📍 2.7 km away',
-            icon: Recycle,
-            color: '#059669',
-            bgColor: 'bg-green-50',
-            borderColor: 'border-green-200'
-          });
-        }
-        
-        // Fishing gear special handling
+        // Fishing Gear
         if (lowerType.includes('fishing') || lowerType.includes('gear') || lowerType.includes('net')) {
           newSuggestions.push({
-            type: 'special',
-            title: '🚨 Special Fishing Gear Disposal',
-            description: `Prevent marine pollution! Fishing gear requires specialized disposal to protect ocean life.`,
-            facility: 'OceanGuard Marine Conservation',
-            contact: '📞 (555) 567-8901',
-            distance: '📍 4.2 km away',
-            icon: AlertCircle,
-            color: '#dc2626',
-            bgColor: 'bg-red-50',
-            borderColor: 'border-red-200'
+            category: "Fishing Gear",
+            suggestion: "Special disposal required - Contact marine conservation center",
+            tip: "Fishing nets and gear are extremely hazardous to marine life. Requires specialized processing to prevent ocean pollution."
           });
         }
         
-        // High volume warnings
+        // Glass
+        if (lowerType.includes('glass')) {
+          newSuggestions.push({
+            category: "Glass",
+            suggestion: "Recycle at glass-specific facilities",
+            tip: "Glass is 100% recyclable infinitely without quality loss. Sort by color (clear, green, brown) for optimal recycling."
+          });
+        }
+        
+        // Metal/Aluminum Cans
+        if (lowerType.includes('can') || lowerType.includes('metal') || lowerType.includes('aluminum')) {
+          newSuggestions.push({
+            category: "Metal Cans",
+            suggestion: "Recycle at metal recycling center",
+            tip: "Rinse cans and flatten them to save space. Aluminum recycling saves 95% of energy compared to producing new aluminum."
+          });
+        }
+        
+        // Other/Mixed Waste
+        if (lowerType.includes('other') || lowerType.includes('mixed')) {
+          newSuggestions.push({
+            category: "Mixed Waste",
+            suggestion: "Sort and dispose at certified waste management facility",
+            tip: "Always separate recyclables from general waste. Contact facility for specific sorting guidelines."
+          });
+        }
+        
+        // High volume warning
         if (weight > 50) {
           newSuggestions.push({
-            type: 'warning',
-            title: '⚠️ High Volume Alert',
-            description: `Large quantity detected (${weight}kg). Bulk collection service recommended for efficiency.`,
-            facility: 'Bulk Waste Collection Service',
-            contact: '📞 (555) 678-9012',
-            distance: '📍 Contact for pickup',
-            icon: AlertCircle,
-            color: '#d97706',
-            bgColor: 'bg-amber-50',
-            borderColor: 'border-amber-200'
+            category: "High Volume Collection",
+            suggestion: "Consider bulk recycling service for efficiency",
+            tip: "Large collections (over 50kg) qualify for pickup service. Contact Bulk Waste Collection Service for scheduling."
           });
         }
       });
 
-      // Remove duplicates and set suggestions
+      // Remove duplicates
       const uniqueSuggestions = newSuggestions.filter((suggestion, index, self) => 
-        index === self.findIndex(s => s.title === suggestion.title)
+        index === self.findIndex(s => s.category === suggestion.category)
       );
       
       setSuggestions(uniqueSuggestions);
@@ -284,32 +241,28 @@ function AISuggestionsModal({
                 {suggestions.map((suggestion, index) => (
                   <View 
                     key={index} 
-                    className={`${suggestion.bgColor} ${suggestion.borderColor} border-2 p-5 rounded-xl shadow-sm`}
+                    className="bg-white border-2 border-green-200 p-6 rounded-2xl shadow-md"
                   >
-                    <View className="flex-row items-start">
-                      <View className="mr-4 mt-1">
-                        <suggestion.icon size={22} color={suggestion.color} />
-                      </View>
-                      <View className="flex-1">
-                        <Text className={`font-bold text-base mb-2`} style={{ color: suggestion.color }}>
-                          {suggestion.title}
-                        </Text>
-                        <Text className="text-gray-700 text-sm leading-relaxed mb-4">
-                          {suggestion.description}
-                        </Text>
-                        
-                        <View className="space-y-2">
-                          <Text className="text-gray-700 text-sm font-semibold">
-                            {suggestion.facility}
-                          </Text>
-                          <Text className="text-gray-600 text-sm">
-                            {suggestion.contact}
-                          </Text>
-                          <Text className="text-gray-600 text-sm">
-                            {suggestion.distance}
-                          </Text>
-                        </View>
-                      </View>
+                    {/* Category */}
+                    <View className="mb-4">
+                      <Text className="text-xs font-bold text-gray-500 mb-1">CATEGORY</Text>
+                      <Text className="text-xl font-bold text-gray-900">{suggestion.category}</Text>
+                    </View>
+
+                    {/* Suggestion */}
+                    <View className="bg-emerald-50 p-4 rounded-xl mb-4 border-l-4 border-emerald-500">
+                      <Text className="text-xs font-bold text-emerald-700 mb-2">SUGGESTION</Text>
+                      <Text className="text-emerald-900 font-semibold leading-relaxed">
+                        {suggestion.suggestion}
+                      </Text>
+                    </View>
+
+                    {/* Tip */}
+                    <View className="bg-blue-50 p-4 rounded-xl border-l-4 border-blue-500">
+                      <Text className="text-xs font-bold text-blue-700 mb-2">TIP</Text>
+                      <Text className="text-blue-900 leading-relaxed">
+                        {suggestion.tip}
+                      </Text>
                     </View>
                   </View>
                 ))}
@@ -567,7 +520,7 @@ export default function WcHome({ userId }: { userId: string }) {
   }
 
   const steps = [
-    { title: "Collect Waste", icon: Truck, description: "Navigate to location and collect waste materials" },
+    { title: "Collect Waste", icon: Truck, description: "Collect waste materials" },
     { title: "Confirm Completion", icon: CheckCircle, description: "Mark assignment as completed" },
   ];
 
