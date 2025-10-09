@@ -82,27 +82,12 @@ export default function SponsorProfileSummary() {
   }, [profile]);
 
   const handleLogout = async () => {
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to logout?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Logout", 
-          onPress: async () => {
-            try {
-              await signOut(auth);
-              // Use replace to prevent going back to the profile page
-              router.replace("/(public)/auth/login");
-            } catch (error) {
-              console.error("Logout error:", error);
-              Alert.alert("Error", "Failed to logout. Please try again.");
-            }
-          }, 
-          style: "destructive" 
-        }
-      ]
-    );
+    try {
+      await signOut(auth);
+      router.replace("/(public)/auth/login");
+    } catch (error: any) {
+      Alert.alert("Error", `Failed to sign out: ${error.message || "Unknown error"}`);
+    }
   };
 
   const openEditModal = (field: string, value: string) => {
@@ -127,7 +112,6 @@ export default function SponsorProfileSummary() {
       // Fetch the updated document to ensure we have latest data
       const updatedDoc = await getDoc(userDocRef);
       if (updatedDoc.exists()) {
-        // You can update local state with the fresh data if needed
         const updatedData = updatedDoc.data();
         console.log("Profile updated successfully:", updatedData);
       }
