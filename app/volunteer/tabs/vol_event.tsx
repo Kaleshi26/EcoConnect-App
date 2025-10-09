@@ -1,10 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { addDoc, collection, onSnapshot, query, where, doc, getDoc, setDoc, updateDoc, getDocs } from "firebase/firestore";
 import React, { useEffect, useState, useRef } from "react";
-import { ActivityIndicator, Alert, Animated, Pressable, ScrollView, Text, TextInput, View, Modal, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from "react-native";
+import { ActivityIndicator, Alert, Animated, Pressable, ScrollView, Text, TextInput, View, Modal, KeyboardAvoidingView, Platform, Image } from "react-native";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/services/firebaseConfig";
 import { Timestamp } from "firebase/firestore";
+import QRCode from 'react-native-qrcode-svg';
+import ViewShot, { captureRef } from 'react-native-view-shot';
+import * as MediaLibrary from 'expo-media-library';
 
 // Reuse type from org_events.tsx
 type EventDoc = {
@@ -18,6 +21,7 @@ type EventDoc = {
   sponsorshipRequired?: boolean;
   organizerId?: string;
   createdAt?: Timestamp;
+  imageUrl?: string;
 };
 
 // Registration type
@@ -76,7 +80,7 @@ function RegistrationModal({
   visible: boolean; 
   onClose: () => void; 
   event: EventDoc;
-  onRegistrationComplete: () => void;
+  onRegistrationComplete: (regId: string) => void;
 }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -136,7 +140,8 @@ function RegistrationModal({
         status: "confirmed"
       };
 
-      await addDoc(collection(db, `events/${event.id}/registrations`), registrationData);
+      const regRef = await addDoc(collection(db, `events/${event.id}/registrations`), registrationData);
+      const regId = regRef.id;
       
       // Also store a reference in the user's profile for easy access
       const userRegistrationRef = doc(db, `users/${user.uid}/registrations`, event.id);
@@ -148,8 +153,7 @@ function RegistrationModal({
         status: "confirmed"
       });
 
-      Alert.alert("Registration Successful", "You have been registered for this event!");
-      onRegistrationComplete();
+      onRegistrationComplete(regId);
       onClose();
     } catch (e: any) {
       console.error("[RegistrationModal] Registration error:", e);
@@ -185,180 +189,185 @@ function RegistrationModal({
   const d = tsToDate(event.eventAt);
   const dateStr = d ? `${formatDate(d)} • ${formatTime(d)}` : "Date TBD";
 
-return (
-  <Modal
-    visible={visible}
-    animationType="slide"
-    onRequestClose={onClose}
-    presentationStyle="pageSheet"
-  >
-    <View className="flex-1 bg-gray-50">
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
-      >
-        <ScrollView 
-          className="flex-1" 
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ flexGrow: 1 }}
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      onRequestClose={onClose}
+      presentationStyle="pageSheet"
+    >
+      <View className="flex-1 bg-gray-50">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          className="flex-1"
         >
-          {/* Header */}
-          <View className="bg-white px-6 pt-4 pb-5 shadow-sm">
-            <View className="flex-row justify-between items-center mb-1">
-              <Text className="text-2xl font-bold text-gray-900">Event Registration</Text>
-              <Pressable 
-                onPress={onClose}
-                className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center"
-              >
-                <Ionicons name="close" size={20} color="#6b7280" />
-              </Pressable>
-            </View>
-            <Text className="text-gray-500 text-sm mt-1">Fill in your details to secure your spot</Text>
-          </View>
-
-          {/* Event Info Card */}
-          <View className="mx-6 mt-4 mb-6">
-            <View className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-              <View className="flex-row items-start justify-between mb-3">
-                <View className="flex-1 pr-3">
-                  <Text className="text-lg font-bold text-gray-900 mb-2">{event.title}</Text>
-                </View>
-                <View className="bg-blue-100 px-3 py-1 rounded-full">
-                  <Text className="text-blue-700 text-xs font-semibold">EVENT</Text>
-                </View>
+          <ScrollView 
+            className="flex-1" 
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ flexGrow: 1 }}
+          >
+            {/* Header */}
+            <View className="bg-white px-6 pt-4 pb-5 shadow-sm">
+              <View className="flex-row justify-between items-center mb-1">
+                <Text className="text-2xl font-bold text-gray-900">Event Registration</Text>
+                <Pressable 
+                  onPress={onClose}
+                  className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center"
+                >
+                  <Ionicons name="close" size={20} color="#6b7280" />
+                </Pressable>
               </View>
-              
-              <View className="space-y-2">
-                <View className="flex-row items-center">
-                  <View className="w-8 h-8 bg-blue-50 rounded-full items-center justify-center mr-3">
-                    <Ionicons name="time" size={16} color="#3b82f6" />
+              <Text className="text-gray-500 text-sm mt-1">Fill in your details to secure your spot</Text>
+            </View>
+
+            {/* Event Info Card */}
+            <View className="mx-6 mt-4 mb-6">
+              <View className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                <Image 
+                  source={{ uri: event.imageUrl || "https://images.unsplash.com/photo-1581579438747-1dc8d17bbce4?w=400" }}
+                  className="w-full h-32 rounded-xl mb-4"
+                  resizeMode="cover"
+                />
+                <View className="flex-row items-start justify-between mb-3">
+                  <View className="flex-1 pr-3">
+                    <Text className="text-lg font-bold text-gray-900 mb-2">{event.title}</Text>
                   </View>
-                  <Text className="text-gray-700 flex-1">{dateStr}</Text>
+                  <View className="bg-blue-100 px-3 py-1 rounded-full">
+                    <Text className="text-blue-700 text-xs font-semibold">EVENT</Text>
+                  </View>
                 </View>
                 
-                {event.location?.label && (
+                <View className="space-y-2">
                   <View className="flex-row items-center">
-                    <View className="w-8 h-8 bg-green-50 rounded-full items-center justify-center mr-3">
-                      <Ionicons name="location" size={16} color="#10b981" />
+                    <View className="w-8 h-8 bg-blue-50 rounded-full items-center justify-center mr-3">
+                      <Ionicons name="time" size={16} color="#3b82f6" />
                     </View>
-                    <Text className="text-gray-700 flex-1">{event.location.label}</Text>
+                    <Text className="text-gray-700 flex-1">{dateStr}</Text>
                   </View>
-                )}
-              </View>
-            </View>
-          </View>
-
-          {/* Registration Form */}
-          <View className="mx-6 mb-8">
-            <View className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-              <Text className="text-lg font-bold text-gray-900 mb-1">Registration Details</Text>
-              <Text className="text-gray-500 text-sm mb-6">All fields marked with * are required</Text>
-              
-              {/* Email Field */}
-              <View className="mb-5">
-                <Text className="text-gray-700 font-semibold mb-3">Email Address *</Text>
-                <View className="relative">
-                  <TextInput
-                    value={formData.email}
-                    onChangeText={(text) => handleInputChange("email", text)}
-                    placeholder="Enter your email address"
-                    placeholderTextColor="#9ca3af"
-                    className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-gray-900 text-base"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoComplete="email"
-                  />
-                  <View className="absolute right-4 top-4">
-                    <Ionicons name="mail-outline" size={20} color="#9ca3af" />
-                  </View>
+                  
+                  {event.location?.label && (
+                    <View className="flex-row items-center">
+                      <View className="w-8 h-8 bg-green-50 rounded-full items-center justify-center mr-3">
+                        <Ionicons name="location" size={16} color="#10b981" />
+                      </View>
+                      <Text className="text-gray-700 flex-1">{event.location.label}</Text>
+                    </View>
+                  )}
                 </View>
               </View>
+            </View>
 
-              {/* Phone Field */}
-              <View className="mb-5">
-                <Text className="text-gray-700 font-semibold mb-3">Phone Number *</Text>
-                <View className="relative">
-                  <TextInput
-                    value={formData.phoneNumber}
-                    onChangeText={(text) => handleInputChange("phoneNumber", text)}
-                    placeholder="Enter your phone number"
-                    placeholderTextColor="#9ca3af"
-                    className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-gray-900 text-base"
-                    keyboardType="phone-pad"
-                    autoComplete="tel"
-                  />
-                  <View className="absolute right-4 top-4">
-                    <Ionicons name="call-outline" size={20} color="#9ca3af" />
+            {/* Registration Form */}
+            <View className="mx-6 mb-8">
+              <View className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <Text className="text-lg font-bold text-gray-900 mb-1">Registration Details</Text>
+                <Text className="text-gray-500 text-sm mb-6">All fields marked with * are required</Text>
+                
+                {/* Email Field */}
+                <View className="mb-5">
+                  <Text className="text-gray-700 font-semibold mb-3">Email Address *</Text>
+                  <View className="relative">
+                    <TextInput
+                      value={formData.email}
+                      onChangeText={(text) => handleInputChange("email", text)}
+                      placeholder="Enter your email address"
+                      placeholderTextColor="#9ca3af"
+                      className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-gray-900 text-base"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoComplete="email"
+                    />
+                    <View className="absolute right-4 top-4">
+                      <Ionicons name="mail-outline" size={20} color="#9ca3af" />
+                    </View>
                   </View>
                 </View>
-              </View>
 
-              {/* Emergency Contact Field */}
-              <View className="mb-5">
-                <Text className="text-gray-700 font-semibold mb-3">Emergency Contact *</Text>
-                <TextInput
-                  value={formData.emergencyContact}
-                  onChangeText={(text) => handleInputChange("emergencyContact", text)}
-                  placeholder="Name and phone number"
-                  placeholderTextColor="#9ca3af"
-                  className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-gray-900 text-base"
-                />
-                <Text className="text-gray-500 text-xs mt-2">E.g., John Doe - +1 (555) 123-4567</Text>
-              </View>
+                {/* Phone Field */}
+                <View className="mb-5">
+                  <Text className="text-gray-700 font-semibold mb-3">Phone Number *</Text>
+                  <View className="relative">
+                    <TextInput
+                      value={formData.phoneNumber}
+                      onChangeText={(text) => handleInputChange("phoneNumber", text)}
+                      placeholder="Enter your phone number"
+                      placeholderTextColor="#9ca3af"
+                      className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-gray-900 text-base"
+                      keyboardType="phone-pad"
+                      autoComplete="tel"
+                    />
+                    <View className="absolute right-4 top-4">
+                      <Ionicons name="call-outline" size={20} color="#9ca3af" />
+                    </View>
+                  </View>
+                </View>
 
-              {/* Skills Field */}
-              <View className="mb-6">
-                <Text className="text-gray-700 font-semibold mb-3">Skills & Experience</Text>
-                <TextInput
-                  value={formData.skills}
-                  onChangeText={(text) => handleInputChange("skills", text)}
-                  placeholder="Tell us about your relevant skills or experience"
-                  placeholderTextColor="#9ca3af"
-                  className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-gray-900 text-base min-h-24"
-                  multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                />
-                <Text className="text-gray-500 text-xs mt-2">Optional - This helps us better organize the event</Text>
+                {/* Emergency Contact Field */}
+                <View className="mb-5">
+                  <Text className="text-gray-700 font-semibold mb-3">Emergency Contact *</Text>
+                  <TextInput
+                    value={formData.emergencyContact}
+                    onChangeText={(text) => handleInputChange("emergencyContact", text)}
+                    placeholder="Name and phone number"
+                    placeholderTextColor="#9ca3af"
+                    className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-gray-900 text-base"
+                  />
+                  <Text className="text-gray-500 text-xs mt-2">E.g., John Doe - +1 (555) 123-4567</Text>
+                </View>
+
+                {/* Skills Field */}
+                <View className="mb-6">
+                  <Text className="text-gray-700 font-semibold mb-3">Skills & Experience</Text>
+                  <TextInput
+                    value={formData.skills}
+                    onChangeText={(text) => handleInputChange("skills", text)}
+                    placeholder="Tell us about your relevant skills or experience"
+                    placeholderTextColor="#9ca3af"
+                    className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-gray-900 text-base min-h-24"
+                    multiline
+                    numberOfLines={3}
+                    textAlignVertical="top"
+                  />
+                  <Text className="text-gray-500 text-xs mt-2">Optional - This helps us better organize the event</Text>
+                </View>
               </View>
             </View>
-          </View>
-        </ScrollView>
+          </ScrollView>
 
-        {/* Fixed Bottom Button */}
-        <View className="bg-white px-6 py-4 shadow-lg">
-          <Pressable
-            onPress={handleSubmit}
-            disabled={loading}
-            className={`bg-blue-600 rounded-xl py-4 px-6 items-center shadow-sm ${
-              loading ? "opacity-70" : ""
-            }`}
-          >
-            {loading ? (
-              <View className="flex-row items-center">
-                <ActivityIndicator color="white" size="small" />
-                <Text className="text-white font-bold text-base ml-2">Processing...</Text>
-              </View>
-            ) : (
-              <View className="flex-row items-center">
-                <Ionicons name="checkmark-circle" size={20} color="white" />
-                <Text className="text-white font-bold text-base ml-2">Complete Registration</Text>
-              </View>
-            )}
-          </Pressable>
-          
-          <Pressable 
-            onPress={onClose}
-            className="mt-3 py-3 items-center"
-          >
-            <Text className="text-gray-500 font-medium">Cancel</Text>
-          </Pressable>
-        </View>
-      </KeyboardAvoidingView>
-    </View>
-  </Modal>
-);
+          {/* Fixed Bottom Button */}
+          <View className="bg-white px-6 py-4 shadow-lg">
+            <Pressable
+              onPress={handleSubmit}
+              disabled={loading}
+              className={`bg-blue-600 rounded-xl py-4 px-6 items-center shadow-sm ${
+                loading ? "opacity-70" : ""
+              }`}
+            >
+              {loading ? (
+                <View className="flex-row items-center">
+                  <ActivityIndicator color="white" size="small" />
+                  <Text className="text-white font-bold text-base ml-2">Processing...</Text>
+                </View>
+              ) : (
+                <View className="flex-row items-center">
+                  <Ionicons name="checkmark-circle" size={20} color="white" />
+                  <Text className="text-white font-bold text-base ml-2">Complete Registration</Text>
+                </View>
+              )}
+            </Pressable>
+            
+            <Pressable 
+              onPress={onClose}
+              className="mt-3 py-3 items-center"
+            >
+              <Text className="text-gray-500 font-medium">Cancel</Text>
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
+  );
 }
 
 // Professional EventCard with blue-gray theme
@@ -398,12 +407,21 @@ function EventCard({ ev, onViewDetails }: { ev: EventDoc; onViewDetails: (event:
 
   return (
     <View className="mb-5 bg-white rounded-2xl shadow-lg border border-blue-100 overflow-hidden">
-      {/* Header Section */}
-      <View className="p-6 pb-4 bg-gradient-to-r from-blue-50 to-slate-50">
-        <Text className="text-xl font-bold text-slate-800 mb-2">{ev.title}</Text>
-        <View className="flex-row items-center">
-          <Ionicons name="time-outline" size={16} color="#475569" />
-          <Text className="text-slate-600 font-medium ml-2">{dateStr}</Text>
+      {/* Header Section with Image */}
+      <View className="relative">
+        <Image
+          source={{
+            uri: ev.imageUrl || "https://images.unsplash.com/photo-1581579438747-1dc8d17bbce4?w=400",
+          }}
+          className="w-full h-40"
+          resizeMode="cover"
+        />
+        <View className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/50 to-transparent">
+          <Text className="text-xl font-bold text-white mb-2">{ev.title}</Text>
+          <View className="flex-row items-center">
+            <Ionicons name="time-outline" size={16} color="#e2e8f0" />
+            <Text className="text-slate-200 font-medium ml-2">{dateStr}</Text>
+          </View>
         </View>
       </View>
 
@@ -467,9 +485,9 @@ function EventCard({ ev, onViewDetails }: { ev: EventDoc; onViewDetails: (event:
         <View className="flex-row space-x-3">
           <Animated.View style={{ flex: 1, transform: [{ scale: registerAnim.scale }] }}>
             <Pressable
-              onPress={handleRegister}
-              onPressIn={registerAnim.onPressIn}
-              onPressOut={registerAnim.onPressOut}
+              onPress={() => onViewDetails(ev)}
+              onPressIn={viewInfoAnim.onPressIn}
+              onPressOut={viewInfoAnim.onPressOut}
               className="bg-blue-600 rounded-xl py-4 items-center mr-1.5 shadow-md"
             >
               <Text className="text-white font-bold text-base">Register</Text>
@@ -500,6 +518,8 @@ export default function VolEvent() {
   const [selectedEvent, setSelectedEvent] = useState<EventDoc | null>(null);
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [userRegistrations, setUserRegistrations] = useState<string[]>([]);
+  const [qrData, setQrData] = useState<{ eventId: string; regId: string } | null>(null);
+  const qrRef = useRef<ViewShot>(null);
 
   // Fetch events
   useEffect(() => {
@@ -576,12 +596,30 @@ export default function VolEvent() {
     setShowRegistrationModal(true);
   };
 
-  const handleRegistrationComplete = () => {
+  const handleRegistrationComplete = (regId: string) => {
     if (selectedEvent) {
       setUserRegistrations(prev => [...prev, selectedEvent.id]);
+      setQrData({ eventId: selectedEvent.id, regId });
     }
     setShowRegistrationModal(false);
     setSelectedEvent(null);
+  };
+
+  const handleDownload = async () => {
+    if (!qrRef.current) return;
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please grant permission to save to library.');
+        return;
+      }
+      const uri = await captureRef(qrRef, { format: 'png', quality: 1 });
+      await MediaLibrary.saveToLibraryAsync(uri);
+      Alert.alert('Success', 'QR code saved to your gallery.');
+    } catch (error) {
+      console.error('Download error:', error);
+      Alert.alert('Error', 'Failed to download QR code.');
+    }
   };
 
   return (
@@ -704,6 +742,50 @@ export default function VolEvent() {
           event={selectedEvent}
           onRegistrationComplete={handleRegistrationComplete}
         />
+      )}
+
+      {/* QR Code Modal */}
+      {qrData && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setQrData(null)}
+        >
+          <View className="flex-1 justify-center items-center bg-black/50">
+            <View className="bg-white rounded-2xl p-6 w-11/12 max-w-sm shadow-xl">
+              <Text className="text-2xl font-bold text-gray-900 mb-4 text-center">Registration Successful!</Text>
+              <Text className="text-gray-600 mb-4 text-center">
+                Present this QR code to the organizer at the event to scan and confirm your participation to update your badge. We give badges according to the number of completed events.
+              </Text>
+              <Text className="text-gray-600 mb-6 text-center">
+                This QR code is also visible under your profile section.
+              </Text>
+              <View className="items-center mb-6">
+                <ViewShot ref={qrRef} options={{ format: 'png', quality: 1 }}>
+                  <QRCode
+                    value={`vol-reg:${qrData.eventId}:${qrData.regId}:${user?.uid}`}
+                    size={200}
+                    backgroundColor="white"
+                    color="black"
+                  />
+                </ViewShot>
+              </View>
+              <Pressable
+                onPress={handleDownload}
+                className="bg-blue-600 rounded-xl py-4 mb-4"
+              >
+                <Text className="text-white font-bold text-center">Download QR Code</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setQrData(null)}
+                className="bg-gray-200 rounded-xl py-4"
+              >
+                <Text className="text-gray-800 font-bold text-center">Close</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
       )}
     </View>
   );
