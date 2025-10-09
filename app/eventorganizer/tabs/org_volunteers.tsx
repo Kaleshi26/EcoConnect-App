@@ -1,0 +1,404 @@
+// app/eventorganizer/tabs/org_volunteers.tsx
+import { Ionicons } from "@expo/vector-icons";
+import { collection, doc, onSnapshot, query, Timestamp, updateDoc } from "firebase/firestore";
+import React, { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Alert, Animated, Pressable, ScrollView, Text, View } from "react-native";
+import QRCode from "react-native-qrcode-svg";
+import { useAuth } from "../../../contexts/AuthContext";
+import { db } from "../../../services/firebaseConfig";
+
+type EventDoc = {
+  id: string;
+  title: string;
+  status: "open" | "in_progress" | "completed";
+  eventAt?: Timestamp;
+  organizerId: string;
+};
+
+type Registration = {
+  id: string;
+  userId: string;
+  email: string;
+  phoneNumber: string;
+  status: "pending" | "confirmed";
+  attended?: boolean;
+};
+
+// Helper to format timestamp to date
+function tsToDate(ts?: Timestamp) {
+  return ts ? ts.toDate() : null;
+}
+
+// Helper to determine event status
+function getStatus(ev: EventDoc) {
+  if (ev.status === "completed") return "Completed";
+  const now = new Date();
+  const eventDate = tsToDate(ev.eventAt);
+  if (!eventDate) return "Upcoming";
+  if (eventDate.getTime() > now.getTime()) return "Upcoming";
+  return "In Progress";
+}
+
+// Animation hook for pressable components
+function usePressScale(initial = 1) {
+  const scale = useRef(new Animated.Value(initial)).current;
+  const onPressIn = () => Animated.spring(scale, { toValue: 0.96, useNativeDriver: true }).start();
+  const onPressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start();
+  return { scale, onPressIn, onPressOut };
+}
+
+// Row component for consistent layout
+function Row({ children }: { children: React.ReactNode }) {
+  return <View className="flex-row items-center">{children}</View>;
+}
+
+// Event Item Component
+function EventItem({ 
+  event, 
+  isSelected, 
+  onPress 
+}: { 
+  event: EventDoc; 
+  isSelected: boolean; 
+  onPress: () => void; 
+}) {
+  const status = getStatus(event);
+  const statusColors: Record<string, string> = {
+    Upcoming: "bg-blue-100 text-blue-700",
+    "In Progress": "bg-yellow-100 text-yellow-700",
+    Completed: "bg-green-100 text-green-700",
+  };
+  const btnAnim = usePressScale();
+  
+  return (
+    <Animated.View style={{ transform: [{ scale: btnAnim.scale }] }}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={btnAnim.onPressIn}
+        onPressOut={btnAnim.onPressOut}
+        className={`bg-white rounded-2xl p-4 mb-3 shadow-sm border ${
+          isSelected ? "border-blue-500 border-2" : "border-gray-100"
+        }`}
+      >
+        <Row className="justify-between items-center">
+          <Text className="text-lg font-semibold text-gray-900 flex-1">
+            {event.title}
+          </Text>
+          <View className={`px-3 py-1 rounded-full ${statusColors[status]}`}>
+            <Text className="text-xs font-medium">
+              {status}
+            </Text>
+          </View>
+        </Row>
+        <Text className="text-gray-500 text-sm mt-1">
+          {tsToDate(event.eventAt)?.toLocaleDateString() || "Date TBD"}
+        </Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+// Volunteer Item Component
+function VolunteerItem({ 
+  registration, 
+  onMarkAttended 
+}: { 
+  registration: Registration; 
+  onMarkAttended: (regId: string, attended: boolean) => void; 
+}) {
+  const btnAnim = usePressScale();
+  
+  return (
+    <Animated.View
+      style={{ transform: [{ scale: btnAnim.scale }], marginBottom: 12 }}
+    >
+      <View className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <Row className="justify-between items-center">
+          <View className="flex-1">
+            <Text className="text-base font-semibold text-gray-900">{registration.email}</Text>
+            <Text className="text-gray-600 text-sm">{registration.phoneNumber}</Text>
+            <View className="flex-row items-center mt-1">
+              <Text className="text-gray-500 text-xs">
+                Status: {registration.status}
+              </Text>
+              <View className={`w-2 h-2 rounded-full mx-2 ${
+                registration.attended ? "bg-green-500" : "bg-gray-400"
+              }`} />
+              <Text className="text-gray-500 text-xs">
+                {registration.attended ? "Attended" : "Not attended"}
+              </Text>
+            </View>
+          </View>
+          <Pressable
+            onPress={() => onMarkAttended(registration.id, !registration.attended)}
+            onPressIn={btnAnim.onPressIn}
+            onPressOut={btnAnim.onPressOut}
+            className={`px-4 py-2 rounded-lg ${
+              registration.attended ? "bg-green-600" : "bg-blue-600"
+            }`}
+          >
+            <Text className="font-semibold text-sm text-white">
+              {registration.attended ? "Attended" : "Mark Attended"}
+            </Text>
+          </Pressable>
+        </Row>
+      </View>
+    </Animated.View>
+  );
+}
+
+export default function OrgVolunteers() {
+  const { user } = useAuth();
+  const [events, setEvents] = useState<EventDoc[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [regLoading, setRegLoading] = useState(false);
+
+  // Animation for header
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const headerTranslate = useRef(new Animated.Value(-20)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(headerOpacity, { 
+        toValue: 1, 
+        duration: 500, 
+        useNativeDriver: true 
+      }),
+      Animated.spring(headerTranslate, { 
+        toValue: 0, 
+        tension: 80, 
+        friction: 8, 
+        useNativeDriver: true 
+      }),
+    ]).start();
+  }, []);
+
+  // Fetch events
+  useEffect(() => {
+    if (!user) return;
+    
+    setLoading(true);
+    const q = query(collection(db, "events"));
+    
+    const unsub = onSnapshot(q, 
+      (snapshot) => {
+        try {
+          const eventsData: EventDoc[] = [];
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            // Only include events that belong to the current organizer
+            if (data.organizerId === user.uid) {
+              eventsData.push({
+                id: doc.id,
+                title: data.title || 'Untitled Event',
+                status: data.status || 'open',
+                eventAt: data.eventAt,
+                organizerId: data.organizerId
+              });
+            }
+          });
+          setEvents(eventsData);
+          setLoading(false);
+        } catch (error) {
+          console.error("Error processing events:", error);
+          setLoading(false);
+        }
+      },
+      (error) => {
+        console.error("[OrgVolunteers] Events snapshot error:", error);
+        setLoading(false);
+        Alert.alert("Error", "Failed to load events");
+      }
+    );
+    
+    return () => unsub();
+  }, [user]);
+
+  // Fetch registrations for selected event
+  useEffect(() => {
+    if (!selectedEventId) {
+      setRegistrations([]);
+      return;
+    }
+    
+    setRegLoading(true);
+    const q = collection(db, `events/${selectedEventId}/registrations`);
+    
+    const unsub = onSnapshot(q, 
+      (snapshot) => {
+        try {
+          const regsData: Registration[] = [];
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            regsData.push({
+              id: doc.id,
+              userId: data.userId || '',
+              email: data.email || 'No email',
+              phoneNumber: data.phoneNumber || 'No phone',
+              status: data.status || 'pending',
+              attended: data.attended || false
+            });
+          });
+          setRegistrations(regsData);
+          setRegLoading(false);
+        } catch (error) {
+          console.error("Error processing registrations:", error);
+          setRegLoading(false);
+        }
+      },
+      (error) => {
+        console.error("[OrgVolunteers] Registrations snapshot error:", error);
+        setRegLoading(false);
+        Alert.alert("Error", "Failed to load volunteers");
+      }
+    );
+    
+    return () => unsub();
+  }, [selectedEventId]);
+
+  // Mark volunteer attendance
+  const markAttended = async (regId: string, attended: boolean) => {
+    if (!selectedEventId) {
+      Alert.alert("Error", "No event selected");
+      return;
+    }
+    
+    try {
+      const regRef = doc(db, `events/${selectedEventId}/registrations`, regId);
+      await updateDoc(regRef, { attended });
+      // No need to show alert here as the UI will update automatically via the snapshot listener
+    } catch (error) {
+      console.error("[OrgVolunteers] Attendance update error:", error);
+      Alert.alert("Error", "Failed to update attendance");
+    }
+  };
+
+  // Handle event selection
+  const handleEventPress = (eventId: string) => {
+    setSelectedEventId(eventId === selectedEventId ? null : eventId);
+  };
+
+  if (loading) {
+    return (
+      <View className="flex-1 justify-center items-center bg-gray-50">
+        <ActivityIndicator size="large" color="#3b82f6" />
+        <Text className="text-gray-600 mt-4 font-medium">Loading events...</Text>
+      </View>
+    );
+  }
+
+  const selectedEvent = events.find((e) => e.id === selectedEventId);
+
+  return (
+    <View className="flex-1 bg-gray-50">
+      {/* Header */}
+      <Animated.View
+        style={{
+          opacity: headerOpacity,
+          transform: [{ translateY: headerTranslate }],
+        }}
+        className="bg-blue-600 px-6 pt-10 pb-4 shadow-lg"
+      >
+        <Row className="justify-between items-center">
+          <Text className="text-2xl font-bold text-white">Volunteer Management</Text>
+          <Pressable 
+            onPress={() => Alert.alert("Notifications", "No notifications yet.")}
+            className="p-2"
+          >
+            <Ionicons name="notifications-outline" size={24} color="#fff" />
+          </Pressable>
+        </Row>
+        <Text className="text-blue-100 mt-2 text-sm">
+          Manage volunteer registrations and track attendance
+        </Text>
+      </Animated.View>
+
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Events List */}
+        <View className="mb-6">
+          <Text className="text-xl font-semibold text-gray-900 mb-4">Your Events</Text>
+          {events.length === 0 ? (
+            <View className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 items-center">
+              <Ionicons name="calendar-outline" size={32} color="#9ca3af" />
+              <Text className="text-gray-600 mt-3 font-medium">No events found</Text>
+              <Text className="text-gray-500 text-sm text-center mt-1">
+                Create an event to start managing volunteers.
+              </Text>
+            </View>
+          ) : (
+            events.map((ev) => (
+              <EventItem
+                key={ev.id}
+                event={ev}
+                isSelected={ev.id === selectedEventId}
+                onPress={() => handleEventPress(ev.id)}
+              />
+            ))
+          )}
+        </View>
+
+        {/* Volunteers for Selected Event */}
+        {selectedEventId && (
+          <View className="mb-6">
+            <View className="flex-row justify-between items-center mb-4">
+              <Text className="text-xl font-semibold text-gray-900">
+                Volunteers for {selectedEvent?.title}
+              </Text>
+              <Text className="text-gray-500 text-sm">
+                {registrations.length} volunteer{registrations.length !== 1 ? 's' : ''}
+              </Text>
+            </View>
+            
+            {regLoading ? (
+              <View className="items-center py-6">
+                <ActivityIndicator size="large" color="#3b82f6" />
+                <Text className="text-gray-600 mt-2">Loading volunteers...</Text>
+              </View>
+            ) : registrations.length === 0 ? (
+              <View className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 items-center">
+                <Ionicons name="people-outline" size={32} color="#9ca3af" />
+                <Text className="text-gray-600 mt-3 font-medium">No volunteers yet</Text>
+                <Text className="text-gray-500 text-sm text-center mt-1">
+                  Volunteers will appear here once they register for this event.
+                </Text>
+              </View>
+            ) : (
+              <View>
+                {registrations.map((reg) => (
+                  <VolunteerItem
+                    key={reg.id}
+                    registration={reg}
+                    onMarkAttended={markAttended}
+                  />
+                ))}
+              </View>
+            )}
+            
+            {selectedEvent && getStatus(selectedEvent) === "In Progress" && (
+              <View className="mt-6 bg-white rounded-2xl p-6 shadow-sm border border-gray-100 items-center">
+                <Text className="text-lg font-semibold text-gray-900 mb-4">
+                  QR Code for Volunteer Check-in
+                </Text>
+                <QRCode 
+                  value={selectedEventId} 
+                  size={200} 
+                  color="#1f2937" 
+                  backgroundColor="#fff" 
+                />
+                <Text className="text-gray-500 text-sm mt-3 text-center">
+                  Volunteers can scan this QR code to check in at the event.
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
