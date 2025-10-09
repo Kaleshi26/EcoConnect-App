@@ -39,6 +39,7 @@ import {
     View
 } from "react-native";
 import { db } from "../../../services/firebaseConfig";
+import * as NotificationService from "../../../services/notificationService";
 
 type EventDoc = {
   id: string;
@@ -501,6 +502,21 @@ export default function WcHome({ userId }: { userId: string }) {
         completedAt: serverTimestamp(),
         collectedWeights: collectedWeights,
       });
+      
+      // Cancel any pending notifications for this assignment
+      await NotificationService.cancelAssignmentNotifications(ev.id);
+      
+      // Calculate total weight collected
+      const totalWeight = Object.values(collectedWeights).reduce((sum, weight) => {
+        return sum + (parseFloat(weight) || 0);
+      }, 0);
+      
+      // Send completion notification
+      await NotificationService.sendAssignmentCompletedNotification(
+        ev.title,
+        totalWeight
+      );
+      
       Alert.alert("Success", "Assignment marked completed ✅");
       setSelected(null);
       setCurrentStep(0);
