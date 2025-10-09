@@ -1,7 +1,6 @@
 import { Redirect, Tabs } from "expo-router";
 import { BarChart3, ClipboardList, Home, Navigation, User } from "lucide-react-native";
 import { useAuth } from "../../../contexts/AuthContext";
-import { NotificationProvider } from "../../../contexts/NotificationContext";
 
 export default function WasteCollectorTabsLayout() {
   const { user, loading, profile } = useAuth();
@@ -13,8 +12,7 @@ export default function WasteCollectorTabsLayout() {
   if (profile?.role !== "wasteCollector") return <Redirect href="/(app)/(tabs)" />;
 
   return (
-    <NotificationProvider userId={user.uid}>
-      <Tabs screenOptions={{ headerShown: false }}>
+    <Tabs screenOptions={{ headerShown: false }}>
       <Tabs.Screen 
         name="wc_home" 
         options={{ 
@@ -51,7 +49,6 @@ export default function WasteCollectorTabsLayout() {
         }} 
       />
     </Tabs>
-    </NotificationProvider>
   );
 }
 
