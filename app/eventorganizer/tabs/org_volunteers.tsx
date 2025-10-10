@@ -1,15 +1,20 @@
 // app/eventorganizer/tabs/org_volunteers.tsx
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from 'expo-linear-gradient';
 import { collection, doc, onSnapshot, query, Timestamp, updateDoc } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Animated, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Animated, Image, ImageBackground, Pressable, ScrollView, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { useAuth } from "../../../contexts/AuthContext";
 import { db } from "../../../services/firebaseConfig";
 
+// @ts-ignore
+console.reportErrorsAsExceptions = false;
+
 type EventDoc = {
   id: string;
   title: string;
+  imageUrl?: string;
   status: "open" | "in_progress" | "completed";
   eventAt?: Timestamp;
   organizerId: string;
@@ -48,54 +53,68 @@ function usePressScale(initial = 1) {
 }
 
 // Row component for consistent layout
-function Row({ children }: { children: React.ReactNode }) {
-  return <View className="flex-row items-center">{children}</View>;
+// Row component for consistent layout (fixed)
+function Row({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <View className={`flex-row items-center ${className || ""}`}>{children}</View>;
 }
 
+
 // Event Item Component
-function EventItem({ 
-  event, 
-  isSelected, 
-  onPress 
-}: { 
-  event: EventDoc; 
-  isSelected: boolean; 
-  onPress: () => void; 
+function EventItem({
+  event,
+  isSelected,
+  onPress
+}: {
+  event: EventDoc;
+  isSelected: boolean;
+  onPress: () => void;
 }) {
-  const status = getStatus(event);
-  const statusColors: Record<string, string> = {
-    Upcoming: "bg-blue-100 text-blue-700",
-    "In Progress": "bg-yellow-100 text-yellow-700",
-    Completed: "bg-green-100 text-green-700",
-  };
-  const btnAnim = usePressScale();
-  
-  return (
-    <Animated.View style={{ transform: [{ scale: btnAnim.scale }] }}>
-      <Pressable
-        onPress={onPress}
-        onPressIn={btnAnim.onPressIn}
-        onPressOut={btnAnim.onPressOut}
-        className={`bg-white rounded-2xl p-4 mb-3 shadow-sm border ${
-          isSelected ? "border-blue-500 border-2" : "border-gray-100"
-        }`}
-      >
-        <Row className="justify-between items-center">
-          <Text className="text-lg font-semibold text-gray-900 flex-1">
-            {event.title}
-          </Text>
-          <View className={`px-3 py-1 rounded-full ${statusColors[status]}`}>
-            <Text className="text-xs font-medium">
-              {status}
+  const status = getStatus(event);
+  const statusColors: Record<string, string> = {
+    Upcoming: "bg-blue-100 text-blue-700",
+    "In Progress": "bg-yellow-100 text-yellow-700",
+    Completed: "bg-green-100 text-green-700",
+  };
+  const btnAnim = usePressScale();
+
+  // We pre-calculate the className string here to keep the JSX clean
+  const pressableClasses = `bg-white rounded-2xl mb-3 shadow-sm border overflow-hidden ${
+    isSelected ? "border-blue-500 border-2" : "border-gray-100"
+  }`;
+
+  return (
+    <Animated.View style={{ transform: [{ scale: btnAnim.scale }] }}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={btnAnim.onPressIn}
+        onPressOut={btnAnim.onPressOut}
+        className={pressableClasses} // Use the clean variable here
+      >
+        {/* Image Section */}
+        <Image
+          source={{ uri: event.imageUrl || "https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?w=500" }}
+          className="w-full h-36"
+          resizeMode="cover"
+        />
+        {/* Content Section (the white space) */}
+        <View className="p-4">
+          <Row className="justify-between items-center">
+            <Text className="text-lg font-semibold text-gray-900 flex-1 pr-2">
+              {event.title}
             </Text>
-          </View>
-        </Row>
-        <Text className="text-gray-500 text-sm mt-1">
-          {tsToDate(event.eventAt)?.toLocaleDateString() || "Date TBD"}
-        </Text>
-      </Pressable>
-    </Animated.View>
-  );
+            <View className={`px-3 py-1 rounded-full ${statusColors[status]}`}>
+              <Text className="text-xs font-medium">
+                {status}
+              </Text>
+            </View>
+          </Row>
+          <Text className="text-gray-500 text-sm mt-1">
+            {tsToDate(event.eventAt)?.toLocaleDateString() || "Date TBD"}
+          </Text>
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
 }
 
 // Volunteer Item Component
@@ -159,6 +178,8 @@ export default function OrgVolunteers() {
   const headerOpacity = useRef(new Animated.Value(0)).current;
   const headerTranslate = useRef(new Animated.Value(-20)).current;
 
+  const scrollViewRef = useRef<ScrollView>(null);
+
   useEffect(() => {
     Animated.parallel([
       Animated.timing(headerOpacity, { 
@@ -195,7 +216,8 @@ export default function OrgVolunteers() {
                 title: data.title || 'Untitled Event',
                 status: data.status || 'open',
                 eventAt: data.eventAt,
-                organizerId: data.organizerId
+                organizerId: data.organizerId,
+                imageUrl: data.imageUrl
               });
             }
           });
@@ -258,6 +280,9 @@ export default function OrgVolunteers() {
     return () => unsub();
   }, [selectedEventId]);
 
+
+
+
   // Mark volunteer attendance
   const markAttended = async (regId: string, attended: boolean) => {
     if (!selectedEventId) {
@@ -294,35 +319,48 @@ export default function OrgVolunteers() {
   return (
     <View className="flex-1 bg-gray-50">
       {/* Header */}
-      <Animated.View
-        style={{
-          opacity: headerOpacity,
-          transform: [{ translateY: headerTranslate }],
-        }}
-        className="bg-blue-600 px-6 pt-10 pb-4 shadow-lg"
-      >
-        <Row className="justify-between items-center">
-          <Text className="text-2xl font-bold text-white">Volunteer Management</Text>
-          <Pressable 
-            onPress={() => Alert.alert("Notifications", "No notifications yet.")}
-            className="p-2"
+      <View className="w-full h-40 relative"> {/* Adjust height as needed */}
+        <ImageBackground
+          source={{ uri: "https://i0.wp.com/fromsunrisetosunset.com/wp-content/uploads/2018/11/20180911_151859_1200px-min.jpg?ssl=1" }} // Placeholder image URL
+          className="w-full h-full"
+          resizeMode="cover"
+        >
+          {/* Gradient Overlay for Text Readability */}
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.6)']} // Adjust colors for desired fade
+            className="absolute inset-0 flex-col justify-end p-6" // Covers the whole image, pushes content to bottom
           >
-            <Ionicons name="notifications-outline" size={24} color="#fff" />
-          </Pressable>
-        </Row>
-        <Text className="text-blue-100 mt-2 text-sm">
-          Manage volunteer registrations and track attendance
-        </Text>
-      </Animated.View>
+            {/* Top Row: Profile & Notifications */}
+            <Row className="justify-end items-center mt-6">
+                <Pressable 
+                  onPress={() => Alert.alert("Notifications", "No notifications yet.")}
+                  className="p-2"
+                >
+                  <Ionicons name="notifications-outline" size={24} color="#fff" />
+                </Pressable>
+            </Row>
+
+            {/* Main Title */}
+            <Text className="text-3xl font-bold text-white mt-8">manage volunteers</Text>
+            {/* Subtitle/Location */}
+            <Row className="items-center mt-1">
+                <Ionicons name="location-sharp" size={16} color="#fff" />
+                <Text className="text-white text-sm ml-1">Hikkaduwa beach, Mount Lavinia</Text>
+            </Row>
+            
+          </LinearGradient>
+        </ImageBackground>
+      </View>
 
       <ScrollView
+        ref={scrollViewRef}
         className="flex-1"
         contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Events List */}
         <View className="mb-6">
-          <Text className="text-xl font-semibold text-gray-900 mb-4">Your Events</Text>
+          <Text className="text-xl font-semibold text-gray-900 mb-4">Your Progressing Events</Text>
           {events.length === 0 ? (
             <View className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 items-center">
               <Ionicons name="calendar-outline" size={32} color="#9ca3af" />
@@ -345,7 +383,12 @@ export default function OrgVolunteers() {
 
         {/* Volunteers for Selected Event */}
         {selectedEventId && (
-          <View className="mb-6">
+          <View
+            className="mb-6"
+            onLayout={() => {
+              scrollViewRef.current?.scrollToEnd({ animated: true });
+            }}
+          >
             <View className="flex-row justify-between items-center mb-4">
               <Text className="text-xl font-semibold text-gray-900">
                 Volunteers for {selectedEvent?.title}

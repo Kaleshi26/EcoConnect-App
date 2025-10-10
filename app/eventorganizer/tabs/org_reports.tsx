@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  ImageBackground,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -204,15 +205,15 @@ Join me in making our environment cleaner! 🌍
     trend?: string;
   }) => {
     const colorMap = {
-      blue: "from-blue-500 to-blue-600",
-      green: "from-green-500 to-green-600",
-      purple: "from-purple-500 to-purple-600",
-      orange: "from-orange-500 to-orange-600",
-      red: "from-red-500 to-red-600"
+      blue: "bg-blue-600",
+      green: "bg-green-600",
+      purple: "bg-purple-600",
+      orange: "bg-orange-600",
+      red: "bg-red-600"
     };
 
     return (
-      <View className={`rounded-3xl p-6 bg-gradient-to-br ${colorMap[color]} shadow-xl mb-4`}>
+      <View className={`rounded-3xl p-6 ${colorMap[color]} shadow-xl mb-4`}>
         <View className="flex-row justify-between items-start">
           <View className="flex-1">
             <Text className="text-white/80 text-sm font-medium">{title}</Text>
@@ -260,50 +261,56 @@ Join me in making our environment cleaner! 🌍
   return (
     <View className="flex-1 bg-gradient-to-br from-blue-50 via-white to-purple-50">
       {/* Header */}
-      <View className="px-6 pt-12 pb-6 bg-gradient-to-r from-blue-600 to-purple-600 shadow-2xl">
-        <View className="flex-row justify-between items-center mb-4">
-          <View>
-            <Text className="text-3xl font-bold text-white">Impact Reports</Text>
-            <Text className="text-blue-100 font-medium mt-1">Track your environmental impact</Text>
+      <ImageBackground
+        source={{ uri: "https://do6raq9h04ex.cloudfront.net/sites/8/2023/11/hikkaduwa-beach-1050x700-1.jpg" }}
+        resizeMode="cover"
+        className="shadow-2xl"
+      >
+        <View className="px-6 pt-12 pb-6 bg-black/40">
+          <View className="flex-row justify-between items-center mb-4">
+            <View>
+              <Text className="text-3xl font-bold text-white">Impact Reports</Text>
+              <Text className="text-white/80 font-medium mt-1">Track your environmental impact</Text>
+            </View>
+            <Pressable 
+              onPress={shareSummary}
+              className="bg-white/10 p-3 rounded-2xl border border-white/20"
+            >
+              <Ionicons name="share-social-outline" size={24} color="white" />
+            </Pressable>
           </View>
-          <Pressable 
-            onPress={shareSummary}
-            className="bg-white/10 p-3 rounded-2xl border border-white/20"
-          >
-            <Ionicons name="share-social-outline" size={24} color="white" />
-          </Pressable>
-        </View>
 
-        {/* Period Selector */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-4">
-          <View className="flex-row space-x-2">
-            {[
-              { key: "all", label: "All Time" },
-              { key: "month", label: "This Month" },
-              { key: "quarter", label: "This Quarter" },
-              { key: "year", label: "This Year" }
-            ].map((period) => (
-              <Pressable
-                key={period.key}
-                onPress={() => setSelectedPeriod(period.key as any)}
-                className={`px-4 py-2 rounded-2xl ${
-                  selectedPeriod === period.key 
-                    ? "bg-white" 
-                    : "bg-white/10 border border-white/20"
-                }`}
-              >
-                <Text className={
-                  selectedPeriod === period.key 
-                    ? "text-blue-600 font-semibold" 
-                    : "text-white font-medium"
-                }>
-                  {period.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </ScrollView>
-      </View>
+          {/* Period Selector */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-4">
+            <View className="flex-row space-x-2">
+              {[
+                { key: "all", label: "All Time" },
+                { key: "month", label: "This Month" },
+                { key: "quarter", label: "This Quarter" },
+                { key: "year", label: "This Year" }
+              ].map((period) => (
+                <Pressable
+                  key={period.key}
+                  onPress={() => setSelectedPeriod(period.key as any)}
+                  className={`px-4 py-2 rounded-2xl ${
+                    selectedPeriod === period.key 
+                      ? "bg-white" 
+                      : "bg-white/10 border border-white/20"
+                  }`}
+                >
+                  <Text className={
+                    selectedPeriod === period.key 
+                      ? "text-blue-600 font-semibold" 
+                      : "text-white font-medium"
+                  }>
+                    {period.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
+      </ImageBackground>
 
       <ScrollView 
         className="flex-1"
@@ -315,7 +322,7 @@ Join me in making our environment cleaner! 🌍
       >
         {/* Quick Stats Grid */}
         <View className="mb-6">
-          <Text className="text-2xl font-bold text-gray-900 mb-4">Overview</Text>
+          <Text className="text-2xl font-bold text-gray-900 mb-4">Your Impact Overview</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -8 }}>
             <View style={{ width: '50%', padding: 8 }}>
               <StatCard
@@ -448,7 +455,7 @@ Join me in making our environment cleaner! 🌍
         </View>
 
         {/* Export Section */}
-        <View className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-3xl p-6 shadow-2xl">
+        <View className="bg-blue-600 rounded-3xl p-6 shadow-2xl">
           <Text className="text-white text-xl font-bold mb-2">Export Your Impact</Text>
           <Text className="text-white/80 text-sm mb-4">
             Share your environmental impact with sponsors, community, or keep for records
@@ -474,7 +481,7 @@ Join me in making our environment cleaner! 🌍
         </View>
 
         {/* Impact Message */}
-        <View className="mt-6 bg-gradient-to-r from-green-500 to-emerald-600 rounded-3xl p-6 shadow-xl">
+        <View className="mt-6 bg-green-600 rounded-3xl p-6 shadow-xl">
           <Text className="text-white text-xl font-bold text-center mb-2">🌍 Environmental Impact</Text>
           <Text className="text-white/90 text-center text-sm">
             You've helped remove {reportData.totalWasteCollected} kg of waste from our environment! 
