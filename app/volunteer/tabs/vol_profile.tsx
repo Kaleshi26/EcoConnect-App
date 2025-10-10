@@ -1,37 +1,37 @@
+import { useAuth } from "@/contexts/AuthContext";
+import { auth, db } from "@/services/firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { signOut } from "firebase/auth";
-import React, { useRef, useState, useEffect } from "react";
 import {
-  Animated,
-  Pressable,
-  Text,
-  TouchableOpacity,
-  View,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-  Modal,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
-import { useAuth } from "@/contexts/AuthContext";
-import { auth, db } from "@/services/firebaseConfig";
-import {
+  addDoc,
   collection,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
   deleteDoc,
   doc,
-  updateDoc,
-  addDoc,
-  serverTimestamp,
   getDocs,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
   Timestamp,
+  updateDoc,
+  where,
 } from "firebase/firestore";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 // Types
 type PostCategory = "event" | "blog" | "achievement" | "suggestion" | "question";
@@ -215,7 +215,7 @@ function RegisteredEventsSection() {
         {registeredEvents.length === 0 ? (
           <View className="items-center py-4">
             <Ionicons name="calendar-outline" size={32} color="#cbd5e1" />
-            <Text className="text-slate-500 mt-2 text-center">You haven't registered for any events yet</Text>
+            <Text className="text-slate-500 mt-2 text-center">You havet registered for any events yet</Text>
           </View>
         ) : (
           registeredEvents.map((event) => {
@@ -587,7 +587,7 @@ export default function VolProfile() {
             ) : userPosts.length === 0 ? (
               <View className="items-center py-4">
                 <Ionicons name="document-text-outline" size={32} color="#cbd5e1" />
-                <Text className="text-slate-500 mt-2">You haven't created any posts yet</Text>
+                <Text className="text-slate-500 mt-2">You havent created any posts yet</Text>
               </View>
             ) : (
               userPosts.slice(0, 3).map((post) => (
