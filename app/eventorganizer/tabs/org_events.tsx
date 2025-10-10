@@ -81,8 +81,8 @@ const uploadImages = async (uris: string[], path: 'events' | 'evidence'): Promis
 };
 
 // Small UI helpers (No changes here)
-function Row({ children }: { children: React.ReactNode }) {
-  return <View className="flex-row items-center">{children}</View>;
+function Row({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <View className={`flex-row items-center ${className ?? ""}`}>{children}</View>;
 }
 
 function Section({ title, children, color = "blue" }: { title: string; children: React.ReactNode; color?: string }) {
@@ -381,7 +381,7 @@ function getStatus(ev: EventDoc) {
 }
 
 // Event Card (No changes here)
-function EventCard({ ev, onClosePress }: { ev: EventDoc; onClosePress: () => void }) {
+function EventCard({ ev, onClosePress, onPress }: { ev: EventDoc; onClosePress: () => void; onPress: () => void }) {
   const status = getStatus(ev);
   const d = formatDateTime(ev.eventAt);
 
@@ -394,7 +394,10 @@ function EventCard({ ev, onClosePress }: { ev: EventDoc; onClosePress: () => voi
   const statusConfig = statusColors[status] || { bg: "bg-gray-100", text: "text-gray-700" };
 
   return (
-    <View className="mb-6 bg-white rounded-3xl overflow-hidden shadow-2xl border-2 border-gray-100">
+    <Pressable 
+      onPress={onPress} // Add this onPress handler
+      className="mb-6 bg-white rounded-3xl overflow-hidden shadow-2xl border-2 border-gray-100"
+    >
       <Image
         source={{
           uri: ev.imageUrl || "https://images.unsplash.com/photo-1581579438747-1dc8d17bbce4?w=400",
@@ -463,7 +466,7 @@ function EventCard({ ev, onClosePress }: { ev: EventDoc; onClosePress: () => voi
           </View>
         )}
       </View>
-    </View>
+    </Pressable> // Change this from </View> to </Pressable>
   );
 }
 
@@ -981,6 +984,86 @@ function CloseEventForm({
   );
 }
 
+// NEW COMPONENT: EventDetailsModal
+// NEW & IMPROVED COMPONENT: EventDetailsModal - Matches desired aesthetics
+function EventDetailsModal({ event, onClose }: { event: EventDoc; onClose: () => void }) {
+  return (
+    // Outer Pressable for backdrop to close modal
+    <Pressable onPress={onClose} className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      {/* Inner Pressable to prevent closing when tapping modal content, with max-h for controlled size */}
+      <Pressable className="w-full max-w-lg max-h-[90vh] bg-gray-900 rounded-3xl overflow-hidden shadow-2xl">
+        <ImageBackground
+          // --- THIS IS THE NEW, RELIABLE IMAGE URL ---
+          source={{ uri: "https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=1200" }}
+          resizeMode="cover"
+          className="w-full"
+        >
+          {/* Main content area within the ImageBackground */}
+          <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+            <View className="flex-1 bg-black/60 pt-8 pb-6 px-6 relative">
+              {/* Close Button - positioned absolutely within this View */}
+              <Pressable
+                onPress={onClose}
+                className="absolute top-4 right-4 bg-white/20 rounded-full p-2 z-10"
+              >
+                <Ionicons name="close" size={28} color="white" />
+              </Pressable>
+
+              {/* Title and optional Host info */}
+              <Text className="text-4xl font-extrabold text-white mb-2 pr-10">{event.title}</Text>
+              {event.organizerName && ( // Assuming you have an organizerName in EventDoc
+                <Text className="text-white/80 text-lg font-medium mb-4">
+                  Hosted by {event.organizerName}
+                </Text>
+              )}
+
+              {/* Tags Section */}
+              <View className="flex-row flex-wrap mb-6">
+                {event.wasteTypes?.map((type, i) => (
+                  <View key={i} className="bg-white/20 rounded-full px-4 py-2 mr-2 mb-2">
+                    <Text className="text-white text-sm font-semibold">{type}</Text>
+                  </View>
+                ))}
+                {event.sponsorshipRequired && (
+                  <View className="bg-yellow-400 rounded-full px-4 py-2 mr-2 mb-2">
+                    <Text className="text-gray-900 text-sm font-bold">Sponsorship Needed</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Description */}
+              <Text className="text-white/90 text-base leading-relaxed mb-6">{event.description}</Text>
+
+              {/* Key Details - Icons and Text */}
+              <View className="space-y-4 mb-8">
+                <Row className="items-start"> {/* Use items-start for multi-line text alignment */}
+                  <Ionicons name="calendar-outline" size={22} color="white" className="mt-0.5" />
+                  <Text className="text-white text-base ml-3 flex-1">{formatDateTime(event.eventAt)}</Text>
+                </Row>
+                {!!event.location?.label && (
+                  <Row className="items-start">
+                    <Ionicons name="location-outline" size={22} color="white" className="mt-0.5" />
+                    <Text className="text-white text-base ml-3 flex-1">{event.location.label}</Text>
+                  </Row>
+                )}
+                <Row className="items-start">
+                  <Ionicons name="people-outline" size={22} color="white" className="mt-0.5" />
+                  <Text className="text-white text-base ml-3 flex-1">{event.volunteersNeeded ?? 0} volunteers needed</Text>
+                </Row>
+              </View>
+
+              {/* Action Button */}
+              <Pressable className="bg-blue-600 rounded-xl py-4 items-center mt-auto">
+                <Text className="text-white font-bold text-lg">Sign Up to Join!</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </ImageBackground>
+      </Pressable>
+    </Pressable>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* My Events List + Create New Event Button                           */
 /* ------------------------------------------------------------------ */
@@ -993,6 +1076,7 @@ export default function OrgEvents() {
   const [showCloseForm, setShowCloseForm] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [selectedEventForDetails, setSelectedEventForDetails] = useState<EventDoc | null>(null);
 
   const addBtnAnim = usePressScale();
 
@@ -1137,11 +1221,19 @@ export default function OrgEvents() {
                 key={ev.id}
                 ev={ev}
                 onClosePress={() => setShowCloseForm(ev.id)}
+                onPress={() => setSelectedEventForDetails(ev)}
               />
             ))}
           </View>
         )}
       </ScrollView>
+
+      {selectedEventForDetails && (
+        <EventDetailsModal 
+          event={selectedEventForDetails} 
+          onClose={() => setSelectedEventForDetails(null)} 
+        />
+      )}
 
       <Animated.View
         style={{
