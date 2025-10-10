@@ -1064,6 +1064,75 @@ function EventDetailsModal({ event, onClose }: { event: EventDoc; onClose: () =>
   );
 }
 
+// Add this hardcoded data before the OrgEvents component
+const newsData = [
+  {
+    id: '1',
+    title: 'The Hidden Dangers of Microplastics on Our Coasts',
+    excerpt: 'Learn about the invisible threat and its impact on marine life.',
+    image: 'https://images.unsplash.com/photo-1759240193068-347e29be6b89?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&q=80&w=2070',
+  },
+  {
+    id: '2',
+    title: "Sri Lanka's Proactive Stance on Marine Pollution",
+    excerpt: 'Recent initiatives are making waves in ocean conservation.',
+    image: 'https://bmkltsly13vb.compat.objectstorage.ap-singapore-1.oraclecloud.com/cdn.sg.dailymirror.lk/assets/uploads/image_0ac73279fa.jpg',
+  },
+  {
+    id: '3',
+    title: 'How "Ghost Nets" Haunt Our Oceans',
+    excerpt: 'The fight against abandoned fishing gear is crucial for our ecosystem.',
+    image: 'https://images.unsplash.com/photo-1727860237343-57aa6c7078c5?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&q=80&w=1170',
+  },
+  {
+    id: '4',
+    title: 'Simple Steps to a Successful Beach Cleanup',
+    excerpt: 'A quick guide for organizers to maximize their impact.',
+    image: 'https://www.globalgiving.org/pfil/68748/ph_68748_267233.jpg',
+  },
+    {
+    id: '5',
+    title: 'The Lifecycle of a Plastic Bottle',
+    excerpt: 'From production to pollution, understand the journey.',
+    image: 'https://www.redcross.lk/wp-content/uploads/2016/06/IMG_0552.jpg',
+  },
+];
+
+// Add these two new components after the newsData array
+
+function NewsCard({ item }: { item: typeof newsData[0] }) {
+  return (
+    <Pressable className="w-64 h-48 rounded-2xl overflow-hidden mr-4 shadow-lg bg-gray-200">
+      <ImageBackground source={{ uri: item.image }} resizeMode="cover" className="flex-1">
+        <View className="flex-1 justify-end bg-black/40 p-4">
+          <Text className="text-white font-bold text-base leading-tight shadow-md">{item.title}</Text>
+          <Text className="text-white/80 text-xs mt-1 shadow-sm">{item.excerpt}</Text>
+        </View>
+      </ImageBackground>
+    </Pressable>
+  );
+}
+
+function NewsSection() {
+  return (
+    <View className="mb-8">
+      <View className="flex-row justify-between items-center mb-4">
+          <Text className="text-2xl font-bold text-gray-800">News & Insights</Text>
+          <Pressable onPress={() => Alert.alert("Show All", "This can navigate to a full news screen later.")}>
+            <Text className="font-semibold text-blue-600">Show all</Text>
+          </Pressable>
+      </View>
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingLeft: 2 }} // Ensures shadow visibility on the first card
+      >
+        {newsData.map(item => <NewsCard key={item.id} item={item} />)}
+      </ScrollView>
+    </View>
+  );
+}
+
 
 /* ------------------------------------------------------------------ */
 /* My Events List + Create New Event Button                           */
@@ -1166,7 +1235,7 @@ export default function OrgEvents() {
         </ImageBackground>
 
         {/* Search bar positioned to overlap the image */}
-        <View className="px-6 -mt-8">
+        <View className="px-8 -mt-8">
           <View className="flex-row items-center bg-white rounded-2xl px-4 py-4 shadow-2xl shadow-gray-400">
             <Ionicons name="search-outline" size={22} color="#6b7280" />
             <TextInput
@@ -1191,6 +1260,8 @@ export default function OrgEvents() {
             <Text className="text-white font-bold text-lg text-center">{infoMsg}</Text>
           </View>
         ) : null}
+
+        <NewsSection />
 
         {loading ? (
           <View className="py-16 items-center">
@@ -1248,9 +1319,9 @@ export default function OrgEvents() {
           onPressIn={addBtnAnim.onPressIn}
           onPressOut={addBtnAnim.onPressOut}
           onPress={() => setShowForm(true)}
-          className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full shadow-2xl items-center justify-center border-4 border-white"
+          className="w-20 h-20 bg-cyan-50 rounded-full shadow-2xl items-center justify-center border-1 bg-cyan-300"
         >
-          <Ionicons name="add" size={32} color="white" />
+          <Ionicons name="add" size={32} color="bg-sky-800" />
         </Pressable>
       </Animated.View>
     </View>
