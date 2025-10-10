@@ -994,7 +994,7 @@ function EventDetailsModal({ event, onClose }: { event: EventDoc; onClose: () =>
       <Pressable className="w-full max-w-lg max-h-[90vh] bg-gray-900 rounded-3xl overflow-hidden shadow-2xl">
         <ImageBackground
           // --- THIS IS THE NEW, RELIABLE IMAGE URL ---
-          source={{ uri: "https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=1200" }}
+          source={{ uri: "https://images.unsplash.com/photo-1509233725247-49e657c54213?q=80&w=749&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" }}
           resizeMode="cover"
           className="w-full"
         >
@@ -1054,7 +1054,7 @@ function EventDetailsModal({ event, onClose }: { event: EventDoc; onClose: () =>
 
               {/* Action Button */}
               <Pressable className="bg-blue-600 rounded-xl py-4 items-center mt-auto">
-                <Text className="text-white font-bold text-lg">Sign Up to Join!</Text>
+                <Text className="text-white font-bold text-lg">Track volunteers</Text>
               </Pressable>
             </View>
           </ScrollView>
