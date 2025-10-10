@@ -1,4 +1,4 @@
-// Photo upload temporarily disabled: remove ImagePicker and Location
+import * as ImagePicker from "expo-image-picker";
 import { router, useLocalSearchParams } from "expo-router";
 import {
     collection,
@@ -10,14 +10,16 @@ import {
     Timestamp,
     updateDoc
 } from "firebase/firestore";
-// Photo upload temporarily disabled: remove Firebase Storage helpers
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import {
     Brain,
     Calendar,
+    Camera,
     CheckCircle,
     CheckCircle2,
     ChevronLeft,
     Clock,
+    Image as ImageIcon,
     MapPin,
     Navigation,
     Package,
@@ -25,12 +27,14 @@ import {
     Target,
     Trash2,
     Truck,
+    X,
     Zap
 } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    Image,
     Modal,
     ScrollView,
     Text,
@@ -38,7 +42,7 @@ import {
     TouchableOpacity,
     View
 } from "react-native";
-import { db } from "../../../services/firebaseConfig";
+import { db, storage } from "../../../services/firebaseConfig";
 
 type EventDoc = {
   id: string;
@@ -52,6 +56,7 @@ type EventDoc = {
   status?: "Pending" | "In-progress" | "Completed";
   assignedTo?: string;
   proofUrl?: string;
+  proofImages?: string[];
   completedAt?: Timestamp;
   collectedWeights?: Record<string, string>;
 };
@@ -349,7 +354,6 @@ export default function WcHome({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<EventDoc | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
-  // Photos feature removed
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<'available' | 'upcoming' | 'completed'>(
     (params.tab as string) === 'upcoming' ? 'upcoming' : 
@@ -358,6 +362,8 @@ export default function WcHome({ userId }: { userId: string }) {
   const [showCompletionForm, setShowCompletionForm] = useState(false);
   const [collectedWeights, setCollectedWeights] = useState<Record<string, string>>({});
   const [showAISuggestions, setShowAISuggestions] = useState(false);
+  const [imageUris, setImageUris] = useState<string[]>([]);
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [wasteStats, setWasteStats] = useState({
     totalWeight: 0,
     plasticBottles: 0,
@@ -490,16 +496,96 @@ export default function WcHome({ userId }: { userId: string }) {
     return ev.status === "Completed";
   });
 
-  // Photo step removed
+  // 🔹 Handle image picking
+  const pickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Denied", "Camera roll permissions are required to upload images");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const uri = result.assets[0].uri;
+        setImageUris(prev => [...prev, uri]);
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      Alert.alert("Error", "Failed to pick image");
+    }
+  };
+
+  // 🔹 Handle taking photo with camera
+  const takePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Denied", "Camera permissions are required to take photos");
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const uri = result.assets[0].uri;
+        setImageUris(prev => [...prev, uri]);
+      }
+    } catch (error) {
+      console.error("Error taking photo:", error);
+      Alert.alert("Error", "Failed to take photo");
+    }
+  };
+
+  // 🔹 Remove image from list
+  const removeImage = (index: number) => {
+    setImageUris(prev => prev.filter((_, i) => i !== index));
+  };
 
   // 🔹 Handle completion form submission
   async function handleComplete(ev: EventDoc) {
     try {
       setUploading(true);
+      
+      // Upload all images to Firebase Storage
+      const uploadedUrls: string[] = [];
+      for (const uri of imageUris) {
+        try {
+          // Convert image to blob
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          
+          // Create unique filename
+          const filename = `waste_collection/${ev.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.jpg`;
+          const storageRef = ref(storage, filename);
+          
+          // Upload to Firebase Storage
+          await uploadBytes(storageRef, blob);
+          
+          // Get download URL
+          const downloadURL = await getDownloadURL(storageRef);
+          uploadedUrls.push(downloadURL);
+        } catch (uploadError) {
+          console.error("Error uploading image:", uploadError);
+          Alert.alert("Warning", "Some images failed to upload but assignment will be completed");
+        }
+      }
+      
       await updateDoc(doc(db, "events", ev.id), {
         status: "Completed",
         completedAt: serverTimestamp(),
         collectedWeights: collectedWeights,
+        proofImages: uploadedUrls,
       });
       
       Alert.alert("Success", "Assignment marked completed ✅");
@@ -507,9 +593,12 @@ export default function WcHome({ userId }: { userId: string }) {
       setCurrentStep(0);
       setShowCompletionForm(false);
       setCollectedWeights({});
+      setImageUris([]);
+      setImageUrls([]);
       setActiveTab('completed');
     } catch (error) {
-      Alert.alert("Error", "Failed to complete assignment");
+      console.error("Error completing assignment:", error);
+      Alert.alert("Error", "Failed to complete assignment: " + (error as Error).message);
     } finally {
       setUploading(false);
     }
@@ -1092,10 +1181,70 @@ export default function WcHome({ userId }: { userId: string }) {
                 )}
               </View>
 
+              {/* Image Upload Section */}
+              <View className="mt-6">
+                <View className="flex-row items-center mb-3">
+                  <View className="bg-blue-100 p-2 rounded-lg mr-3">
+                    <ImageIcon size={18} color="#2563eb" />
+                  </View>
+                  <Text className="text-gray-700 font-semibold">Upload Collection Photos</Text>
+                  <Text className="text-gray-500 text-xs ml-2">(Optional)</Text>
+                </View>
+
+                {/* Image Picker Buttons */}
+                <View className="flex-row space-x-3 mb-4">
+                  <TouchableOpacity
+                    onPress={takePhoto}
+                    className="flex-1 bg-blue-50 border-2 border-blue-200 px-4 py-3 rounded-xl flex-row items-center justify-center"
+                  >
+                    <Camera size={18} color="#2563eb" />
+                    <Text className="text-blue-700 font-semibold ml-2">Take Photo</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={pickImage}
+                    className="flex-1 bg-indigo-50 border-2 border-indigo-200 px-4 py-3 rounded-xl flex-row items-center justify-center"
+                  >
+                    <ImageIcon size={18} color="#4f46e5" />
+                    <Text className="text-indigo-700 font-semibold ml-2">Choose Image</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Display Selected Images */}
+                {imageUris.length > 0 && (
+                  <View className="space-y-2">
+                    <Text className="text-gray-600 text-sm mb-2">
+                      Selected Photos ({imageUris.length})
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-2">
+                      <View className="flex-row space-x-3">
+                        {imageUris.map((uri, index) => (
+                          <View key={index} className="relative">
+                            <Image
+                              source={{ uri }}
+                              className="w-24 h-24 rounded-xl"
+                              resizeMode="cover"
+                            />
+                            <TouchableOpacity
+                              onPress={() => removeImage(index)}
+                              className="absolute -top-2 -right-2 bg-red-500 rounded-full p-1.5 shadow-lg"
+                            >
+                              <X size={14} color="white" />
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+
               {/* Form Actions */}
               <View className="flex-row space-x-3 mt-6">
                 <TouchableOpacity
-                  onPress={() => setShowCompletionForm(false)}
+                  onPress={() => {
+                    setShowCompletionForm(false);
+                    setImageUris([]);
+                  }}
                   className="flex-1 px-6 py-3 rounded-xl border-2 border-gray-300 bg-white"
                 >
                   <Text className="text-gray-600 font-semibold text-center">Cancel</Text>
@@ -1106,7 +1255,10 @@ export default function WcHome({ userId }: { userId: string }) {
                   className="flex-1 px-6 py-3 rounded-xl bg-green-600 shadow-lg"
                 >
                   {uploading ? (
-                    <ActivityIndicator color="white" size="small" />
+                    <View className="flex-row items-center justify-center">
+                      <ActivityIndicator color="white" size="small" />
+                      <Text className="text-white font-semibold ml-2">Uploading...</Text>
+                    </View>
                   ) : (
                     <Text className="text-white font-semibold text-center">Complete Assignment</Text>
                   )}
