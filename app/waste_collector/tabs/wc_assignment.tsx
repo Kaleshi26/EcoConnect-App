@@ -1,14 +1,13 @@
 import * as ImagePicker from "expo-image-picker";
 import { router, useLocalSearchParams } from "expo-router";
 import {
+    addDoc,
     collection,
-    doc,
     onSnapshot,
     orderBy,
     query,
     serverTimestamp,
-    Timestamp,
-    updateDoc
+    Timestamp
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import {
@@ -24,7 +23,6 @@ import {
     Navigation,
     Package,
     PlayCircle,
-    Target,
     Trash2,
     Truck,
     X,
@@ -42,6 +40,7 @@ import {
     TouchableOpacity,
     View
 } from "react-native";
+import { useAuth } from "../../../contexts/AuthContext";
 import { db, storage } from "../../../services/firebaseConfig";
 
 type EventDoc = {
@@ -53,12 +52,25 @@ type EventDoc = {
   wasteTypes?: string[];
   estimatedQuantity?: string;
   priority?: string;
-  status?: "Pending" | "In-progress" | "Completed";
+  status?: "Pending" | "In-progress" | "Completed" | "open" | "in_progress" | "completed";
   assignedTo?: string;
   proofUrl?: string;
   proofImages?: string[];
   completedAt?: Timestamp;
   collectedWeights?: Record<string, string>;
+  // Additional fields from org_events
+  volunteersNeeded?: number;
+  sponsorshipRequired?: boolean;
+  organizerId?: string;
+  organizerRole?: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+  imageUrl?: string;
+  imageUrls?: string[];
+  resourcesNeeded?: string;
+  actualParticipants?: number;
+  collectedWastes?: { type: string; weight: number }[];
+  evidencePhotos?: string[];
 };
 
 function tsToDate(ts?: Timestamp) {
@@ -348,17 +360,16 @@ function StatusBadge({ status }: { status: EventDoc["status"] }) {
   );
 }
 
-export default function WcHome({ userId }: { userId: string }) {
+export default function WcHome() {
+  const { user, loading: authLoading } = useAuth();
+  const userId = user?.uid || "";
   const params = useLocalSearchParams();
   const [events, setEvents] = useState<EventDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<EventDoc | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [uploading, setUploading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'available' | 'upcoming' | 'completed'>(
-    (params.tab as string) === 'upcoming' ? 'upcoming' : 
-    (params.tab as string) === 'completed' ? 'completed' : 'available'
-  );
+  const [activeTab, setActiveTab] = useState<'available'>('available');
   const [showCompletionForm, setShowCompletionForm] = useState(false);
   const [collectedWeights, setCollectedWeights] = useState<Record<string, string>>({});
   const [showAISuggestions, setShowAISuggestions] = useState(false);
@@ -373,17 +384,19 @@ export default function WcHome({ userId }: { userId: string }) {
     cans: 0,
     other: 0
   });
+  
+  // Show loading state while auth is being checked
+  if (authLoading) {
+    return (
+      <View className="flex-1 bg-gradient-to-br from-slate-50 to-blue-50 items-center justify-center">
+        <View className="bg-white p-6 rounded-2xl shadow-sm">
+          <ActivityIndicator size="large" color="#2563eb" />
+          <Text className="text-gray-600 mt-3 font-medium">Loading...</Text>
+        </View>
+      </View>
+    );
+  }
 
-  // 🔹 Handle tab parameter changes
-  useEffect(() => {
-    if (params.tab === 'upcoming') {
-      setActiveTab('upcoming');
-    } else if (params.tab === 'available') {
-      setActiveTab('available');
-    } else if (params.tab === 'completed') {
-      setActiveTab('completed');
-    }
-  }, [params.tab]);
 
   // 🔹 Calculate waste statistics from completed assignments
   const calculateWasteStats = (events: EventDoc[]) => {
@@ -449,7 +462,7 @@ export default function WcHome({ userId }: { userId: string }) {
     return stats;
   };
 
-  // 🔹 Fetch assigned events
+  // 🔹 Fetch events (all events for available tab, assigned events for upcoming/completed)
   useEffect(() => {
     setLoading(true);
     const q = query(collection(db, "events"), orderBy("createdAt", "desc"));
@@ -457,12 +470,12 @@ export default function WcHome({ userId }: { userId: string }) {
       q,
       (snap) => {
         const all: EventDoc[] = snap.docs
-          .map((d) => ({ id: d.id, ...(d.data() as any) }))
-          .filter((ev) => ev.assignedTo === userId);
+          .map((d) => ({ id: d.id, ...(d.data() as any) }));
         setEvents(all);
         
-        // Calculate waste statistics
-        const stats = calculateWasteStats(all);
+        // Calculate waste statistics from assigned completed events
+        const assignedEvents = all.filter((ev) => ev.assignedTo === userId);
+        const stats = calculateWasteStats(assignedEvents);
         setWasteStats(stats);
         
         setLoading(false);
@@ -472,19 +485,38 @@ export default function WcHome({ userId }: { userId: string }) {
     return () => unsub();
   }, [userId]);
 
-  // 🔹 Group by date
+  // 🔹 Group by date and assignment status
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // Available: Open events (from org_events) OR unassigned events that are ready for collection
   const availableCleanups = events.filter((ev) => {
-    const date = tsToDate(ev.eventAt);
-    if (!date) return false;
-    const d = new Date(date);
-    d.setHours(0, 0, 0, 0);
-    return d <= today && ev.status !== "Completed"; // past or today but not completed
+    // Skip if already assigned to someone else
+    if (ev.assignedTo && ev.assignedTo !== userId) return false;
+    
+    // Skip if completed
+    if (ev.status === "Completed" || ev.status === "completed") return false;
+    
+    // Show if status is "open" (from org_events)
+    if (ev.status === "open") return true;
+    
+    // Show if assigned to this user and not completed
+    if (ev.assignedTo === userId) {
+      const date = tsToDate(ev.eventAt);
+      if (!date) return false;
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      return d <= today; // past or today
+    }
+    
+    return false;
   });
 
+  // Upcoming: Events assigned to this user that are in the future
   const upcomingCleanups = events.filter((ev) => {
+    if (ev.assignedTo !== userId) return false;
+    if (ev.status === "Completed" || ev.status === "completed") return false;
+    
     const date = tsToDate(ev.eventAt);
     if (!date) return false;
     const d = new Date(date);
@@ -492,8 +524,10 @@ export default function WcHome({ userId }: { userId: string }) {
     return d > today; // future
   });
 
+  // Completed: Events assigned to this user that are completed
   const completedCleanups = events.filter((ev) => {
-    return ev.status === "Completed";
+    if (ev.assignedTo !== userId) return false;
+    return ev.status === "Completed" || ev.status === "completed";
   });
 
   // 🔹 Handle image picking
@@ -506,7 +540,7 @@ export default function WcHome({ userId }: { userId: string }) {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
@@ -581,24 +615,39 @@ export default function WcHome({ userId }: { userId: string }) {
         }
       }
       
-      await updateDoc(doc(db, "events", ev.id), {
-        status: "Completed",
-        completedAt: serverTimestamp(),
-        collectedWeights: collectedWeights,
-        proofImages: uploadedUrls,
-      });
+      // 🔹 Store collection details in new wasteCollections collection (NOT in events collection)
+      if (userId) {
+        await addDoc(collection(db, "wasteCollections"), {
+          eventId: ev.id,
+          eventTitle: ev.title,
+          eventDescription: ev.description || "",
+          collectorId: userId,
+          collectorEmail: user?.email || "",
+          location: ev.location || {},
+          collectedWeights: collectedWeights,
+          proofImages: uploadedUrls,
+          wasteTypes: ev.wasteTypes || [],
+          status: "Completed",
+          collectedAt: serverTimestamp(),
+          createdAt: serverTimestamp(),
+          completedAt: serverTimestamp(),
+          // Additional metadata
+          estimatedQuantity: ev.estimatedQuantity || "",
+          priority: ev.priority || "",
+          organizerId: ev.organizerId || "",
+        });
+      }
       
-      Alert.alert("Success", "Assignment marked completed ✅");
+      Alert.alert("Success", "Waste collection recorded successfully ✅");
       setSelected(null);
       setCurrentStep(0);
       setShowCompletionForm(false);
       setCollectedWeights({});
       setImageUris([]);
       setImageUrls([]);
-      setActiveTab('completed');
     } catch (error) {
       console.error("Error completing assignment:", error);
-      Alert.alert("Error", "Failed to complete assignment: " + (error as Error).message);
+      Alert.alert("Error", "Failed to record waste collection: " + (error as Error).message);
     } finally {
       setUploading(false);
     }
@@ -618,58 +667,6 @@ export default function WcHome({ userId }: { userId: string }) {
     <View className="flex-1 bg-gradient-to-br from-slate-50 to-blue-50">
       {!selected ? (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 }}>
-          {/* Tabs */}
-          <View className="bg-white rounded-2xl p-2 mb-6 shadow-sm flex-row">
-            <TouchableOpacity
-              onPress={() => setActiveTab('available')}
-              className={`flex-1 py-3 px-3 rounded-xl items-center ${
-                activeTab === 'available' 
-                  ? 'bg-blue-500 shadow-sm' 
-                  : 'bg-transparent'
-              }`}
-            >
-              <Text className={`font-semibold text-xs ${
-                activeTab === 'available' 
-                  ? 'text-white' 
-                  : 'text-gray-600'
-              }`}>
-                Available
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setActiveTab('upcoming')}
-              className={`flex-1 py-3 px-3 rounded-xl items-center ${
-                activeTab === 'upcoming' 
-                  ? 'bg-blue-500 shadow-sm' 
-                  : 'bg-transparent'
-              }`}
-            >
-              <Text className={`font-semibold text-xs ${
-                activeTab === 'upcoming' 
-                  ? 'text-white' 
-                  : 'text-gray-600'
-              }`}>
-                Upcoming
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setActiveTab('completed')}
-              className={`flex-1 py-3 px-3 rounded-xl items-center ${
-                activeTab === 'completed' 
-                  ? 'bg-green-500 shadow-sm' 
-                  : 'bg-transparent'
-              }`}
-            >
-              <Text className={`font-semibold text-xs ${
-                activeTab === 'completed' 
-                  ? 'text-white' 
-                  : 'text-gray-600'
-              }`}>
-                Completed
-              </Text>
-            </TouchableOpacity>
-          </View>
-
           {loading ? (
             <View className="py-10 items-center">
               <View className="bg-white p-6 rounded-2xl shadow-sm">
@@ -679,246 +676,118 @@ export default function WcHome({ userId }: { userId: string }) {
             </View>
           ) : (
             <>
-              {/* Available Assignments Tab */}
-              {activeTab === 'available' && (
-                <>
-                  {availableCleanups.length > 0 ? (
-                    <View className="mb-8">
-                      <View className="flex-row items-center mb-4">
-                        <View className="bg-emerald-100 p-2 rounded-lg mr-3">
-                          <Trash2 size={20} color="#059669" />
-                        </View>
-                        <Text className="text-xl font-bold text-gray-900">Available Assignments</Text>
-                      </View>
+              {/* Available Assignments */}
+              {availableCleanups.length > 0 ? (
+                <View className="mb-8">
+                  <View className="flex-row items-center mb-4">
+                    <View className="bg-emerald-100 p-2 rounded-lg mr-3">
+                      <Trash2 size={20} color="#059669" />
+                    </View>
+                    <Text className="text-xl font-bold text-gray-900">Available Assignments</Text>
+                  </View>
                       {availableCleanups.map((ev) => {
                         const d = tsToDate(ev.eventAt);
                         const dateStr = d ? `${formatDate(d)} • ${formatTime(d)}` : "No date";
                         return (
                           <TouchableOpacity
                             key={ev.id}
-                            className="mb-4 bg-white rounded-2xl p-5 shadow-sm border-l-4 border-blue-400"
+                            className="mb-4 bg-white rounded-2xl overflow-hidden shadow-sm border-l-4 border-blue-400"
                             onPress={() => {
                               setSelected(ev);
                               setCurrentStep(0);
                             }}
                           >
-                            <View className="flex-row items-start justify-between mb-3">
-                              <View className="flex-1">
-                                <Text className="text-lg font-bold text-gray-900 mb-1">
-                                  {ev.title}
-                                </Text>
-                                <View className="flex-row items-center mb-2">
-                                  <Clock size={14} color="#6b7280" />
-                                  <Text className="text-gray-600 ml-2 text-sm">{dateStr}</Text>
-                                </View>
-                                {!!ev.location?.label && (
-                                  <View className="flex-row items-center">
-                                    <MapPin size={14} color="#6b7280" />
-                                    <Text className="text-gray-700 ml-2 text-sm">{ev.location.label}</Text>
-                                  </View>
-                                )}
-                              </View>
-                              <View className="bg-blue-50 p-2 rounded-lg">
-                                <Truck size={20} color="#2563eb" />
-                              </View>
-                            </View>
-                            {ev.wasteTypes && ev.wasteTypes.length > 0 && (
-                              <View className="flex-row flex-wrap">
-                                {ev.wasteTypes.slice(0, 3).map((type, idx) => (
-                                  <View key={idx} className="bg-gray-100 px-3 py-1 rounded-full mr-2 mb-1">
-                                    <Text className="text-gray-700 text-xs">{type}</Text>
-                                  </View>
-                                ))}
-                                {ev.wasteTypes.length > 3 && (
-                                  <View className="bg-gray-100 px-3 py-1 rounded-full">
-                                    <Text className="text-gray-700 text-xs">+{ev.wasteTypes.length - 3} more</Text>
-                                  </View>
-                                )}
-                              </View>
+                            {/* Event Image */}
+                            {ev.imageUrl && (
+                              <Image
+                                source={{ uri: ev.imageUrl }}
+                                className="w-full h-40"
+                                resizeMode="cover"
+                              />
                             )}
+                            
+                            <View className="p-5">
+                              <View className="flex-row items-start justify-between mb-3">
+                                <View className="flex-1">
+                                  <View className="flex-row items-center mb-2">
+                                    <Text className="text-lg font-bold text-gray-900 flex-1">
+                                      {ev.title}
+                                    </Text>
+                                    {/* Status Badge */}
+                                    {ev.assignedTo === userId && (
+                                      <View className="bg-green-100 px-2 py-1 rounded-full">
+                                        <Text className="text-green-700 text-xs font-bold">Assigned to You</Text>
+                                      </View>
+                                    )}
+                                  </View>
+                                  
+                                  {/* Description */}
+                                  {ev.description && (
+                                    <Text className="text-gray-600 text-sm mb-2" numberOfLines={2}>
+                                      {ev.description}
+                                    </Text>
+                                  )}
+                                  
+                                  <View className="flex-row items-center mb-2">
+                                    <Clock size={14} color="#6b7280" />
+                                    <Text className="text-gray-600 ml-2 text-sm">{dateStr}</Text>
+                                  </View>
+                                  
+                                  {!!ev.location?.label && (
+                                    <View className="flex-row items-center mb-2">
+                                      <MapPin size={14} color="#6b7280" />
+                                      <Text className="text-gray-700 ml-2 text-sm">{ev.location.label}</Text>
+                                    </View>
+                                  )}
+                                  
+                                  {/* Sponsorship Badge */}
+                                  {ev.sponsorshipRequired && (
+                                    <View className="flex-row items-center mb-2">
+                                      <View className="bg-yellow-50 p-1 rounded">
+                                        <Text className="text-yellow-700 text-xs font-semibold">
+                                          💰 Sponsorship Required
+                                        </Text>
+                                      </View>
+                                    </View>
+                                  )}
+                                </View>
+                                <View className="bg-blue-50 p-2 rounded-lg">
+                                  <Truck size={20} color="#2563eb" />
+                                </View>
+                              </View>
+                              
+                              {/* Waste Types */}
+                              {ev.wasteTypes && ev.wasteTypes.length > 0 && (
+                                <View className="flex-row flex-wrap mt-2">
+                                  {ev.wasteTypes.slice(0, 3).map((type, idx) => (
+                                    <View key={idx} className="bg-emerald-50 px-3 py-1.5 rounded-full mr-2 mb-1 border border-emerald-200">
+                                      <Text className="text-emerald-700 text-xs font-medium">{type}</Text>
+                                    </View>
+                                  ))}
+                                  {ev.wasteTypes.length > 3 && (
+                                    <View className="bg-gray-100 px-3 py-1.5 rounded-full border border-gray-200">
+                                      <Text className="text-gray-700 text-xs font-medium">+{ev.wasteTypes.length - 3} more</Text>
+                                    </View>
+                                  )}
+                                </View>
+                              )}
+                            </View>
                           </TouchableOpacity>
                         );
                       })}
-                    </View>
-                  ) : (
-                    <View className="bg-white rounded-2xl p-8 items-center mb-6">
-                      <View className="bg-gray-100 p-4 rounded-full mb-4">
-                        <CheckCircle size={32} color="#6b7280" />
-                      </View>
-                      <Text className="text-gray-600 text-center font-medium mb-2">
-                        No available assignments
-                      </Text>
-                      <Text className="text-gray-500 text-center text-sm">
-                        All caught up! Check back for new assignments.
-                      </Text>
-                    </View>
-                  )}
-                </>
-              )}
-
-              {/* Upcoming Assignments Tab */}
-              {activeTab === 'upcoming' && (
-                <>
-                  {upcomingCleanups.length > 0 ? (
-                    <View className="mb-8">
-                      <View className="flex-row items-center mb-4">
-                        <View className="bg-amber-100 p-2 rounded-lg mr-3">
-                          <Calendar size={20} color="#d97706" />
-                        </View>
-                        <Text className="text-xl font-bold text-gray-900">Upcoming Assignments</Text>
-                      </View>
-                      {upcomingCleanups.map((ev) => {
-                        const d = tsToDate(ev.eventAt);
-                        const dateStr = d ? `${formatDate(d)} • ${formatTime(d)}` : "No date";
-                        return (
-                          <View
-                            key={ev.id}
-                            className="mb-4 bg-white rounded-2xl p-5 shadow-sm border-l-4 border-amber-400"
-                          >
-                            <View className="flex-row items-start justify-between">
-                              <View className="flex-1">
-                                <Text className="text-lg font-bold text-gray-900 mb-2">
-                                  {ev.title}
-                                </Text>
-                                <View className="flex-row items-center mb-2">
-                                  <Clock size={14} color="#6b7280" />
-                                  <Text className="text-gray-600 ml-2 text-sm">{dateStr}</Text>
-                                </View>
-                                {!!ev.location?.label && (
-                                  <View className="flex-row items-center mb-2">
-                                    <MapPin size={14} color="#6b7280" />
-                                    <Text className="text-gray-700 ml-2 text-sm">{ev.location.label}</Text>
-                                  </View>
-                                )}
-                                {ev.wasteTypes && ev.wasteTypes.length > 0 && (
-                                  <View className="flex-row flex-wrap">
-                                    {ev.wasteTypes.slice(0, 3).map((type, idx) => (
-                                      <View key={idx} className="bg-gray-100 px-3 py-1 rounded-full mr-2 mb-1">
-                                        <Text className="text-gray-700 text-xs">{type}</Text>
-                                      </View>
-                                    ))}
-                                    {ev.wasteTypes.length > 3 && (
-                                      <View className="bg-gray-100 px-3 py-1 rounded-full">
-                                        <Text className="text-gray-700 text-xs">+{ev.wasteTypes.length - 3} more</Text>
-                                      </View>
-                                    )}
-                                  </View>
-                                )}
-                              </View>
-                              <View className="bg-amber-50 p-2 rounded-lg">
-                                <Target size={20} color="#d97706" />
-                              </View>
-                            </View>
-                          </View>
-                        );
-                      })}
-                    </View>
-                  ) : (
-                    <View className="bg-white rounded-2xl p-8 items-center">
-                      <View className="bg-gray-100 p-4 rounded-full mb-4">
-                        <Calendar size={32} color="#6b7280" />
-                      </View>
-                      <Text className="text-gray-600 text-center font-medium mb-2">
-                        No upcoming assignments
-                      </Text>
-                      <Text className="text-gray-500 text-center text-sm">
-                        New assignments will appear here when available.
-                      </Text>
-                    </View>
-                  )}
-                </>
-              )}
-
-              {/* Completed Assignments Tab */}
-              {activeTab === 'completed' && (
-                <>
-
-                  {completedCleanups.length > 0 ? (
-                    <View className="mb-8">
-                      <View className="flex-row items-center mb-4">
-                        <View className="bg-green-100 p-2 rounded-lg mr-3">
-                          <CheckCircle size={20} color="#059669" />
-                        </View>
-                        <Text className="text-xl font-bold text-gray-900">Completed Assignments</Text>
-                      </View>
-                      {completedCleanups.map((ev) => {
-                        const d = tsToDate(ev.eventAt);
-                        const completedDate = ev.completedAt ? tsToDate(ev.completedAt) : null;
-                        const dateStr = d ? `${formatDate(d)} • ${formatTime(d)}` : "No date";
-                        const completedStr = completedDate ? `Completed: ${formatDate(completedDate)}` : "Completed";
-                        return (
-                          <View
-                            key={ev.id}
-                            className="mb-4 bg-white rounded-2xl p-5 shadow-sm border-l-4 border-green-400"
-                          >
-                            <View className="flex-row items-start justify-between mb-3">
-                              <View className="flex-1">
-                                <Text className="text-lg font-bold text-gray-900 mb-2">
-                                  {ev.title}
-                                </Text>
-                                <View className="flex-row items-center mb-2">
-                                  <Clock size={14} color="#6b7280" />
-                                  <Text className="text-gray-600 ml-2 text-sm">{dateStr}</Text>
-                                </View>
-                                <View className="flex-row items-center mb-2">
-                                  <CheckCircle size={14} color="#059669" />
-                                  <Text className="text-green-600 ml-2 text-sm font-medium">{completedStr}</Text>
-                                </View>
-                                {!!ev.location?.label && (
-                                  <View className="flex-row items-center mb-2">
-                                    <MapPin size={14} color="#6b7280" />
-                                    <Text className="text-gray-700 ml-2 text-sm">{ev.location.label}</Text>
-                                  </View>
-                                )}
-                                {ev.wasteTypes && ev.wasteTypes.length > 0 && (
-                                  <View className="flex-row flex-wrap mb-2">
-                                    {ev.wasteTypes.slice(0, 3).map((type, idx) => (
-                                      <View key={idx} className="bg-gray-100 px-3 py-1 rounded-full mr-2 mb-1">
-                                        <Text className="text-gray-700 text-xs">{type}</Text>
-                                      </View>
-                                    ))}
-                                    {ev.wasteTypes.length > 3 && (
-                                      <View className="bg-gray-100 px-3 py-1 rounded-full">
-                                        <Text className="text-gray-700 text-xs">+{ev.wasteTypes.length - 3} more</Text>
-                                      </View>
-                                    )}
-                                  </View>
-                                )}
-                                {ev.collectedWeights && Object.keys(ev.collectedWeights).length > 0 && (
-                                  <View className="bg-green-50 p-3 rounded-lg">
-                                    <Text className="text-green-800 font-semibold text-sm mb-1">Collected Weights:</Text>
-                                    {Object.entries(ev.collectedWeights)
-                                      .filter(([type, weight]) => weight && weight.trim() !== '')
-                                      .map(([type, weight]) => (
-                                        <Text key={type} className="text-green-700 text-xs">
-                                          {type}: {weight} kg
-                                        </Text>
-                                      ))}
-                                  </View>
-                                )}
-                              </View>
-                              <View className="bg-green-50 p-2 rounded-lg">
-                                <CheckCircle size={20} color="#059669" />
-                              </View>
-                            </View>
-                          </View>
-                        );
-                      })}
-                    </View>
-                  ) : (
-                    <View className="bg-white rounded-2xl p-8 items-center">
-                      <View className="bg-gray-100 p-4 rounded-full mb-4">
-                        <CheckCircle size={32} color="#6b7280" />
-                      </View>
-                      <Text className="text-gray-600 text-center font-medium mb-2">
-                        No completed assignments
-                      </Text>
-                      <Text className="text-gray-500 text-center text-sm">
-                        Completed assignments will appear here.
-                      </Text>
-                    </View>
-                  )}
-                </>
+                </View>
+              ) : (
+                <View className="bg-white rounded-2xl p-8 items-center mb-6">
+                  <View className="bg-gray-100 p-4 rounded-full mb-4">
+                    <CheckCircle size={32} color="#6b7280" />
+                  </View>
+                  <Text className="text-gray-600 text-center font-medium mb-2">
+                    No available assignments
+                  </Text>
+                  <Text className="text-gray-500 text-center text-sm">
+                    All caught up! Check back for new assignments.
+                  </Text>
+                </View>
               )}
             </>
           )}
@@ -943,41 +812,83 @@ export default function WcHome({ userId }: { userId: string }) {
             </View>
           </View>
 
-          <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm border-l-4 border-blue-400">
-            <View className="flex-row items-start justify-between mb-4">
-              <View className="flex-1">
-                <Text className="text-xl font-bold text-gray-900 mb-2">
-                  {selected.title}
-                </Text>
-                <View className="flex-row items-center mb-2">
-                  <View className="bg-blue-100 p-1.5 rounded-lg mr-3">
-                    <MapPin size={16} color="#2563eb" />
-                  </View>
-                  <Text className="text-gray-700 font-medium">{selected.location?.label}</Text>
-                </View>
-                <View className="flex-row items-center mb-2">
-                  <View className="bg-amber-100 p-1.5 rounded-lg mr-3">
-                    <Calendar size={16} color="#d97706" />
-                  </View>
-                  <Text className="text-gray-700">
-                    {formatDate(tsToDate(selected.eventAt))} •{" "}
-                    {formatTime(tsToDate(selected.eventAt))}
+          <View className="bg-white rounded-2xl overflow-hidden mb-6 shadow-sm border-l-4 border-blue-400">
+            {/* Event Image */}
+            {selected.imageUrl && (
+              <Image
+                source={{ uri: selected.imageUrl }}
+                className="w-full h-48"
+                resizeMode="cover"
+              />
+            )}
+            
+            <View className="p-6">
+              <View className="flex-row items-start justify-between mb-4">
+                <View className="flex-1">
+                  <Text className="text-xl font-bold text-gray-900 mb-2">
+                    {selected.title}
                   </Text>
-                </View>
-                {!!selected.wasteTypes && (
-                  <View className="flex-row items-center">
-                    <View className="bg-emerald-100 p-1.5 rounded-lg mr-3">
-                      <Package size={16} color="#059669" />
+                  
+                  {/* Description */}
+                  {selected.description && (
+                    <Text className="text-gray-600 text-sm mb-3 leading-relaxed">
+                      {selected.description}
+                    </Text>
+                  )}
+                  
+                  <View className="flex-row items-center mb-2">
+                    <View className="bg-blue-100 p-1.5 rounded-lg mr-3">
+                      <MapPin size={16} color="#2563eb" />
+                    </View>
+                    <Text className="text-gray-700 font-medium flex-1">{selected.location?.label}</Text>
+                  </View>
+                  
+                  <View className="flex-row items-center mb-2">
+                    <View className="bg-amber-100 p-1.5 rounded-lg mr-3">
+                      <Calendar size={16} color="#d97706" />
                     </View>
                     <Text className="text-gray-700">
-                      {selected.wasteTypes.join(", ")} •{" "}
-                      {selected.estimatedQuantity || "N/A"}
+                      {formatDate(tsToDate(selected.eventAt))} •{" "}
+                      {formatTime(tsToDate(selected.eventAt))}
                     </Text>
                   </View>
-                )}
-              </View>
-              <View className="bg-blue-50 p-3 rounded-xl">
-                <Truck size={24} color="#2563eb" />
+                  
+                  {/* Sponsorship Badge */}
+                  {selected.sponsorshipRequired && (
+                    <View className="bg-yellow-50 px-3 py-2 rounded-lg mb-2">
+                      <Text className="text-yellow-800 text-sm font-semibold">
+                        💰 Sponsorship Required
+                      </Text>
+                      {selected.resourcesNeeded && (
+                        <Text className="text-yellow-700 text-xs mt-1">
+                          Resources: {selected.resourcesNeeded}
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                  
+                  {/* Waste Types */}
+                  {!!selected.wasteTypes && selected.wasteTypes.length > 0 && (
+                    <View className="mt-2">
+                      <View className="flex-row items-center mb-2">
+                        <View className="bg-emerald-100 p-1.5 rounded-lg mr-2">
+                          <Package size={16} color="#059669" />
+                        </View>
+                        <Text className="text-gray-700 font-semibold">Waste Types:</Text>
+                      </View>
+                      <View className="flex-row flex-wrap">
+                        {selected.wasteTypes.map((type, idx) => (
+                          <View key={idx} className="bg-emerald-50 px-3 py-1.5 rounded-full mr-2 mb-1 border border-emerald-200">
+                            <Text className="text-emerald-700 text-xs font-medium">{type}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                </View>
+                <View className="bg-blue-50 p-3 rounded-xl">
+                  <Truck size={24} color="#2563eb" />
+                </View>
               </View>
             </View>
           </View>
