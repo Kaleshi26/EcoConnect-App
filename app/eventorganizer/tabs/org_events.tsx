@@ -2,6 +2,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
+import * as Location from 'expo-location';
 import {
   addDoc,
   collection,
@@ -30,6 +31,7 @@ import {
   TextInput,
   View
 } from "react-native";
+import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 
 import { useAuth } from "../../../contexts/AuthContext";
 import { db, storage } from "../../../services/firebaseConfig";
