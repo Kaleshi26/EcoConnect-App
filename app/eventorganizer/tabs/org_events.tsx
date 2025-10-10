@@ -12,6 +12,7 @@ import {
   serverTimestamp,
   Timestamp,
   updateDoc,
+  where,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -26,7 +27,7 @@ import {
   Switch,
   Text,
   TextInput,
-  View
+  View,
 } from "react-native";
 
 import { useAuth } from "../../../contexts/AuthContext";
@@ -36,6 +37,7 @@ import { db, storage } from "../../../services/firebaseConfig";
 const isWeb = Platform.OS === "web";
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
+// UPDATED: Added `imageUrls` to store all event images
 type EventDoc = {
   id: string;
   title: string;
@@ -47,14 +49,37 @@ type EventDoc = {
   sponsorshipRequired?: boolean;
   organizerId?: string;
   createdAt?: Timestamp;
-  imageUrl?: string;
+  imageUrl?: string; // Main cover image
+  imageUrls?: string[]; // All event images
   status: "open" | "in_progress" | "completed";
   actualParticipants?: number;
   collectedWastes?: { type: string; weight: number }[];
   evidencePhotos?: string[];
 };
 
-// Small UI helpers
+// NEW: Helper function to upload multiple images from their local URIs
+const uploadImages = async (uris: string[], path: 'events' | 'evidence'): Promise<string[]> => {
+  const uploadTasks = uris.map(async (uri) => {
+    // Fetch the image data from the local URI
+    const response = await fetch(uri);
+    const blob = await response.blob();
+
+    // Create a unique filename for the image
+    const filename = `${path}/${Date.now()}-${Math.random().toString(36).substring(2)}.jpg`;
+    const storageRef = ref(storage, filename);
+
+    // Upload the blob to Firebase Storage
+    await uploadBytes(storageRef, blob);
+
+    // Get the public download URL for the uploaded image
+    return await getDownloadURL(storageRef);
+  });
+
+  // Wait for all upload tasks to complete
+  return Promise.all(uploadTasks);
+};
+
+// Small UI helpers (No changes here)
 function Row({ children }: { children: React.ReactNode }) {
   return <View className="flex-row items-center">{children}</View>;
 }
@@ -140,13 +165,7 @@ function Chip({
       className={`px-4 py-3 rounded-2xl mr-2 mb-2 border-2 ${colorMap[color]} ${
         selected ? '' : 'bg-white'
       }`}
-      style={{ 
-        shadowColor: "#000", 
-        shadowOpacity: selected ? 0.2 : 0.1, 
-        shadowRadius: 6, 
-        elevation: 4,
-        shadowOffset: { width: 0, height: 2 }
-      }}
+      
     >
       <Text className={`font-semibold ${selected ? "text-white" : "text-gray-700"}`}>
         {label}
@@ -197,13 +216,17 @@ function Stepper({
 
 function usePressScale(initial = 1) {
   const scale = useRef(new Animated.Value(initial)).current;
-  const onPressIn = () => Animated.spring(scale, { toValue: 0.95, useNativeDriver: true }).start();
-  const onPressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start();
+  // Conditionally use native driver only on mobile
+  const useNativeDriver = Platform.OS !== 'web';
+
+  const onPressIn = () => Animated.spring(scale, { toValue: 0.95, useNativeDriver }).start();
+  const onPressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver }).start();
   return { scale, onPressIn, onPressOut };
 }
 
-// Image Upload Component
-function ImageUploader({ 
+// MODIFIED: This component now only picks images and returns their local URIs.
+// The actual upload happens later.
+function ImagePickerComponent({ 
   images, 
   onImagesChange, 
   maxImages = 5,
@@ -216,19 +239,19 @@ function ImageUploader({
   title: string;
   color?: string;
 }) {
-  const [uploading, setUploading] = useState(false);
-
   const pickImage = async () => {
     if (images.length >= maxImages) {
-      Alert.alert("Limit Reached", `You can only upload up to ${maxImages} images.`);
+      Alert.alert("Limit Reached", `You can only select up to ${maxImages} images.`);
       return;
     }
 
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission required', 'We need permissions to access your images.');
-        return;
+      if (Platform.OS !== 'web') {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission required', 'We need permissions to access your images.');
+          return;
+        }
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -238,29 +261,17 @@ function ImageUploader({
         quality: 0.8,
       });
 
-      if (result.canceled || !result.assets[0].uri) return;
-
-      const imageUri = result.assets[0].uri;
-      setUploading(true);
-
-      // Native vs Web upload
-      let downloadURL = imageUri;
-
-      if (!isWeb) {
-        const response = await fetch(imageUri);
-        const blob = await response.blob();
-        const filename = `events/${Date.now()}-${Math.random().toString(36).substring(2)}.jpg`;
-        const storageRef = ref(storage, filename);
-        await uploadBytes(storageRef, blob);
-        downloadURL = await getDownloadURL(storageRef);
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
       }
 
-      onImagesChange([...images, downloadURL]);
-      setUploading(false);
+      const imageUri = result.assets[0].uri;
+      // Just add the local URI to the state. No upload here.
+      onImagesChange([...images, imageUri]);
+      
     } catch (err) {
-      console.error("Image upload error:", err);
-      Alert.alert("Upload Failed", "Could not upload image. Please try again.");
-      setUploading(false);
+      console.error("Image pick error:", err);
+      Alert.alert("Error", "Could not select image. Please try again.");
     }
   };
 
@@ -299,14 +310,9 @@ function ImageUploader({
         {images.length < maxImages && (
           <Pressable
             onPress={pickImage}
-            disabled={uploading}
             className={`w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 items-center justify-center ${colorMap[color]} opacity-90`}
           >
-            {uploading ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <Ionicons name="add" size={24} color="white" />
-            )}
+            <Ionicons name="add" size={24} color="white" />
           </Pressable>
         )}
       </View>
@@ -317,8 +323,7 @@ function ImageUploader({
   );
 }
 
-
-// Date helpers for web inputs
+// Date helpers (No changes here)
 function pad(n: number) {
   return n < 10 ? `0${n}` : `${n}`;
 }
@@ -361,7 +366,6 @@ function combineDateTime(date?: Date | null, time?: Date | null): Date | null {
 function tsToDate(ts?: Timestamp) {
   try {
     if (!ts) return null;
-    // @ts-ignore
     if (typeof ts.toDate === "function") return ts.toDate();
   } catch {}
   return null;
@@ -375,7 +379,7 @@ function getStatus(ev: EventDoc) {
   return "In Progress";
 }
 
-// Event Card with enhanced UI
+// Event Card (No changes here)
 function EventCard({ ev, onClosePress }: { ev: EventDoc; onClosePress: () => void }) {
   const status = getStatus(ev);
   const d = formatDateTime(ev.eventAt);
@@ -463,7 +467,7 @@ function EventCard({ ev, onClosePress }: { ev: EventDoc; onClosePress: () => voi
 }
 
 /* ------------------------------------------------------------------ */
-/* Create Event Form (with image upload)                             */
+/* Create Event Form (with image upload)                              */
 /* ------------------------------------------------------------------ */
 function CreateEventForm({
   onCancel,
@@ -476,6 +480,7 @@ function CreateEventForm({
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  // This state now holds LOCAL URIs of the selected images
   const [eventImages, setEventImages] = useState<string[]>([]);
 
   const [date, setDate] = useState<Date | null>(new Date());
@@ -506,6 +511,7 @@ function CreateEventForm({
     return null;
   };
 
+  // UPDATED: The publish function now handles the image upload process
   const publish = async () => {
     setErrorMsg(null);
     const error = validate();
@@ -522,6 +528,11 @@ function CreateEventForm({
     }
     try {
       setPublishing(true);
+
+      // 1. Upload images to Firebase Storage and get download URLs
+      const uploadedImageUrls = await uploadImages(eventImages, 'events');
+      
+      // 2. Prepare the data payload for Firestore
       const payload = {
         title: title.trim(),
         description: description.trim(),
@@ -537,8 +548,11 @@ function CreateEventForm({
         platform: Platform.OS,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        imageUrl: eventImages[0], // Use first image as main image
+        imageUrl: uploadedImageUrls[0], // Use first image as main cover
+        imageUrls: uploadedImageUrls,  // Store all image URLs
       };
+
+      // 3. Add the document to the 'events' collection
       await addDoc(collection(db, "events"), payload);
 
       onPublished();
@@ -574,7 +588,7 @@ function CreateEventForm({
         {/* Event Images */}
         <Section title="🎨 Event Images" color="purple">
           <View className="p-4">
-            <ImageUploader
+            <ImagePickerComponent
               images={eventImages}
               onImagesChange={setEventImages}
               maxImages={5}
@@ -586,7 +600,7 @@ function CreateEventForm({
             </Text>
           </View>
         </Section>
-
+        {/* ... (Rest of the form is unchanged) ... */}
         {/* Title */}
         <Section title="📝 Event Title" color="blue">
           <TextInput 
@@ -766,7 +780,7 @@ function CreateEventForm({
 }
 
 /* ------------------------------------------------------------------ */
-/* Close Event Form (with evidence photos)                           */
+/* Close Event Form (with evidence photos)                            */
 /* ------------------------------------------------------------------ */
 function CloseEventForm({
   event,
@@ -781,6 +795,7 @@ function CloseEventForm({
   const [collectedWastes, setCollectedWastes] = useState<{ type: string; weight: number }[]>([]);
   const [newWasteType, setNewWasteType] = useState("");
   const [newWasteWeight, setNewWasteWeight] = useState(0);
+  // This state now holds LOCAL URIs of the selected photos
   const [evidencePhotos, setEvidencePhotos] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
 
@@ -806,6 +821,7 @@ function CloseEventForm({
     return null;
   };
 
+  // UPDATED: The closeEvent function now handles the image upload process
   const closeEvent = async () => {
     setErrorMsg(null);
     const error = validate();
@@ -816,15 +832,21 @@ function CloseEventForm({
     }
     try {
       setClosing(true);
+
+      // 1. Upload evidence photos and get their download URLs
+      const uploadedPhotoUrls = await uploadImages(evidencePhotos, 'evidence');
+
+      // 2. Prepare the update payload
       const eventRef = doc(db, "events", event.id);
       await updateDoc(eventRef, {
         actualParticipants,
         collectedWastes,
-        evidencePhotos,
+        evidencePhotos: uploadedPhotoUrls, // Save the final URLs
         notes: notes.trim(),
         status: "completed",
         updatedAt: serverTimestamp(),
       });
+
       onClosed();
     } catch (e: any) {
       const msg = e?.message ?? "Failed to close event.";
@@ -859,7 +881,7 @@ function CloseEventForm({
         {/* Evidence Photos */}
         <Section title="📸 Evidence Photos" color="green">
           <View className="p-4">
-            <ImageUploader
+            <ImagePickerComponent
               images={evidencePhotos}
               onImagesChange={setEvidencePhotos}
               maxImages={10}
@@ -871,7 +893,7 @@ function CloseEventForm({
             </Text>
           </View>
         </Section>
-
+        {/* ... (Rest of the form is unchanged) ... */}
         {/* Actual Participants */}
         <Section title="👥 Actual Participants" color="blue">
           <View className="px-4 py-4">
@@ -898,11 +920,11 @@ function CloseEventForm({
                 className="flex-1 px-4 py-3 border-2 border-orange-200 rounded-xl mr-2"
               />
               <TextInput
-                value={newWasteWeight.toString()}
+                value={newWasteWeight > 0 ? newWasteWeight.toString() : ""}
                 onChangeText={(t) => setNewWasteWeight(parseFloat(t) || 0)}
-                placeholder="Weight"
+                placeholder="Weight (kg)"
                 keyboardType="numeric"
-                className="w-24 px-4 py-3 border-2 border-orange-200 rounded-xl"
+                className="w-28 px-4 py-3 border-2 border-orange-200 rounded-xl"
               />
             </View>
             <Pressable onPress={addWaste} className="bg-orange-500 rounded-xl py-3 items-center mt-2 shadow-lg">
@@ -959,7 +981,7 @@ function CloseEventForm({
 }
 
 /* ------------------------------------------------------------------ */
-/* My Events List + Create New Event Button                          */
+/* My Events List + Create New Event Button                           */
 /* ------------------------------------------------------------------ */
 export default function OrgEvents() {
   const { user } = useAuth();
@@ -975,19 +997,30 @@ export default function OrgEvents() {
 
   // Live events subscription
   useEffect(() => {
+    if (!user?.uid) {
+      setEvents([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    const q = query(collection(db, "events"), orderBy("createdAt", "desc"));
+    const q = query(
+      collection(db, "events"), 
+      // This where clause was missing before, it's more efficient
+      // to filter on the server than in the client.
+      where("organizerId", "==", user.uid),
+      orderBy("createdAt", "desc")
+    );
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const all: EventDoc[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-        const mine = user ? all.filter((e) => e.organizerId === user.uid) : all;
-        setEvents(mine);
+        const myEvents: EventDoc[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+        setEvents(myEvents);
         setLoading(false);
       },
       (err) => {
         console.error("[EventsList] snapshot error:", err);
         setLoading(false);
+        Alert.alert("Error", "Could not fetch your events.");
       }
     );
     return () => unsub();
@@ -1028,7 +1061,6 @@ export default function OrgEvents() {
 
   return (
     <View className="flex-1 bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      {/* FIXED: Enhanced Header - Removed transparency */}
       <View className="px-6 pt-12 pb-6 bg-gradient-to-r from-blue-600 to-purple-600 shadow-2xl">
         <Row className="justify-between items-center mb-6">
           <View>
@@ -1043,7 +1075,6 @@ export default function OrgEvents() {
           </Pressable>
         </Row>
 
-        {/* FIXED: Enhanced Search Bar - Solid background */}
         <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 shadow-lg">
           <Ionicons name="search-outline" size={20} color="#6b7280" />
           <TextInput
@@ -1104,7 +1135,6 @@ export default function OrgEvents() {
         )}
       </ScrollView>
 
-      {/* Enhanced Floating Add Button */}
       <Animated.View
         style={{
           position: "absolute",
