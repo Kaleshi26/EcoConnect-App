@@ -1,46 +1,45 @@
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams } from "expo-router";
 import {
-    addDoc,
-    collection,
-    onSnapshot,
-    orderBy,
-    query,
-    serverTimestamp,
-    Timestamp
+  addDoc,
+  collection,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  Timestamp,
+  updateDoc
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import {
-    Brain,
-    Calendar,
-    Camera,
-    CheckCircle,
-    CheckCircle2,
-    ChevronLeft,
-    Clock,
-    Image as ImageIcon,
-    MapPin,
-    Navigation,
-    Package,
-    PlayCircle,
-    Trash2,
-    Truck,
-    X,
-    Zap
+  Brain,
+  Calendar,
+  Camera,
+  CheckCircle,
+  CheckCircle2,
+  ChevronLeft,
+  Clock,
+  Image as ImageIcon,
+  MapPin,
+  Package,
+  PlayCircle,
+  Trash2,
+  Truck,
+  X,
+  Zap
 } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Linking,
-    Modal,
-    Platform,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { useAuth } from "../../../contexts/AuthContext";
 import { db, storage } from "../../../services/firebaseConfig";
@@ -617,7 +616,15 @@ export default function WcHome() {
         }
       }
       
-      // 🔹 Store collection details in new wasteCollections collection (NOT in events collection)
+      // 🔹 Update event status to Completed in events collection
+      await updateDoc(doc(db, "events", ev.id), {
+        status: "Completed",
+        completedAt: serverTimestamp(),
+        collectedWeights: collectedWeights,
+        proofImages: uploadedUrls,
+      });
+      
+      // 🔹 Store collection details in new wasteCollections collection
       if (userId) {
         await addDoc(collection(db, "wasteCollections"), {
           eventId: ev.id,
@@ -693,7 +700,7 @@ export default function WcHome() {
                         return (
                           <TouchableOpacity
                             key={ev.id}
-                            className="mb-4 bg-white rounded-2xl overflow-hidden shadow-sm border-l-4 border-blue-400"
+                            className="mb-4 bg-white rounded-2xl overflow-hidden shadow-md border border-gray-100"
                             onPress={() => {
                               setSelected(ev);
                               setCurrentStep(0);
@@ -703,74 +710,61 @@ export default function WcHome() {
                             {ev.imageUrl && (
                               <Image
                                 source={{ uri: ev.imageUrl }}
-                                className="w-full h-40"
+                                className="w-full h-48"
                                 resizeMode="cover"
                               />
                             )}
                             
-                            <View className="p-5">
-                              <View className="flex-row items-start justify-between mb-3">
-                                <View className="flex-1">
-                                  <View className="flex-row items-center mb-2">
-                                    <Text className="text-lg font-bold text-gray-900 flex-1">
-                                      {ev.title}
-                                    </Text>
-                                    {/* Status Badge */}
-                                    {ev.assignedTo === userId && (
-                                      <View className="bg-green-100 px-2 py-1 rounded-full">
-                                        <Text className="text-green-700 text-xs font-bold">Assigned to You</Text>
-                                      </View>
-                                    )}
+                            <View className="p-4">
+                              {/* Title & Status */}
+                              <View className="flex-row items-center justify-between mb-3">
+                                <Text className="text-xl font-bold text-gray-900 flex-1 pr-2">
+                                  {ev.title}
+                                </Text>
+                                {ev.assignedTo === userId && (
+                                  <View className="bg-green-100 px-2.5 py-1 rounded-full">
+                                    <Text className="text-green-700 text-xs font-bold">Assigned</Text>
                                   </View>
-                                  
-                                  {/* Description */}
-                                  {ev.description && (
-                                    <Text className="text-gray-600 text-sm mb-2" numberOfLines={2}>
-                                      {ev.description}
-                                    </Text>
-                                  )}
-                                  
-                                  <View className="flex-row items-center mb-2">
-                                    <Clock size={14} color="#6b7280" />
-                                    <Text className="text-gray-600 ml-2 text-sm">{dateStr}</Text>
+                                )}
+                              </View>
+                              
+                              {/* Date & Location */}
+                              <View className="bg-gray-50 rounded-xl p-3 mb-3">
+                                <View className="flex-row items-center mb-2">
+                                  <View className="bg-blue-100 p-1.5 rounded-lg mr-2">
+                                    <Clock size={14} color="#2563eb" />
                                   </View>
-                                  
-                                  {!!ev.location?.label && (
-                                    <View className="flex-row items-center mb-2">
-                                      <MapPin size={14} color="#6b7280" />
-                                      <Text className="text-gray-700 ml-2 text-sm">{ev.location.label}</Text>
-                                    </View>
-                                  )}
-                                  
-                                  {/* Sponsorship Badge */}
-                                  {ev.sponsorshipRequired && (
-                                    <View className="flex-row items-center mb-2">
-                                      <View className="bg-yellow-50 p-1 rounded">
-                                        <Text className="text-yellow-700 text-xs font-semibold">
-                                          💰 Sponsorship Required
-                                        </Text>
-                                      </View>
-                                    </View>
-                                  )}
+                                  <Text className="text-gray-700 text-sm font-medium">{dateStr}</Text>
                                 </View>
-                                <View className="bg-blue-50 p-2 rounded-lg">
-                                  <Truck size={20} color="#2563eb" />
-                                </View>
+                                
+                                {!!ev.location?.label && (
+                                  <View className="flex-row items-center">
+                                    <View className="bg-emerald-100 p-1.5 rounded-lg mr-2">
+                                      <MapPin size={14} color="#059669" />
+                                    </View>
+                                    <Text className="text-gray-700 text-sm font-medium flex-1" numberOfLines={1}>
+                                      {ev.location.label}
+                                    </Text>
+                                  </View>
+                                )}
                               </View>
                               
                               {/* Waste Types */}
                               {ev.wasteTypes && ev.wasteTypes.length > 0 && (
-                                <View className="flex-row flex-wrap mt-2">
-                                  {ev.wasteTypes.slice(0, 3).map((type, idx) => (
-                                    <View key={idx} className="bg-emerald-50 px-3 py-1.5 rounded-full mr-2 mb-1 border border-emerald-200">
-                                      <Text className="text-emerald-700 text-xs font-medium">{type}</Text>
-                                    </View>
-                                  ))}
-                                  {ev.wasteTypes.length > 3 && (
-                                    <View className="bg-gray-100 px-3 py-1.5 rounded-full border border-gray-200">
-                                      <Text className="text-gray-700 text-xs font-medium">+{ev.wasteTypes.length - 3} more</Text>
-                                    </View>
-                                  )}
+                                <View>
+                                  <Text className="text-gray-600 text-xs font-semibold mb-2">WASTE TYPES</Text>
+                                  <View className="flex-row flex-wrap">
+                                    {ev.wasteTypes.slice(0, 3).map((type, idx) => (
+                                      <View key={idx} className="bg-emerald-50 px-2.5 py-1 rounded-lg mr-2 mb-1.5 border border-emerald-200">
+                                        <Text className="text-emerald-700 text-xs font-semibold">{type}</Text>
+                                      </View>
+                                    ))}
+                                    {ev.wasteTypes.length > 3 && (
+                                      <View className="bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+                                        <Text className="text-blue-700 text-xs font-semibold">+{ev.wasteTypes.length - 3}</Text>
+                                      </View>
+                                    )}
+                                  </View>
                                 </View>
                               )}
                             </View>
@@ -831,13 +825,6 @@ export default function WcHome() {
                     {selected.title}
                   </Text>
                   
-                  {/* Description */}
-                  {selected.description && (
-                    <Text className="text-gray-600 text-sm mb-3 leading-relaxed">
-                      {selected.description}
-                    </Text>
-                  )}
-                  
                   <View className="flex-row items-center mb-2">
                     <View className="bg-blue-100 p-1.5 rounded-lg mr-3">
                       <MapPin size={16} color="#2563eb" />
@@ -854,20 +841,6 @@ export default function WcHome() {
                       {formatTime(tsToDate(selected.eventAt))}
                     </Text>
                   </View>
-                  
-                  {/* Sponsorship Badge */}
-                  {selected.sponsorshipRequired && (
-                    <View className="bg-yellow-50 px-3 py-2 rounded-lg mb-2">
-                      <Text className="text-yellow-800 text-sm font-semibold">
-                        💰 Sponsorship Required
-                      </Text>
-                      {selected.resourcesNeeded && (
-                        <Text className="text-yellow-700 text-xs mt-1">
-                          Resources: {selected.resourcesNeeded}
-                        </Text>
-                      )}
-                    </View>
-                  )}
                   
                   {/* Waste Types */}
                   {!!selected.wasteTypes && selected.wasteTypes.length > 0 && (
@@ -893,47 +866,6 @@ export default function WcHome() {
                 </View>
               </View>
             </View>
-          </View>
-
-          {/* Navigate to Location Button */}
-          <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm">
-            <View className="flex-row items-center mb-4">
-              <View className="bg-green-100 p-2 rounded-lg mr-3">
-                <Navigation size={20} color="#059669" />
-              </View>
-              <Text className="text-lg font-bold text-gray-900">Navigation</Text>
-            </View>
-            <TouchableOpacity
-              onPress={() => {
-                const lat = selected?.location?.lat;
-                const lng = selected?.location?.lng;
-                const label = selected?.location?.label || "Event Location";
-                
-                if (typeof lat === "number" && typeof lng === "number") {
-                  const scheme = Platform.select({ 
-                    ios: 'maps:', 
-                    android: 'geo:' 
-                  });
-                  const url = Platform.select({
-                    ios: `${scheme}?q=${label}&ll=${lat},${lng}`,
-                    android: `${scheme}${lat},${lng}?q=${label}`
-                  });
-                  
-                  Linking.openURL(url!).catch(() => {
-                    // Fallback to Google Maps web
-                    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
-                  });
-                } else {
-                  Alert.alert("Error", "Location coordinates not available");
-                }
-              }}
-              className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 rounded-xl flex-row items-center justify-center shadow-lg"
-            >
-              <Navigation size={20} color="white" />
-              <Text className="text-white text-center font-semibold ml-2">
-                Open in Maps
-              </Text>
-            </TouchableOpacity>
           </View>
 
           {/* Steps */}
