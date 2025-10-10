@@ -446,7 +446,7 @@ function EventCard({ ev, onClosePress, onPress }: { ev: EventDoc; onClosePress: 
         {status === "In Progress" && (
           <Pressable
             onPress={onClosePress}
-            className="mt-4 bg-gradient-to-r bg-sky-500 to-red-500 rounded-2xl py-4 items-center shadow-lg"
+            className="mt-4 bg-sky-500 rounded-2xl py-4 items-center shadow-lg"
           >
             <Text className="text-white font-bold text-base">Close Event & Submit Details</Text>
           </Pressable>
@@ -753,7 +753,7 @@ function CreateEventForm({
         <View className="flex-row mt-6 mb-8">
           <Pressable 
             onPress={onCancel} 
-            className="flex-1 mr-4 rounded-2xl py-5 items-center bg-gradient-to-r from-gray-400 to-gray-500 shadow-lg"
+            className="flex-1 mr-4 rounded-2xl py-5 items-center bg-red-500 shadow-lg"
           >
             <Text className="text-white font-bold text-lg">Cancel</Text>
           </Pressable>
@@ -766,8 +766,8 @@ function CreateEventForm({
               disabled={publishing}
               className={`rounded-2xl py-5 items-center shadow-xl ${
                 publishing 
-                  ? "bg-gradient-to-r from-blue-400 to-purple-400" 
-                  : "bg-gradient-to-r from-blue-500 to-purple-600"
+                  ? "bg-blue-400" 
+                  : "bg-blue-400"
               }`}
             >
               {publishing ? (
@@ -931,7 +931,7 @@ function CloseEventForm({
                 className="w-28 px-4 py-3 border-2 border-orange-200 rounded-xl"
               />
             </View>
-            <Pressable onPress={addWaste} className="bg-orange-500 rounded-xl py-3 items-center mt-2 shadow-lg">
+            <Pressable onPress={addWaste} className="bg-sky-500 rounded-xl py-3 items-center mt-2 shadow-lg">
               <Text className="text-white font-bold">Add Waste</Text>
             </Pressable>
           </View>
@@ -955,7 +955,7 @@ function CloseEventForm({
         <View className="flex-row mt-6 mb-8">
           <Pressable 
             onPress={onCancel} 
-            className="flex-1 mr-4 rounded-2xl py-5 items-center bg-gradient-to-r from-gray-400 to-gray-500 shadow-lg"
+            className="flex-1 mr-4 rounded-2xl py-5 items-center bg-red-500 shadow-lg"
           >
             <Text className="text-white font-bold text-lg">Cancel</Text>
           </Pressable>
@@ -967,8 +967,8 @@ function CloseEventForm({
               disabled={closing}
               className={`rounded-2xl py-5 items-center shadow-xl ${
                 closing 
-                  ? "bg-gradient-to-r from-green-400 to-blue-400" 
-                  : "bg-gradient-to-r from-green-500 to-blue-600"
+                  ? "bg-blue-400" 
+                  : "bg-blue-600" 
               }`}
             >
               {closing ? (

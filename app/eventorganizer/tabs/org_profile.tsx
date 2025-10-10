@@ -96,7 +96,7 @@ export default function OrgProfile() {
 
   // Helper UI components from your new version
   const StatCard = ({ title, value, subtitle, icon, color = "blue" }: { title: string; value: string | number; subtitle?: string; icon: string; color?: "blue" | "green" | "purple" | "orange"; }) => (
-    <View className={`rounded-2xl p-4 bg-gradient-to-br from-${color}-500 to-${color}-600 shadow-lg`}>
+    <View className={`rounded-2xl p-4 bg-${color}-500 shadow-lg`}>
       <View className="flex-row justify-between items-center">
         <View className="flex-1">
           <Text className="text-white/80 text-xs font-medium">{title}</Text>
@@ -136,7 +136,7 @@ export default function OrgProfile() {
 
   return (
     <View className="flex-1 bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <View className="px-6 pt-12 pb-8 bg-gradient-to-r from-blue-600 to-purple-600 shadow-2xl">
+      <View className="px-6 pt-12 pb-8 bg-indigo-600 shadow-2xl">
         <View className="flex-row items-center">
           <View className="bg-white/20 p-4 rounded-3xl mr-4 border-2 border-white/30">
             <Ionicons name="person" size={32} color="white" />
@@ -150,17 +150,7 @@ export default function OrgProfile() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false}>
-        <View className="px-6 -mt-4 mb-6">
-          <View className="bg-white rounded-3xl p-6 shadow-2xl border-2 border-gray-100">
-            <Text className="text-xl font-bold text-gray-900 mb-4">Your Impact Overview</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6 }}>
-              <View style={{ width: '50%', padding: 6 }}><StatCard title="Total Events" value={stats.totalEvents} icon="calendar-outline" color="blue" /></View>
-              <View style={{ width: '50%', padding: 6 }}><StatCard title="Completed" value={stats.completedEvents} icon="checkmark-done-outline" color="green" /></View>
-              <View style={{ width: '50%', padding: 6 }}><StatCard title="Volunteers" value={stats.totalParticipants} icon="people-outline" color="purple" /></View>
-              <View style={{ width: '50%', padding: 6 }}><StatCard title="Waste Collected" value={`${stats.totalWasteCollected} kg`} icon="trash-outline" color="orange" /></View>
-            </View>
-          </View>
-        </View>
+        
 
         <View className="px-6 space-y-6">
           <View className="bg-white rounded-3xl shadow-xl border-2 border-gray-100 overflow-hidden">
@@ -191,14 +181,14 @@ export default function OrgProfile() {
             <Text className="text-gray-500 text-xs text-center p-4">EcoConnect v1.0.0 • Making the world cleaner 🌊</Text>
           </View>
 
-          <Pressable onPress={handleLogout} className="bg-gradient-to-r from-red-500 to-red-600 rounded-2xl py-4 items-center shadow-xl active:opacity-80">
+          <Pressable onPress={handleLogout} className="bg-red-500 rounded-2xl py-4 items-center shadow-xl active:opacity-80">
             <View className="flex-row items-center">
               <Ionicons name="log-out-outline" size={20} color="white" />
               <Text className="text-white font-bold text-lg ml-2">Logout</Text>
             </View>
           </Pressable>
 
-          <View className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-3xl p-6 shadow-xl">
+          <View className="bg-green-600 rounded-3xl p-6 shadow-xl">
             <Text className="text-white text-lg font-bold text-center mb-2">🌍 Making a Difference</Text>
             <Text className="text-white/90 text-center text-sm">You've organized {stats.totalEvents} events and helped remove {stats.totalWasteCollected} kg of waste from our environment. Thank you for your dedication to a cleaner planet! 🌟</Text>
           </View>
