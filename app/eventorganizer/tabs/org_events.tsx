@@ -21,6 +21,7 @@ import {
   Alert,
   Animated,
   Image,
+  ImageBackground,
   Platform,
   Pressable,
   ScrollView,
@@ -1061,34 +1062,41 @@ export default function OrgEvents() {
 
   return (
     <View className="flex-1 bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <View className="px-6 pt-12 pb-6 bg-gradient-to-r from-blue-600 to-purple-600 shadow-2xl">
-        <Row className="justify-between items-center mb-6">
-          <View>
-            <Text className="text-3xl font-bold text-white">My Events</Text>
-            <Text className="text-blue-100 font-medium mt-1">Manage your cleanup events</Text>
+      <View>
+        {/* The main image container */}
+        <ImageBackground
+          source={{ uri: "https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=1200" }}
+          className="w-full h-64"
+          resizeMode="cover"
+        >
+          {/* Semi-transparent overlay for text readability */}
+          <View className="flex-1 bg-black/30 px-6 pt-20">
+            <View>
+              <Text className="text-4xl font-extrabold text-white shadow-lg">Hello, Ocean Guardian!</Text>
+              <Text className="text-white/90 text-lg font-medium mt-1 shadow-md">
+                Let's make our beaches shine ✨
+              </Text>
+            </View>
           </View>
-          <Pressable 
-            onPress={() => Alert.alert("Notifications", "No notifications yet.")}
-            className="bg-white/10 p-3 rounded-2xl border border-white/20"
-          >
-            <Ionicons name="notifications-outline" size={24} color="white" />
-          </Pressable>
-        </Row>
+        </ImageBackground>
 
-        <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 shadow-lg">
-          <Ionicons name="search-outline" size={20} color="#6b7280" />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search your events..."
-            placeholderTextColor="#9ca3af"
-            className="ml-3 flex-1 text-gray-800 font-medium text-base"
-          />
-          {search.length > 0 && (
-            <Pressable onPress={() => setSearch("")}>
-              <Ionicons name="close-circle" size={20} color="#6b7280" />
-            </Pressable>
-          )}
+        {/* Search bar positioned to overlap the image */}
+        <View className="px-6 -mt-8">
+          <View className="flex-row items-center bg-white rounded-2xl px-4 py-4 shadow-2xl shadow-gray-400">
+            <Ionicons name="search-outline" size={22} color="#6b7280" />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search your events..."
+              placeholderTextColor="#9ca3af"
+              className="ml-3 flex-1 text-gray-900 font-medium text-base"
+            />
+            {search.length > 0 && (
+              <Pressable onPress={() => setSearch("")}>
+                <Ionicons name="close-circle" size={22} color="#9ca3af" />
+              </Pressable>
+            )}
+          </View>
         </View>
       </View>
 
