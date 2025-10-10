@@ -1064,6 +1064,7 @@ function EventDetailsModal({ event, onClose }: { event: EventDoc; onClose: () =>
   );
 }
 
+
 /* ------------------------------------------------------------------ */
 /* My Events List + Create New Event Button                           */
 /* ------------------------------------------------------------------ */
