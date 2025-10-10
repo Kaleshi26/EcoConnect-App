@@ -15,7 +15,9 @@ export default function TabsLayout() {
 
   // Event Organizer role → send to organizer tabs
   if (profile?.role === "organizer") return <Redirect href="/eventorganizer/tabs/org_events" />;
-  
+  // Redirect sponsor-specific default tab if role is sponsor
+  if (profile?.role === "sponsor") return <Redirect href="/sponsor/tabs/sponsorDashboard" />;
+
 
    // Default (maybe admin or unknown role) → show generic app tabs
   return (
