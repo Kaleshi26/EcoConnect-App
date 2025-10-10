@@ -1,4 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { db } from "@/services/firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -151,11 +152,13 @@ function CompactEventCard({ ev, index }: { ev: EventDoc; index: number }) {
   const d = tsToDate(ev.eventAt);
   const dateStr = formatDate(d);
   const cardAnim = usePressScale();
+  const { formatCurrency } = useCurrency();
 
   const funding = ev.currentFunding || 0;
   const goal = ev.fundingGoal || 1;
   const progress = (funding / goal) * 100;
   const sponsorCount = ev.sponsorCount || 0;
+  
 
   const handlePress = () => {
     if (!user) {
@@ -258,6 +261,7 @@ export default function SponsorDashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+  const { formatCurrency } = useCurrency();
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -358,7 +362,7 @@ export default function SponsorDashboard() {
                 <StatsCard
                   icon="wallet"
                   label="Total Raised"
-                  value={formatCurrency(totalFunding)}
+                  value={formatCurrency(totalFunding)} 
                   color="#3B82F6"
                   bgColor="bg-blue-50"
                 />
@@ -374,7 +378,7 @@ export default function SponsorDashboard() {
                 <StatsCard
                   icon="flag"
                   label="Funding Goal"
-                  value={formatCurrency(totalGoal)}
+                  value={formatCurrency(totalGoal)} 
                   color="#F59E0B"
                   bgColor="bg-amber-50"
                 />

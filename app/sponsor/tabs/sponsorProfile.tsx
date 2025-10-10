@@ -1,9 +1,10 @@
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { signOut } from "firebase/auth";
 import { collection, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../../../contexts/AuthContext";
 import { auth, db } from "../../../services/firebaseConfig";
 
@@ -64,7 +65,7 @@ export default function SponsorProfileSummary() {
     totalSponsored: 0,
     eventsSupported: 0
   });
-
+  const { formatCurrency } = useCurrency();
   // Field configurations
   const fieldLabels: { [key: string]: string } = {
     companyName: "Company Name",
@@ -289,31 +290,52 @@ export default function SponsorProfileSummary() {
     }
   }, [sponsorProfile]);
 
-  const handleLogout = async () => {
-    Alert.alert(
-      "Confirm Logout",
-      "Are you sure you want to logout?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
-        {
-          text: "Logout",
-          style: "destructive",
-          onPress: async () => {
-            try {
+
+const handleLogout = async () => {
+  Alert.alert(
+    "Confirm Logout",
+    "Are you sure you want to logout?",
+    [
+      {
+        text: "Cancel",
+        style: "cancel"
+      },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            // Clear any cached data first
+            if (Platform.OS === 'web') {
+              // Clear localStorage and sessionStorage
+              localStorage.clear();
+              sessionStorage.clear();
+              
+              // Clear any Firebase auth persistence
+              await auth.signOut();
+              
+              // Force complete reload
+              window.location.href = '/auth/login';
+            } else {
+              // Native logout
               await signOut(auth);
               router.replace("/(public)/auth/login");
-            } catch (error: any) {
-              Alert.alert("Error", `Failed to sign out: ${error.message || "Unknown error"}`);
+            }
+          } catch (error: any) {
+            console.error("Logout error:", error);
+            
+            // Even if signOut fails, try to redirect anyway
+            if (Platform.OS === 'web') {
+              window.location.href = '/auth/login';
+            } else {
+              router.replace("/(public)/auth/login");
             }
           }
         }
-      ]
-    );
-  };
-
+      }
+    ]
+  );
+};
   const openEditModal = (field: string, value: string) => {
     setEditingField(field);
     setEditValue(value);
@@ -451,53 +473,62 @@ export default function SponsorProfileSummary() {
     <>
       <ScrollView className="flex-1 bg-slate-50" showsVerticalScrollIndicator={false}>
         {/* Header Section */}
-        <View className="bg-white p-6 border-b border-gray-200">
-          <View className="items-center mb-4">
-            <View className="w-24 h-24 bg-teal-100 rounded-full items-center justify-center mb-4 border-4 border-white shadow-lg">
-              <Ionicons name="business" size={48} color="#14B8A6" />
-            </View>
-            <Text className="text-2xl font-bold text-teal-700 text-center">
-              {formData.companyName || "Your Company Name"}
-            </Text>
-            <Text className="text-gray-600 text-center mt-1">{user?.email}</Text>
-            {formData.industry && (
-              <Text className="text-teal-500 font-medium mt-1">{formData.industry}</Text>
-            )}
-          </View>
+<View className="bg-white p-6 border-b border-gray-200">
+  <View className="items-center mb-4">
+    <View className="w-24 h-24 bg-teal-100 rounded-full items-center justify-center mb-4 border-4 border-white shadow-lg">
+      <Ionicons name="business" size={48} color="#14B8A6" />
+    </View>
+    <Text className="text-2xl font-bold text-teal-700 text-center">
+      {formData.companyName || "Your Company Name"}
+    </Text>
+    <Text className="text-gray-600 text-center mt-1">{user?.email}</Text>
+    {formData.industry && (
+      <Text className="text-teal-500 font-medium mt-1">{formData.industry}</Text>
+    )}
+  </View>
 
-          {/* Quick Stats */}
-          <View className="flex-row justify-around mb-4 bg-teal-50 rounded-2xl p-4">
-            <View className="items-center">
-              <Text className="text-2xl font-bold text-teal-700">LKR {totalSponsored.toLocaleString()}</Text>
-              <Text className="text-gray-600 text-xs">Total Sponsored</Text>
-            </View>
-            <View className="items-center">
-              <Text className="text-2xl font-bold text-teal-700">{eventsSupported}</Text>
-              <Text className="text-gray-600 text-xs">Events Supported</Text>
-            </View>
-            <View className="items-center">
-              <Text className="text-2xl font-bold text-teal-700">{memberSince}</Text>
-              <Text className="text-gray-600 text-xs">Member Since</Text>
-            </View>
-          </View>
+  {/* Quick Stats */}
+  <View className="flex-row justify-around mb-4 bg-teal-50 rounded-2xl p-4">
+    <View className="items-center">
+      <Text className="text-2xl font-bold text-teal-700">{formatCurrency(totalSponsored)}</Text>
+      <Text className="text-gray-600 text-xs">Total Sponsored</Text>
+    </View>
+    <View className="items-center">
+      <Text className="text-2xl font-bold text-teal-700">{eventsSupported}</Text>
+      <Text className="text-gray-600 text-xs">Events Supported</Text>
+    </View>
+    <View className="items-center">
+      <Text className="text-2xl font-bold text-teal-700">{memberSince}</Text>
+      <Text className="text-gray-600 text-xs">Member Since</Text>
+    </View>
+  </View>
 
-          <View className="flex-row space-x-3">
-            <TouchableOpacity 
-              onPress={() => openEditModal("companyName", formData.companyName)}
-              className="flex-1 bg-teal-500 p-4 rounded-2xl flex-row items-center justify-center shadow-lg"
-            >
-              <Ionicons name="create-outline" size={20} color="white" />
-              <Text className="text-white font-semibold ml-2 text-lg">Edit Profile</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              onPress={refreshSponsorshipStats}
-              className="bg-teal-100 p-4 rounded-2xl flex-row items-center justify-center"
-            >
-              <Ionicons name="refresh" size={20} color="#14B8A6" />
-            </TouchableOpacity>
-          </View>
-        </View>
+  {/* Action Buttons - UPDATED */}
+  <View className="flex-row space-x-3">
+    <TouchableOpacity 
+      onPress={() => openEditModal("companyName", formData.companyName)}
+      className="flex-1 bg-teal-500 p-4 rounded-2xl flex-row items-center justify-center shadow-lg"
+    >
+      <Ionicons name="create-outline" size={20} color="white" />
+      <Text className="text-white font-semibold ml-2 text-lg">Edit Profile</Text>
+    </TouchableOpacity>
+    
+    {/* Settings Button - ADD THIS */}
+    <TouchableOpacity 
+      onPress={() => router.push('/sponsor/tabs/settings')}
+      className="bg-teal-100 p-4 rounded-2xl flex-row items-center justify-center"
+    >
+      <Ionicons name="settings-outline" size={20} color="#14B8A6" />
+    </TouchableOpacity>
+
+    <TouchableOpacity 
+      onPress={refreshSponsorshipStats}
+      className="bg-teal-100 p-4 rounded-2xl flex-row items-center justify-center"
+    >
+      <Ionicons name="refresh" size={20} color="#14B8A6" />
+    </TouchableOpacity>
+  </View>
+</View>
 
         {/* Company Information Section */}
         <View className="bg-white p-6 mt-4 mx-4 rounded-2xl shadow-sm">
@@ -650,6 +681,7 @@ export default function SponsorProfileSummary() {
             </TouchableOpacity>
           </View>
         </View>
+        
 
         {/* Badges & Achievements Section */}
         <View className="bg-white p-6 mt-4 mx-4 rounded-2xl shadow-sm">
@@ -708,6 +740,7 @@ export default function SponsorProfileSummary() {
             </View>
           )}
         </View>
+       
 
         {/* Logout Button */}
         <View className="p-6 mx-4 mb-8">

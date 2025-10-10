@@ -1,4 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { db } from "@/services/firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -59,7 +60,7 @@ function formatDate(d?: Date | null) {
     day: "numeric" 
   });
 }
-
+/*
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat('en-LK', {
     style: 'currency',
@@ -67,7 +68,7 @@ function formatCurrency(amount: number) {
     minimumFractionDigits: 0,
   }).format(amount);
 }
-
+*/
 function getStatusColor(status?: string) {
   switch (status?.toLowerCase()) {
     case "completed":
@@ -150,6 +151,8 @@ export default function SponsorReports() {
   const [itemsToShow, setItemsToShow] = useState(INITIAL_ITEMS_TO_SHOW);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { formatCurrency } = useCurrency();
+
 
   const fetchData = async () => {
     if (!user) {

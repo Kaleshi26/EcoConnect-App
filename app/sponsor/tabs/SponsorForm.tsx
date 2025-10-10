@@ -1,4 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { db } from "@/services/firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -62,6 +63,8 @@ export default function SponsorForm() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+const { formatCurrency, currency } = useCurrency(); // Add currency here
+  
 
   const [formData, setFormData] = useState<SponsorshipFormData>({
     amount: '',
@@ -151,14 +154,14 @@ export default function SponsorForm() {
     }));
   };
 
-  const formatCurrency = (amount: number): string => {
+  /*const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('en-LK', {
       style: 'currency',
       currency: 'LKR',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
-  };
+  };*/
 
   const parseCurrency = (value: string): number => {
     const cleanValue = value.replace(/[^\d]/g, '');
@@ -458,7 +461,7 @@ export default function SponsorForm() {
             {formData.sponsorshipType !== 'in_kind' && (
               <View className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-200">
                 <Text className="text-gray-900 font-semibold text-lg mb-4">
-                  Sponsorship Amount (LKR)
+                Sponsorship Amount ({currency}) {/* Add this line to show current currency */}
                 </Text>
 
                 {/* Suggested Amounts */}
@@ -488,20 +491,22 @@ export default function SponsorForm() {
                 </View>
 
                 {/* Custom Amount */}
-                <View>
-                  <Text className="text-gray-600 text-sm mb-2">Or enter custom amount:</Text>
-                  <View className="flex-row items-center border border-gray-300 rounded-xl px-4 py-3 bg-white">
-                    <Text className="text-gray-500 text-lg mr-2">LKR</Text>
-                    <TextInput
-                      value={formData.amount ? formatCurrency(parseCurrency(formData.amount)) : ''}
-                      onChangeText={(value) => handleInputChange('amount', value)}
-                      placeholder="0"
-                      keyboardType="number-pad"
-                      className="flex-1 text-gray-900 text-lg font-medium"
-                      placeholderTextColor="#9CA3AF"
-                    />
-                  </View>
-                </View>
+           {/* Custom Amount */}
+{/* Custom Amount */}
+<View>
+  <Text className="text-gray-600 text-sm mb-2">Or enter custom amount:</Text>
+  <View className="flex-row items-center border border-gray-300 rounded-xl px-4 py-3 bg-white">
+    <Text className="text-gray-500 text-lg mr-2">{currency}</Text> {/* Now properly wrapped in Text */}
+    <TextInput
+      value={formData.amount ? formatCurrency(parseCurrency(formData.amount)) : ''}
+      onChangeText={(value) => handleInputChange('amount', value)}
+      placeholder="0"
+      keyboardType="number-pad"
+      className="flex-1 text-gray-900 text-lg font-medium"
+      placeholderTextColor="#9CA3AF"
+    />
+  </View>
+</View>
 
                 
               </View>

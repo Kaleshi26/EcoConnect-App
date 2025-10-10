@@ -1,4 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { db } from "@/services/firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -82,13 +83,13 @@ function formatTime(d?: Date | null): string {
   });
 }
 
-function formatCurrency(amount: number): string {
+/*function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 0,
   }).format(amount);
-}
+}*/
 
 function calculateDaysLeft(eventDate?: Date | null): string {
   if (!eventDate) return "TBA";
@@ -258,6 +259,8 @@ export default function EventDetails() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+  const { formatCurrency } = useCurrency();
+
 
   useEffect(() => {
     if (!eventId) {

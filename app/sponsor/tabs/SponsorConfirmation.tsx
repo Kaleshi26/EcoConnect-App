@@ -1,4 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { db } from "@/services/firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -43,6 +44,8 @@ export default function SponsorConfirmation() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+  const { formatCurrency } = useCurrency();
+
 
   // Real-time listener for sponsorship updates
   useEffect(() => {
@@ -87,14 +90,14 @@ export default function SponsorConfirmation() {
 
     return () => unsubscribe();
   }, [eventId]);
-
+/*
   const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('en-LK', {
       style: 'currency',
       currency: 'LKR',
       minimumFractionDigits: 0,
     }).format(amount);
-  };
+  };*/
 
   const formatDate = (timestamp: any): string => {
     if (!timestamp) return "TBA";

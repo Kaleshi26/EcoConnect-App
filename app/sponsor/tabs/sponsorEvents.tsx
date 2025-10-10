@@ -1,4 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { db } from "@/services/firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 import { collection, doc, getDoc, getDocs, query, Timestamp, where } from "firebase/firestore";
@@ -70,14 +71,14 @@ function tsToDate(ts?: Timestamp) {
     return null;
   }
 }
-
+/*
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat('en-LK', {
     style: 'currency',
     currency: 'LKR',
     minimumFractionDigits: 0,
   }).format(amount);
-}
+}*/
 
 function formatDate(d?: Date | null) {
   if (!d) return "TBA";
@@ -117,6 +118,8 @@ export default function SponsorAnalytics() {
   const [error, setError] = useState<string | null>(null);
   const [selectedTimeframe, setSelectedTimeframe] = useState<'all' | 'year' | 'month'>('all');
   const insets = useSafeAreaInsets();
+  const { formatCurrency } = useCurrency();
+
 
   const screenWidth = Dimensions.get('window').width - 40;
 
