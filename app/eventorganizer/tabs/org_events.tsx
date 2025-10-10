@@ -446,9 +446,9 @@ function EventCard({ ev, onClosePress, onPress }: { ev: EventDoc; onClosePress: 
         {status === "In Progress" && (
           <Pressable
             onPress={onClosePress}
-            className="mt-4 bg-gradient-to-r from-orange-500 to-red-500 rounded-2xl py-4 items-center shadow-lg"
+            className="mt-4 bg-gradient-to-r bg-sky-500 to-red-500 rounded-2xl py-4 items-center shadow-lg"
           >
-            <Text className="text-white font-bold text-base">Close Event & Submit Report</Text>
+            <Text className="text-white font-bold text-base">Close Event & Submit Details</Text>
           </Pressable>
         )}
         
@@ -1319,7 +1319,7 @@ export default function OrgEvents() {
           onPressIn={addBtnAnim.onPressIn}
           onPressOut={addBtnAnim.onPressOut}
           onPress={() => setShowForm(true)}
-          className="w-20 h-20 bg-cyan-50 rounded-full shadow-2xl items-center justify-center border-1 bg-cyan-300"
+          className="w-20 h-20 bg-cyan-200 rounded-full shadow-2xl items-center justify-center border-1 bg-cyan-300"
         >
           <Ionicons name="add" size={32} color="bg-sky-800" />
         </Pressable>
