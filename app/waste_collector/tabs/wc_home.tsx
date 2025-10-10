@@ -34,6 +34,8 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
+  Platform,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -521,24 +523,33 @@ export default function WcHome({ userId }: { userId: string }) {
             </View>
             <TouchableOpacity
               onPress={() => {
-                const destLabel = selected?.location?.label || "";
                 const lat = selected?.location?.lat;
                 const lng = selected?.location?.lng;
-                const params: Record<string, string> = {};
-                if (destLabel) params.destLabel = destLabel;
-                if (typeof lat === "number") params.destLat = String(lat);
-                if (typeof lng === "number") params.destLng = String(lng);
-                if (selected?.id) params.eventId = selected.id;
-                router.navigate({
-                  pathname: "/waste_collector/tabs/wc_route_navigation",
-                  params,
-                });
+                const label = selected?.location?.label || "Event Location";
+                
+                if (typeof lat === "number" && typeof lng === "number") {
+                  const scheme = Platform.select({ 
+                    ios: 'maps:', 
+                    android: 'geo:' 
+                  });
+                  const url = Platform.select({
+                    ios: `${scheme}?q=${label}&ll=${lat},${lng}`,
+                    android: `${scheme}${lat},${lng}?q=${label}`
+                  });
+                  
+                  Linking.openURL(url!).catch(() => {
+                    // Fallback to Google Maps web
+                    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
+                  });
+                } else {
+                  Alert.alert("Error", "Location coordinates not available");
+                }
               }}
               className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 rounded-xl flex-row items-center justify-center shadow-lg"
             >
               <Navigation size={20} color="white" />
               <Text className="text-white text-center font-semibold ml-2">
-                Navigate to Location
+                Open in Maps
               </Text>
             </TouchableOpacity>
           </View>
