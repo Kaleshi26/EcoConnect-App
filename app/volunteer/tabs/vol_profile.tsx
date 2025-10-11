@@ -3,7 +3,7 @@ import { auth, db } from "@/services/firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 import * as MediaLibrary from "expo-media-library";
 import { useRouter } from "expo-router";
-import { signOut } from "firebase/auth";
+import { EmailAuthProvider, reauthenticateWithCredential, signOut, updatePassword } from "firebase/auth";
 import {
   addDoc,
   collection,
@@ -32,10 +32,10 @@ import {
   ScrollView,
   Text,
   TextInput,
-  TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import QRCode from "react-native-qrcode-svg";
+import { SafeAreaView } from "react-native-safe-area-context";
 import ViewShot, { captureRef } from "react-native-view-shot";
 
 // Types
@@ -81,6 +81,15 @@ interface PrivateInfoStep2 {
 
 interface PrivateInfo extends PrivateInfoStep1, PrivateInfoStep2 {
   completedAt: Timestamp;
+}
+
+interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  icon: string;
+  earned: boolean;
 }
 
 // Helpers
@@ -133,25 +142,6 @@ function CategoryBadge({ category }: { category: PostCategory }) {
   );
 }
 
-// Badge Display Component
-function BadgeDisplay({ badge }: { badge: "none" | "silver" | "gold" | "platinum" }) {
-  const badgeConfig = {
-    none: { label: "No Badge", color: "bg-gray-200", textColor: "text-gray-700", icon: "ribbon-outline" },
-    silver: { label: "Silver Volunteer", color: "bg-gray-300", textColor: "text-gray-800", icon: "ribbon" },
-    gold: { label: "Gold Volunteer", color: "bg-yellow-400", textColor: "text-yellow-900", icon: "ribbon" },
-    platinum: { label: "Platinum Volunteer", color: "bg-blue-500", textColor: "text-white", icon: "ribbon" },
-  };
-  const config = badgeConfig[badge];
-  return (
-    <View className="items-center mb-4">
-      <View className={`w-16 h-16 ${config.color} rounded-full items-center justify-center mb-2`}>
-        <Ionicons name={config.icon as any} size={24} color={config.textColor.includes("white") ? "white" : "#4b5563"} />
-      </View>
-      <Text className={`font-bold ${config.textColor}`}>{config.label}</Text>
-    </View>
-  );
-}
-
 // QR Code Modal for Events
 function QrCodeModal({
   visible,
@@ -189,7 +179,7 @@ function QrCodeModal({
 
   return (
     <Modal visible={visible} transparent={true} animationType="fade" onRequestClose={onClose}>
-      <View className="flex-1 justify-center items-center bg-black/50">
+      <SafeAreaView className="flex-1 justify-center items-center bg-black/50" edges={['bottom']}>
         <View className="bg-white rounded-2xl p-6 w-11/12 max-w-sm shadow-xl">
           <Text className="text-xl font-bold text-gray-900 mb-2 text-center">Your Registration</Text>
           <Text className="text-gray-600 mb-4 text-center">{eventTitle}</Text>
@@ -198,66 +188,44 @@ function QrCodeModal({
               <QRCode value={`vol-reg:${eventId}:${regId}:${userUid}`} size={200} backgroundColor="white" color="black" />
             </ViewShot>
           </View>
-          <Pressable onPress={handleDownload} className="bg-blue-600 rounded-xl py-3 mb-3">
+          <Pressable onPress={handleDownload} className="bg-[#0F828C] rounded-xl py-3 mb-3">
             <Text className="text-white font-bold text-center">Download QR Code</Text>
           </Pressable>
           <Pressable onPress={onClose} className="bg-gray-200 rounded-xl py-3">
             <Text className="text-gray-800 font-bold text-center">Close</Text>
           </Pressable>
         </View>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }
 
-// Private Info Form Modals
+// Private Info Form Modals (for complete/edit)
 function PrivateInfoModal({
   visible,
   onClose,
   onComplete,
+  existingInfo,
 }: {
   visible: boolean;
   onClose: () => void;
   onComplete: () => void;
+  existingInfo: PrivateInfo | null;
 }) {
   const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [step1, setStep1] = useState<PrivateInfoStep1>({
-    firstName: "",
-    lastName: "",
-    phoneNumber: "",
-    nic: "",
+    firstName: existingInfo?.firstName || "",
+    lastName: existingInfo?.lastName || "",
+    phoneNumber: existingInfo?.phoneNumber || "",
+    nic: existingInfo?.nic || "",
   });
   const [step2, setStep2] = useState<PrivateInfoStep2>({
-    skills: "",
-    availability: "",
-    interests: "",
+    skills: existingInfo?.skills || "",
+    availability: existingInfo?.availability || "",
+    interests: existingInfo?.interests || "",
   });
-
-  useEffect(() => {
-    if (visible && user) {
-      // Preload existing data
-      const loadPrivateInfo = async () => {
-        const docSnap = await getDoc(doc(db, "users", user.uid, "privateInfo", "info"));
-        if (docSnap.exists()) {
-          const data = docSnap.data() as PrivateInfo;
-          setStep1({
-            firstName: data.firstName || "",
-            lastName: data.lastName || "",
-            phoneNumber: data.phoneNumber || "",
-            nic: data.nic || "",
-          });
-          setStep2({
-            skills: data.skills || "",
-            availability: data.availability || "",
-            interests: data.interests || "",
-          });
-        }
-      };
-      loadPrivateInfo();
-    }
-  }, [visible, user]);
 
   const handleNext = () => {
     if (step === 1) {
@@ -267,6 +235,10 @@ function PrivateInfoModal({
       }
       setStep(2);
     }
+  };
+
+  const handleBack = () => {
+    setStep(1);
   };
 
   const handleSubmit = async () => {
@@ -283,7 +255,7 @@ function PrivateInfoModal({
         completedAt: Timestamp.now(),
       };
       await setDoc(doc(db, "users", user.uid, "privateInfo", "info"), fullInfo);
-      Alert.alert("Success", "Profile updated! You've earned the Silver Badge!");
+      Alert.alert("Success", "Profile updated!");
       onComplete();
       onClose();
     } catch (e) {
@@ -302,9 +274,9 @@ function PrivateInfoModal({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1 bg-black/50 justify-end"
       >
-        <View className="bg-white rounded-t-3xl max-h-[85%]">
+        <SafeAreaView className="bg-white rounded-t-3xl max-h-[85%]" edges={['bottom']}>
           <View className="p-4 border-b border-gray-200 flex-row justify-between items-center">
-            <Text className="text-xl font-bold text-slate-800">Complete Your Profile</Text>
+            <Text className="text-xl font-bold text-slate-800">{existingInfo ? "Edit Profile" : "Complete Your Profile"}</Text>
             <Pressable onPress={onClose}>
               <Ionicons name="close" size={24} color="#64748b" />
             </Pressable>
@@ -329,7 +301,7 @@ function PrivateInfoModal({
                     />
                   </View>
                 ))}
-                <Pressable onPress={handleNext} className="bg-blue-600 p-4 rounded-xl items-center">
+                <Pressable onPress={handleNext} className="bg-[#0F828C] p-4 rounded-xl items-center">
                   <Text className="text-white font-bold">Next: Volunteer Info</Text>
                 </Pressable>
               </>
@@ -354,27 +326,140 @@ function PrivateInfoModal({
                     />
                   </View>
                 ))}
-                <Pressable
-                  onPress={handleSubmit}
-                  disabled={loading}
-                  className={`bg-green-600 p-4 rounded-xl items-center ${loading ? "opacity-50" : ""}`}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="white" />
-                  ) : (
-                    <Text className="text-white font-bold">Complete Profile & Get Silver Badge</Text>
-                  )}
-                </Pressable>
+                <View className="flex-row justify-between">
+                  <Pressable onPress={handleBack} className="bg-gray-300 p-4 rounded-xl items-center flex-1 mr-2">
+                    <Text className="text-slate-800 font-bold">Back</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={handleSubmit}
+                    disabled={loading}
+                    className={`bg-[#0F828C] p-4 rounded-xl items-center flex-1 ml-2 ${loading ? "opacity-50" : ""}`}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="white" />
+                    ) : (
+                      <Text className="text-white font-bold">{existingInfo ? "Update Profile" : "Complete Profile"}</Text>
+                    )}
+                  </Pressable>
+                </View>
               </>
             )}
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </KeyboardAvoidingView>
     </Modal>
   );
 }
 
-// Create Post Modal
+// Change Password Modal
+function ChangePasswordModal({
+  visible,
+  onClose,
+}: {
+  visible: boolean;
+  onClose: () => void;
+}) {
+  const { user } = useAuth();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!user || !user.email) return;
+    if (newPassword !== confirmPassword) {
+      Alert.alert("Error", "New passwords do not match");
+      return;
+    }
+    if (newPassword.length < 6) {
+      Alert.alert("Error", "New password must be at least 6 characters");
+      return;
+    }
+    setLoading(true);
+    try {
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(user, credential);
+      await updatePassword(user, newPassword);
+      Alert.alert("Success", "Password updated successfully");
+      onClose();
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error: any) {
+      console.error("Password update error:", error);
+      if (error.code === "auth/wrong-password") {
+        Alert.alert("Error", "Current password is incorrect");
+      } else {
+        Alert.alert("Error", "Failed to update password. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        className="flex-1 bg-black/50 justify-end"
+      >
+        <SafeAreaView className="bg-white rounded-t-3xl max-h-[85%]" edges={['bottom']}>
+          <View className="p-4 border-b border-gray-200 flex-row justify-between items-center">
+            <Text className="text-xl font-bold text-slate-800">Change Password</Text>
+            <Pressable onPress={onClose}>
+              <Ionicons name="close" size={24} color="#64748b" />
+            </Pressable>
+          </View>
+          <ScrollView className="p-4" keyboardShouldPersistTaps="handled">
+            <View className="mb-4">
+              <Text className="text-slate-700 mb-2">Current Password *</Text>
+              <TextInput
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                className="border border-gray-300 rounded-xl p-3"
+                placeholder="Enter current password"
+                secureTextEntry
+              />
+            </View>
+            <View className="mb-4">
+              <Text className="text-slate-700 mb-2">New Password *</Text>
+              <TextInput
+                value={newPassword}
+                onChangeText={setNewPassword}
+                className="border border-gray-300 rounded-xl p-3"
+                placeholder="Enter new password"
+                secureTextEntry
+              />
+            </View>
+            <View className="mb-4">
+              <Text className="text-slate-700 mb-2">Confirm New Password *</Text>
+              <TextInput
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                className="border border-gray-300 rounded-xl p-3"
+                placeholder="Confirm new password"
+                secureTextEntry
+              />
+            </View>
+            <Pressable
+              onPress={handleSubmit}
+              disabled={loading}
+              className={`bg-[#0F828C] p-4 rounded-xl items-center ${loading ? "opacity-50" : ""}`}
+            >
+              {loading ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text className="text-white font-bold">Update Password</Text>
+              )}
+            </Pressable>
+          </ScrollView>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// Create Post Modal (unchanged but with teal colors)
 function CreatePostModal({
   visible,
   onClose,
@@ -450,7 +535,7 @@ function CreatePostModal({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1 bg-black/50 justify-end"
       >
-        <View className="bg-white rounded-t-3xl max-h-[85%]">
+        <SafeAreaView className="bg-white rounded-t-3xl max-h-[85%]" edges={['bottom']}>
           <View className="p-4 border-b border-gray-200 flex-row justify-between items-center">
             <Text className="text-xl font-bold text-slate-800">{editingPost ? "Edit Post" : "Create Post"}</Text>
             <Pressable onPress={onClose}>
@@ -464,7 +549,7 @@ function CreatePostModal({
                 <Pressable
                   key={cat}
                   onPress={() => setCategory(cat)}
-                  className={`px-4 py-2 rounded-full mr-2 ${category === cat ? "bg-blue-600" : "bg-gray-100"}`}
+                  className={`px-4 py-2 rounded-full mr-2 ${category === cat ? "bg-[#0F828C]" : "bg-gray-100"}`}
                 >
                   <Text className={category === cat ? "text-white" : "text-slate-700"}>
                     {cat.charAt(0).toUpperCase() + cat.slice(1)}
@@ -507,7 +592,7 @@ function CreatePostModal({
             <Pressable
               onPress={handleSubmit}
               disabled={posting}
-              className={`bg-blue-600 p-4 rounded-xl items-center mb-8 ${posting ? "opacity-50" : ""}`}
+              className={`bg-[#0F828C] p-4 rounded-xl items-center mb-8 ${posting ? "opacity-50" : ""}`}
             >
               {posting ? (
                 <ActivityIndicator color="white" />
@@ -516,7 +601,7 @@ function CreatePostModal({
               )}
             </Pressable>
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -533,12 +618,16 @@ export default function VolProfile() {
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [showEvents, setShowEvents] = useState(false);
   const [showPosts, setShowPosts] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showVolunteerLife, setShowVolunteerLife] = useState(false);
   const [registeredEvents, setRegisteredEvents] = useState<RegisteredEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [qrModal, setQrModal] = useState<{ eventId: string; regId: string; eventTitle: string } | null>(null);
   const [showPrivateInfoModal, setShowPrivateInfoModal] = useState(false);
-  const [badge, setBadge] = useState<"none" | "silver" | "gold" | "platinum">("none");
+  const [privateInfo, setPrivateInfo] = useState<PrivateInfo | null>(null);
   const [privateInfoExists, setPrivateInfoExists] = useState(false);
+  const [completedCount, setCompletedCount] = useState(0);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const headerOpacity = useRef(new Animated.Value(0)).current;
   const headerTranslate = useRef(new Animated.Value(-20)).current;
@@ -582,7 +671,7 @@ export default function VolProfile() {
     return () => unsubscribe();
   }, [user]);
 
-  // Fetch registered events and private info
+  // Fetch registered events, private info, and compute badges
   useEffect(() => {
     if (!user) return;
     const fetchAll = async () => {
@@ -593,20 +682,15 @@ export default function VolProfile() {
         const snapshot = await getDocs(registrationsRef);
         const events = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as RegisteredEvent));
         setRegisteredEvents(events);
+        const completed = events.filter((e) => e.status === "completed").length;
+        setCompletedCount(completed);
 
         // Private info
         const privateDoc = await getDoc(doc(db, "users", user.uid, "privateInfo", "info"));
         setPrivateInfoExists(privateDoc.exists());
-
-        // Badge logic
-        let newBadge: "none" | "silver" | "gold" | "platinum" = "none";
         if (privateDoc.exists()) {
-          newBadge = "silver";
-          const completedCount = events.filter((e) => e.status === "completed").length;
-          if (completedCount >= 10) newBadge = "platinum";
-          else if (completedCount >= 5) newBadge = "gold";
+          setPrivateInfo(privateDoc.data() as PrivateInfo);
         }
-        setBadge(newBadge);
       } catch (error) {
         console.error("Error fetching profile data:", error);
       } finally {
@@ -615,6 +699,19 @@ export default function VolProfile() {
     };
     fetchAll();
   }, [user]);
+
+  // Badges computation
+  const badges: Badge[] = [
+    { id: "profile", name: "Profile Complete", description: "Complete your personal info", color: "bg-green-100", icon: "checkmark-circle", earned: privateInfoExists },
+    { id: "first", name: "First Volunteering", description: "Complete your first event", color: "bg-green-100", icon: "checkmark-circle", earned: completedCount >= 1 },
+    { id: "five", name: "First five events", description: "Complete five events", color: "bg-yellow-100", icon: "checkmark-circle", earned: completedCount >= 5 },
+    { id: "eco", name: "Eco Champion", description: "Register 10 events", color: "bg-teal-100", icon: "leaf-outline", earned: registeredEvents.length >= 10 },
+    { id: "sustained", name: "Sustained Volunteer", description: "Register 20 events", color: "bg-teal-100", icon: "medal-outline", earned: registeredEvents.length >= 20 },
+    { id: "platinum", name: "Platinum Volunteer", description: "Register 30 events", color: "bg-teal-100", icon: "trophy-outline", earned: registeredEvents.length >= 30 },
+  ];
+
+  const earnedBadges = badges.filter(b => b.earned);
+  const availableBadges = badges.filter(b => !b.earned);
 
   const handleLogout = async () => {
     try {
@@ -625,12 +722,9 @@ export default function VolProfile() {
     }
   };
 
-  const handleEditPost = (postId: string) => {
-    const post = userPosts.find((p) => p.id === postId);
-    if (post) {
-      setEditingPost(post);
-      setShowCreateModal(true);
-    }
+  const handleEditPost = (post: Post) => {
+    setEditingPost(post);
+    setShowCreateModal(true);
   };
 
   const handleDeletePost = async (postId: string) => {
@@ -664,7 +758,7 @@ export default function VolProfile() {
     if (!user) return;
     setQrModal({
       eventId: event.id,
-      regId: event.id, // assuming regId == eventId in user's registration doc
+      regId: event.id, // assuming regId == event.id in user's registration doc
       eventTitle: event.eventTitle || "Event",
     });
   };
@@ -674,13 +768,13 @@ export default function VolProfile() {
   };
 
   return (
-    <View className="flex-1 bg-slate-50">
+    <SafeAreaView className="flex-1 bg-slate-50">
       <Animated.View
         style={{
           opacity: headerOpacity,
           transform: [{ translateY: headerTranslate }],
         }}
-        className="bg-gradient-to-r from-blue-600 to-slate-700"
+        className="bg-gradient-to-r from-[#0F828C] to-teal-700"
       >
         <View className="px-6 pt-5 pb-1" />
       </Animated.View>
@@ -691,68 +785,38 @@ export default function VolProfile() {
         showsVerticalScrollIndicator={false}
       >
         {/* Profile Header */}
-        <View className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6 mb-6">
+        <View className="bg-white rounded-2xl shadow-lg border border-teal-100 p-6 mb-6">
           <View className="items-center">
-            <View className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-100 to-slate-100 border-2 border-blue-200 shadow-md items-center justify-center mb-4">
-              <Ionicons name="person" size={40} color="#3b82f6" />
+            <View className="w-24 h-24 rounded-full bg-gradient-to-br from-teal-100 to-teal-50 border-2 border-teal-200 shadow-md items-center justify-center mb-4">
+              <Ionicons name="person" size={40} color="#0F828C" />
             </View>
             <Text className="text-xl font-bold text-slate-800 mb-1">
-              {user?.email?.split("@")[0] || "Volunteer"}
+              {privateInfo ? `${privateInfo.firstName} ${privateInfo.lastName}` : (user?.email?.split("@")[0] || "Volunteer")}
             </Text>
-            <Text className="text-slate-600 text-center">{user?.email}</Text>
-            <BadgeDisplay badge={badge} />
+            <Text className="text-slate-600 text-center mb-2">{user?.email}</Text>
+            <Pressable className="bg-teal-100 rounded-xl px-4 py-2 flex-row items-center">
+              <Text className="text-[#0F828C] font-medium mr-1">More Info</Text>
+              <Ionicons name="chevron-down" size={16} color="#0F828C" />
+            </Pressable>
           </View>
         </View>
 
-        {/* Complete Profile CTA */}
-        {!privateInfoExists && (
-          <View className="bg-white rounded-2xl shadow-lg border border-blue-100 overflow-hidden mb-6">
-            <View className="bg-gradient-to-r from-yellow-50 to-orange-50 p-6">
-              <View className="flex-row items-start">
-                <View className="w-12 h-12 bg-yellow-100 rounded-full items-center justify-center mr-4 mt-1">
-                  <Ionicons name="medal" size={24} color="#f59e0b" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-slate-800 font-semibold mb-2">Complete Your Profile</Text>
-                  <Text className="text-slate-600 leading-5 mb-3">
-                    Fill in your personal and volunteer details to earn the Silver Badge!
-                  </Text>
-                  <Animated.View style={{ transform: [{ scale: completeBtnAnim.scale }] }}>
-                    <TouchableOpacity
-                      onPress={() => setShowPrivateInfoModal(true)}
-                      onPressIn={completeBtnAnim.onPressIn}
-                      onPressOut={completeBtnAnim.onPressOut}
-                      className="bg-blue-600 rounded-xl py-3 items-center shadow-md"
-                    >
-                      <Text className="text-white font-bold">Complete Profile</Text>
-                    </TouchableOpacity>
-                  </Animated.View>
-                </View>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* My Registered Events Button */}
+        {/* My Registered Events */}
         <Pressable
           onPress={() => setShowEvents(!showEvents)}
-          className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6 mb-4"
+          className="bg-white rounded-2xl shadow-lg border border-teal-100 p-6 mb-4 flex-row justify-between items-center"
         >
-          <View className="flex-row justify-between items-center">
-            <Text className="text-lg font-bold text-slate-800">My Registered Events</Text>
-            <Ionicons name={showEvents ? "chevron-up" : "chevron-down"} size={20} color="#64748b" />
-          </View>
+          <Text className="text-lg font-bold text-slate-800">My Registered Events</Text>
+          <Ionicons name={showEvents ? "chevron-up" : "chevron-down"} size={20} color="#64748b" />
         </Pressable>
-
-        {/* Registered Events List */}
         {showEvents && (
-          <View className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6 mb-6">
+          <View className="bg-white rounded-2xl shadow-lg border border-teal-100 p-6 mb-6">
             {eventsLoading ? (
-              <ActivityIndicator color="#3b82f6" />
+              <ActivityIndicator color="#0F828C" />
             ) : registeredEvents.length === 0 ? (
               <View className="items-center py-4">
                 <Ionicons name="calendar-outline" size={32} color="#cbd5e1" />
-                <Text className="text-slate-500 mt-2 text-center">You haven't registered for any events yet</Text>
+                <Text className="text-slate-500 mt-2">You haven't registered for any events yet</Text>
               </View>
             ) : (
               registeredEvents.map((event) => {
@@ -760,7 +824,7 @@ export default function VolProfile() {
                 return (
                   <View
                     key={event.id}
-                    className="mb-4 pb-4 border-b border-slate-100 last:border-b-0 last:mb-0 last:pb-0"
+                    className="mb-4 pb-4 border-b border-teal-100 last:border-b-0 last:mb-0 last:pb-0"
                   >
                     <Text className="font-semibold text-slate-800">{event.eventTitle}</Text>
                     <Text className="text-slate-600 text-sm">
@@ -772,7 +836,7 @@ export default function VolProfile() {
                           event.status === "completed"
                             ? "bg-green-100"
                             : event.status === "confirmed"
-                            ? "bg-blue-100"
+                            ? "bg-[#0F828C]/10"
                             : "bg-yellow-100"
                         }`}
                       >
@@ -781,7 +845,7 @@ export default function VolProfile() {
                             event.status === "completed"
                               ? "text-green-800"
                               : event.status === "confirmed"
-                              ? "text-blue-800"
+                              ? "text-[#0F828C]"
                               : "text-yellow-800"
                           }`}
                         >
@@ -791,9 +855,9 @@ export default function VolProfile() {
                     </View>
                     <Pressable
                       onPress={() => handleViewQr(event)}
-                      className="mt-2 bg-gray-100 rounded-lg py-2 px-3 w-32"
+                      className="mt-2 bg-teal-100 rounded-lg py-2 px-3 w-32"
                     >
-                      <Text className="text-center text-blue-700 font-medium">View QR Code</Text>
+                      <Text className="text-center text-[#0F828C] font-medium">View QR Code</Text>
                     </Pressable>
                   </View>
                 );
@@ -802,22 +866,18 @@ export default function VolProfile() {
           </View>
         )}
 
-        {/* My Posts Button */}
+        {/* My Post */}
         <Pressable
           onPress={() => setShowPosts(!showPosts)}
-          className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6 mb-4"
+          className="bg-white rounded-2xl shadow-lg border border-teal-100 p-6 mb-4 flex-row justify-between items-center"
         >
-          <View className="flex-row justify-between items-center">
-            <Text className="text-lg font-bold text-slate-800">My Posts</Text>
-            <Ionicons name={showPosts ? "chevron-up" : "chevron-down"} size={20} color="#64748b" />
-          </View>
+          <Text className="text-lg font-bold text-slate-800">My Post</Text>
+          <Ionicons name={showPosts ? "chevron-up" : "chevron-down"} size={20} color="#64748b" />
         </Pressable>
-
-        {/* My Posts List */}
         {showPosts && (
-          <View className="bg-white rounded-2xl shadow-lg border border-blue-100 p-6 mb-6">
+          <View className="bg-white rounded-2xl shadow-lg border border-teal-100 p-6 mb-6">
             {postsLoading ? (
-              <ActivityIndicator color="#3b82f6" />
+              <ActivityIndicator color="#0F828C" />
             ) : userPosts.length === 0 ? (
               <View className="items-center py-4">
                 <Ionicons name="document-text-outline" size={32} color="#cbd5e1" />
@@ -827,7 +887,7 @@ export default function VolProfile() {
               userPosts.map((post) => (
                 <View
                   key={post.id}
-                  className="mb-4 pb-4 border-b border-slate-100 last:border-b-0 last:mb-0 last:pb-0"
+                  className="mb-4 pb-4 border-b border-teal-100 last:border-b-0 last:mb-0 last:pb-0"
                 >
                   <Text className="font-semibold text-slate-800 mb-1">{post.title}</Text>
                   <Text className="text-slate-600 text-sm mb-2" numberOfLines={2}>
@@ -838,10 +898,10 @@ export default function VolProfile() {
                     <Text className="text-slate-500 text-xs">{post.createdAt?.toDate().toLocaleDateString()}</Text>
                   </View>
                   <View className="flex-row mt-2">
-                    <Pressable onPress={() => handleEditPost(post.id)} className="p-1">
+                    <Pressable onPress={() => handleEditPost(post)} className="p-1">
                       <Ionicons name="create-outline" size={18} color="#64748b" />
                     </Pressable>
-                    <Pressable onPress={() => handleDeletePost(post.id)} className="p-1 ml-1">
+                    <Pressable onPress={() => handleDeletePost(post.id)} className="p-1 ml-2">
                       <Ionicons name="trash-outline" size={18} color="#ef4444" />
                     </Pressable>
                   </View>
@@ -851,34 +911,114 @@ export default function VolProfile() {
           </View>
         )}
 
-        {/* Account Settings */}
-        <View className="bg-white rounded-2xl shadow-lg border border-blue-100 overflow-hidden">
-          <Pressable
-            onPress={toggleAccountMenu}
-            className="p-6 flex-row items-center justify-between"
-          >
-            <View className="flex-row items-center">
-              <View className="w-10 h-10 bg-slate-100 rounded-full items-center justify-center mr-3">
-                <Ionicons name="settings-outline" size={20} color="#64748b" />
-              </View>
-              <Text className="text-xl font-bold text-slate-800">Account Settings</Text>
-            </View>
-            <Ionicons name={showAccountMenu ? "chevron-up" : "chevron-down"} size={24} color="#64748b" />
-          </Pressable>
-          {showAccountMenu && (
-            <View className="px-6 pb-6 pt-4 border-t border-slate-100">
-              <TouchableOpacity
-                onPress={handleLogout}
-                className="bg-red-500 rounded-xl py-4 items-center shadow-md"
-              >
-                <View className="flex-row items-center">
-                  <Ionicons name="log-out-outline" size={20} color="white" />
-                  <Text className="text-white font-bold ml-2">Sign Out</Text>
+        {/* My Profile (Personal Information) */}
+        <Pressable
+          onPress={() => setShowProfile(!showProfile)}
+          className="bg-white rounded-2xl shadow-lg border border-teal-100 p-6 mb-4 flex-row justify-between items-center"
+        >
+          <Text className="text-lg font-bold text-slate-800">My Profile</Text>
+          <Ionicons name={showProfile ? "chevron-up" : "chevron-down"} size={20} color="#64748b" />
+        </Pressable>
+        {showProfile && (
+          <View className="bg-white rounded-2xl shadow-lg border border-teal-100 p-6 mb-6">
+            {privateInfoExists && privateInfo ? (
+              <>
+                <View className="flex-row justify-between items-center mb-4">
+                  <Text className="text-lg font-semibold text-slate-800">Personal Information</Text>
+                  <Pressable onPress={() => setShowPrivateInfoModal(true)} className="bg-teal-100 rounded-lg px-3 py-1">
+                    <Text className="text-[#0F828C] font-medium">Edit</Text>
+                  </Pressable>
                 </View>
-              </TouchableOpacity>
+                {[
+                  { label: "First Name", value: privateInfo.firstName },
+                  { label: "Last Name", value: privateInfo.lastName },
+                  { label: "Phone Number", value: privateInfo.phoneNumber },
+                  { label: "NIC / ID Number", value: privateInfo.nic },
+                  { label: "Skills & Experience", value: privateInfo.skills },
+                  { label: "Availability", value: privateInfo.availability },
+                  { label: "Interests", value: privateInfo.interests },
+                ].map((field, index) => (
+                  <View key={index} className="mb-3">
+                    <Text className="text-slate-700 font-medium mb-1">{field.label}</Text>
+                    <Text className="text-slate-600">{field.value || "Not set"}</Text>
+                  </View>
+                ))}
+              </>
+            ) : (
+              <View className="items-center">
+                <Text className="text-slate-600 mb-4 text-center">Complete your profile to unlock more features</Text>
+                <Pressable
+                  onPress={() => setShowPrivateInfoModal(true)}
+                  className="bg-[#0F828C] rounded-xl py-3 px-6"
+                >
+                  <Text className="text-white font-bold">Complete Profile</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* My Volunteer Life */}
+        <Pressable
+          onPress={() => setShowVolunteerLife(!showVolunteerLife)}
+          className="bg-white rounded-2xl shadow-lg border border-teal-100 p-6 mb-4 flex-row justify-between items-center"
+        >
+          <Text className="text-lg font-bold text-slate-800">My Volunteer Life</Text>
+          <Ionicons name={showVolunteerLife ? "chevron-up" : "chevron-down"} size={20} color="#64748b" />
+        </Pressable>
+        {showVolunteerLife && (
+          <View className="bg-white rounded-2xl shadow-lg border border-teal-100 p-6 mb-6">
+            <Text className="text-slate-600 mb-4">Your volunteer stats:</Text>
+            <Text className="text-slate-700">- Completed Events: {completedCount}</Text>
+            <Text className="text-slate-700">- Registered Events: {registeredEvents.length}</Text>
+            {/* Add more stats if available */}
+          </View>
+        )}
+
+        {/* Achievements and Badges */}
+        <View className="bg-white rounded-2xl shadow-lg border border-teal-100 p-6 mb-6">
+          <Text className="text-lg font-bold text-slate-800 mb-4">Achievements and Badges</Text>
+          <Text className="text-slate-700 font-medium mb-2">Earned Badges ({earnedBadges.length})</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
+            {earnedBadges.map((b) => (
+              <View key={b.id} className={`mr-3 p-3 rounded-xl ${b.color} items-center w-32`}>
+                <Ionicons name={b.icon as any} size={24} color="#0F828C" />
+                <Text className="text-slate-800 font-medium text-center mt-1">{b.name}</Text>
+                <Text className="text-slate-600 text-xs text-center">{b.description}</Text>
+              </View>
+            ))}
+          </ScrollView>
+          <Text className="text-slate-700 font-medium mb-2">Available Badges</Text>
+          {availableBadges.map((b) => (
+            <View key={b.id} className="flex-row items-center mb-3 p-3 bg-gray-50 rounded-xl">
+              <Ionicons name={b.icon as any} size={24} color="#64748b" className="mr-3" />
+              <View className="flex-1">
+                <Text className="text-slate-800 font-medium">{b.name}</Text>
+                <Text className="text-slate-600 text-xs">{b.description}</Text>
+              </View>
+              <Ionicons name="lock-closed" size={16} color="#64748b" />
             </View>
-          )}
+          ))}
         </View>
+
+        {/* Account Settings */}
+        <Pressable
+          onPress={toggleAccountMenu}
+          className="bg-white rounded-2xl shadow-lg border border-teal-100 p-6 mb-4 flex-row justify-between items-center"
+        >
+          <Text className="text-lg font-bold text-slate-800">Manage Account Settings</Text>
+          <Ionicons name={showAccountMenu ? "chevron-up" : "chevron-down"} size={20} color="#64748b" />
+        </Pressable>
+        {showAccountMenu && (
+          <View className="bg-white rounded-2xl shadow-lg border border-teal-100 p-6 mb-6">
+            <Pressable onPress={() => setShowChangePassword(true)} className="mb-4">
+              <Text className="text-slate-800 font-medium">Change Password</Text>
+            </Pressable>
+            <Pressable onPress={handleLogout} className="bg-red-100 rounded-xl py-3 items-center">
+              <Text className="text-red-600 font-medium">Sign Out</Text>
+            </Pressable>
+          </View>
+        )}
       </ScrollView>
 
       {/* Modals */}
@@ -909,8 +1049,22 @@ export default function VolProfile() {
       <PrivateInfoModal
         visible={showPrivateInfoModal}
         onClose={() => setShowPrivateInfoModal(false)}
-        onComplete={() => setPrivateInfoExists(true)}
+        onComplete={() => {
+          // Refresh private info
+          getDoc(doc(db, "users", user!.uid, "privateInfo", "info")).then((docSnap) => {
+            if (docSnap.exists()) {
+              setPrivateInfo(docSnap.data() as PrivateInfo);
+              setPrivateInfoExists(true);
+            }
+          });
+        }}
+        existingInfo={privateInfo}
       />
-    </View>
+
+      <ChangePasswordModal
+        visible={showChangePassword}
+        onClose={() => setShowChangePassword(false)}
+      />
+    </SafeAreaView>
   );
 }

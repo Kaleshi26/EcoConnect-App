@@ -1,13 +1,13 @@
-import { Ionicons } from "@expo/vector-icons";
-import { addDoc, collection, onSnapshot, query, where, doc, getDoc, setDoc, updateDoc, getDocs } from "firebase/firestore";
-import React, { useEffect, useState, useRef } from "react";
-import { ActivityIndicator, Alert, Animated, Pressable, ScrollView, Text, TextInput, View, Modal, KeyboardAvoidingView, Platform, Image } from "react-native";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/services/firebaseConfig";
-import { Timestamp } from "firebase/firestore";
-import QRCode from 'react-native-qrcode-svg';
-import ViewShot, { captureRef } from 'react-native-view-shot';
+import { Ionicons } from "@expo/vector-icons";
 import * as MediaLibrary from 'expo-media-library';
+import { addDoc, collection, doc, getDocs, onSnapshot, query, setDoc, Timestamp, where } from "firebase/firestore";
+import React, { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Alert, Animated, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import QRCode from 'react-native-qrcode-svg';
+import { SafeAreaView } from "react-native-safe-area-context";
+import ViewShot, { captureRef } from 'react-native-view-shot';
 
 // Reuse type from org_events.tsx
 type EventDoc = {
@@ -196,7 +196,7 @@ function RegistrationModal({
       onRequestClose={onClose}
       presentationStyle="pageSheet"
     >
-      <View className="flex-1 bg-gray-50">
+      <SafeAreaView className="flex-1 bg-gray-50">
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           className="flex-1"
@@ -233,23 +233,23 @@ function RegistrationModal({
                   <View className="flex-1 pr-3">
                     <Text className="text-lg font-bold text-gray-900 mb-2">{event.title}</Text>
                   </View>
-                  <View className="bg-blue-100 px-3 py-1 rounded-full">
-                    <Text className="text-blue-700 text-xs font-semibold">EVENT</Text>
+                  <View className="bg-teal-100 px-3 py-1 rounded-full">
+                    <Text className="text-[#0F828C] text-xs font-semibold">EVENT</Text>
                   </View>
                 </View>
                 
                 <View className="space-y-2">
                   <View className="flex-row items-center">
-                    <View className="w-8 h-8 bg-blue-50 rounded-full items-center justify-center mr-3">
-                      <Ionicons name="time" size={16} color="#3b82f6" />
+                    <View className="w-8 h-8 bg-teal-50 rounded-full items-center justify-center mr-3">
+                      <Ionicons name="time" size={16} color="#0F828C" />
                     </View>
                     <Text className="text-gray-700 flex-1">{dateStr}</Text>
                   </View>
                   
                   {event.location?.label && (
                     <View className="flex-row items-center">
-                      <View className="w-8 h-8 bg-green-50 rounded-full items-center justify-center mr-3">
-                        <Ionicons name="location" size={16} color="#10b981" />
+                      <View className="w-8 h-8 bg-teal-50 rounded-full items-center justify-center mr-3">
+                        <Ionicons name="location" size={16} color="#0F828C" />
                       </View>
                       <Text className="text-gray-700 flex-1">{event.location.label}</Text>
                     </View>
@@ -340,7 +340,7 @@ function RegistrationModal({
             <Pressable
               onPress={handleSubmit}
               disabled={loading}
-              className={`bg-blue-600 rounded-xl py-4 px-6 items-center shadow-sm ${
+              className={`bg-[#0F828C] rounded-xl py-4 px-6 items-center shadow-sm ${
                 loading ? "opacity-70" : ""
               }`}
             >
@@ -365,12 +365,12 @@ function RegistrationModal({
             </Pressable>
           </View>
         </KeyboardAvoidingView>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }
 
-// Professional EventCard with blue-gray theme
+// Professional EventCard with teal theme
 function EventCard({ ev, onViewDetails }: { ev: EventDoc; onViewDetails: (event: EventDoc) => void }) {
   const { user } = useAuth();
   const d = tsToDate(ev.eventAt);
@@ -406,7 +406,7 @@ function EventCard({ ev, onViewDetails }: { ev: EventDoc; onViewDetails: (event:
   };
 
   return (
-    <View className="mb-5 bg-white rounded-2xl shadow-lg border border-blue-100 overflow-hidden">
+    <View className="mb-5 bg-white rounded-2xl shadow-lg border border-teal-100 overflow-hidden">
       {/* Header Section with Image */}
       <View className="relative">
         <Image
@@ -429,16 +429,16 @@ function EventCard({ ev, onViewDetails }: { ev: EventDoc; onViewDetails: (event:
       <View className="px-6 py-4">
         {!!ev.location?.label && (
           <Row>
-            <View className="w-8 h-8 bg-blue-100 rounded-full items-center justify-center">
-              <Ionicons name="location-outline" size={16} color="#3b82f6" />
+            <View className="w-8 h-8 bg-teal-100 rounded-full items-center justify-center">
+              <Ionicons name="location-outline" size={16} color="#0F828C" />
             </View>
             <Text className="text-slate-700 ml-3 flex-1 font-medium">{ev.location.label}</Text>
           </Row>
         )}
         
         <Row>
-          <View className="w-8 h-8 bg-blue-100 rounded-full items-center justify-center">
-            <Ionicons name="people-outline" size={16} color="#3b82f6" />
+          <View className="w-8 h-8 bg-teal-100 rounded-full items-center justify-center">
+            <Ionicons name="people-outline" size={16} color="#0F828C" />
           </View>
           <Text className="text-slate-700 ml-3 font-medium">{ev.volunteersNeeded ?? 0} volunteers needed</Text>
         </Row>
@@ -449,8 +449,8 @@ function EventCard({ ev, onViewDetails }: { ev: EventDoc; onViewDetails: (event:
             <Text className="text-slate-600 font-medium mb-2 text-sm">Focus Areas:</Text>
             <View className="flex-row flex-wrap">
               {ev.wasteTypes.slice(0, 4).map((w) => (
-                <View key={w} className="px-3 py-2 mr-2 mb-2 rounded-full bg-blue-50 border border-blue-200">
-                  <Text className="text-blue-700 text-sm font-medium">{w}</Text>
+                <View key={w} className="px-3 py-2 mr-2 mb-2 rounded-full bg-teal-50 border border-teal-200">
+                  <Text className="text-[#0F828C] text-sm font-medium">{w}</Text>
                 </View>
               ))}
               {ev.wasteTypes.length > 4 && (
@@ -464,7 +464,7 @@ function EventCard({ ev, onViewDetails }: { ev: EventDoc; onViewDetails: (event:
 
         {/* Description Preview */}
         {ev.description && (
-          <View className="mt-4 pt-4 border-t border-blue-100">
+          <View className="mt-4 pt-4 border-t border-teal-100">
             <Text className="text-slate-600 leading-6" numberOfLines={3}>
               {ev.description}
             </Text>
@@ -474,8 +474,8 @@ function EventCard({ ev, onViewDetails }: { ev: EventDoc; onViewDetails: (event:
         {/* Sponsorship Badge */}
         {ev.sponsorshipRequired && (
           <View className="mt-3 flex-row items-center">
-            <View className="w-2 h-2 bg-blue-500 rounded-full mr-2" />
-            <Text className="text-blue-700 text-sm font-medium">Sponsorship opportunities available</Text>
+            <View className="w-2 h-2 bg-[#0F828C] rounded-full mr-2" />
+            <Text className="text-[#0F828C] text-sm font-medium">Sponsorship opportunities available</Text>
           </View>
         )}
       </View>
@@ -488,7 +488,7 @@ function EventCard({ ev, onViewDetails }: { ev: EventDoc; onViewDetails: (event:
               onPress={() => onViewDetails(ev)}
               onPressIn={viewInfoAnim.onPressIn}
               onPressOut={viewInfoAnim.onPressOut}
-              className="bg-blue-600 rounded-xl py-4 items-center mr-1.5 shadow-md"
+              className="bg-[#0F828C] rounded-xl py-4 items-center mr-1.5 shadow-md"
             >
               <Text className="text-white font-bold text-base">Register</Text>
             </Pressable>
@@ -623,14 +623,14 @@ export default function VolEvent() {
   };
 
   return (
-    <View className="flex-1 bg-slate-50">
+    <SafeAreaView className="flex-1 bg-slate-50">
       {/* Header */}
       <Animated.View
         style={{ 
           opacity: headerOpacity, 
           transform: [{ translateY: headerTranslate }] 
         }}
-        className="bg-gradient-to-r from-blue-600 to-slate-700"
+        className="bg-gradient-to-r from-[#0F828C] to-teal-700"
       >
         <View className="px-6 pt-5 pb-1">
           
@@ -670,16 +670,16 @@ export default function VolEvent() {
       >
         {loading ? (
           <View className="flex-1 justify-center items-center py-20">
-            <ActivityIndicator size="large" color="#3b82f6" />
+            <ActivityIndicator size="large" color="#0F828C" />
             <Text className="text-slate-600 mt-4 font-medium">Loading events...</Text>
           </View>
         ) : filteredEvents.length === 0 ? (
           <View className="flex-1 justify-center items-center py-20">
-            <View className="w-20 h-20 bg-blue-100 rounded-full items-center justify-center mb-6">
+            <View className="w-20 h-20 bg-teal-100 rounded-full items-center justify-center mb-6">
               <Ionicons 
                 name={searchQuery ? "search-outline" : "calendar-outline"} 
                 size={32} 
-                color="#3b82f6" 
+                color="#0F828C" 
               />
             </View>
             <Text className="text-2xl font-bold text-slate-800 mb-3">
@@ -693,7 +693,7 @@ export default function VolEvent() {
             {searchQuery && (
               <Pressable
                 onPress={clearSearch}
-                className="bg-blue-600 px-6 py-3 rounded-xl shadow-md"
+                className="bg-[#0F828C] px-6 py-3 rounded-xl shadow-md"
               >
                 <Text className="text-white font-bold">Clear Search</Text>
               </Pressable>
@@ -753,7 +753,7 @@ export default function VolEvent() {
           onRequestClose={() => setQrData(null)}
         >
           <View className="flex-1 justify-center items-center bg-black/50">
-            <View className="bg-white rounded-2xl p-6 w-11/12 max-w-sm shadow-xl">
+            <SafeAreaView className="bg-white rounded-2xl p-6 w-11/12 max-w-sm shadow-xl">
               <Text className="text-2xl font-bold text-gray-900 mb-4 text-center">Registration Successful!</Text>
               <Text className="text-gray-600 mb-4 text-center">
                 Present this QR code to the organizer at the event to scan and confirm your participation to update your badge. We give badges according to the number of completed events.
@@ -773,7 +773,7 @@ export default function VolEvent() {
               </View>
               <Pressable
                 onPress={handleDownload}
-                className="bg-blue-600 rounded-xl py-4 mb-4"
+                className="bg-[#0F828C] rounded-xl py-4 mb-4"
               >
                 <Text className="text-white font-bold text-center">Download QR Code</Text>
               </Pressable>
@@ -783,10 +783,10 @@ export default function VolEvent() {
               >
                 <Text className="text-gray-800 font-bold text-center">Close</Text>
               </Pressable>
-            </View>
+            </SafeAreaView>
           </View>
         </Modal>
       )}
-    </View>
+    </SafeAreaView>
   );
 }

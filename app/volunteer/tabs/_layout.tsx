@@ -1,7 +1,6 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs } from "expo-router";
 import { useAuth } from "../../../contexts/AuthContext";
-import { Ionicons } from "@expo/vector-icons";
-import { View } from "react-native";
 
 export default function VolTabsLayout() {
   const { user, loading, profile } = useAuth();
@@ -16,19 +15,21 @@ export default function VolTabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#3b82f6", // Blue color to match your app's theme
-        tabBarInactiveTintColor: "#64748b", // Slate color for inactive tabs
+        tabBarActiveTintColor: "#ffffff", // White color for active tabs
+        tabBarInactiveTintColor: "rgba(255, 255, 255, 0.6)", // Semi-transparent white for inactive tabs
         tabBarStyle: {
-          backgroundColor: "#ffffff", // White background for tab bar
-          borderTopColor: "#e2e8f0", // Light border for tab bar
-          borderTopWidth: 1,
-          height: 60, // Adjust height for better appearance
-          paddingBottom: 5,
+          backgroundColor: "#0F828C", // Teal/turquoise background matching the image
+          borderTopWidth: 0, // Remove top border
+          height: 65, // Adjust height for better appearance
+          paddingBottom: 8,
+          paddingTop: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: "600",
+          fontSize: 11,
+          fontWeight: "500",
+          marginTop: 2,
         },
+        tabBarShowLabel: true,
       }}
     >
       <Tabs.Screen
