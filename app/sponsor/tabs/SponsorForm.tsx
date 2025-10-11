@@ -53,6 +53,12 @@ type SponsorshipType = {
   details: string;
 };
 
+type UserProfile = {
+  companyName?: string;
+  phone?: string;
+  contactPerson?: string;
+};
+
 export default function SponsorForm() {
   const { eventId, eventTitle } = useLocalSearchParams();
   const [event, setEvent] = useState<EventDoc | null>(null);
@@ -60,11 +66,11 @@ export default function SponsorForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasExistingSponsorship, setHasExistingSponsorship] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
-const { formatCurrency, currency } = useCurrency(); // Add currency here
-  
+  const { formatCurrency, currency } = useCurrency();
 
   const [formData, setFormData] = useState<SponsorshipFormData>({
     amount: '',
@@ -81,7 +87,7 @@ const { formatCurrency, currency } = useCurrency(); // Add currency here
     {
       value: 'financial',
       label: 'Financial Sponsorship',
-      description: 'Monetary contribution in LKR',
+      description: 'Monetary contribution',
       details: 'Direct financial support that will be used for event expenses, equipment, and resources.'
     },
     {
@@ -107,6 +113,25 @@ const { formatCurrency, currency } = useCurrency(); // Add currency here
       }
 
       try {
+        // Fetch user profile first
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setUserProfile({
+            companyName: userData.companyName || '',
+            phone: userData.phone || '',
+            contactPerson: userData.contactPerson || ''
+          });
+
+          // Pre-fill form with profile data
+          setFormData(prev => ({
+            ...prev,
+            companyName: userData.companyName || '',
+            contactPhone: userData.phone || '',
+            contactEmail: userData.email || user?.email || ''
+          }));
+        }
+
         // Fetch event details
         const eventDoc = await getDoc(doc(db, "events", eventId as string));
         if (eventDoc.exists()) {
@@ -154,15 +179,6 @@ const { formatCurrency, currency } = useCurrency(); // Add currency here
     }));
   };
 
-  /*const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('en-LK', {
-      style: 'currency',
-      currency: 'LKR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };*/
-
   const parseCurrency = (value: string): number => {
     const cleanValue = value.replace(/[^\d]/g, '');
     return cleanValue ? parseInt(cleanValue, 10) : 0;
@@ -170,12 +186,11 @@ const { formatCurrency, currency } = useCurrency(); // Add currency here
 
   const validateForm = (): boolean => {
     if (!formData.amount || parseCurrency(formData.amount) <= 0) {
-      Alert.alert("Invalid Amount", "Please enter a valid sponsorship amount in LKR.");
+      Alert.alert("Invalid Amount", "Please enter a valid sponsorship amount.");
       return false;
     }
 
     if (formData.sponsorshipType !== 'financial' && parseCurrency(formData.amount) > 0) {
-      // For non-financial sponsorships, amount should be 0 or they should use financial/both
       Alert.alert("Amount Conflict", "For in-kind sponsorships, please set amount to 0 or choose financial sponsorship type.");
       return false;
     }
@@ -195,7 +210,6 @@ const { formatCurrency, currency } = useCurrency(); // Add currency here
       return false;
     }
 
-    // Basic phone validation for international numbers
     const phoneRegex = /^[+]?[1-9][\d]{0,15}$/;
     if (!phoneRegex.test(formData.contactPhone.replace(/[\s-]/g, ''))) {
       Alert.alert("Invalid Phone", "Please enter a valid international phone number.");
@@ -247,7 +261,7 @@ const { formatCurrency, currency } = useCurrency(); // Add currency here
       // Add sponsorship to Firestore
       const sponsorshipRef = await addDoc(collection(db, "sponsorships"), sponsorshipData);
 
-      // Update event's current funding and sponsor count (only for financial contributions)
+      // Update event's current funding and sponsor count
       if (event && sponsorshipAmount > 0) {
         const currentFundingAmount = event.currentFunding || 0;
         const currentSponsorCount = event.sponsorCount || 0;
@@ -302,7 +316,7 @@ const { formatCurrency, currency } = useCurrency(); // Add currency here
   if (loading) {
     return (
       <View className="flex-1 bg-gray-50 justify-center items-center">
-        <StatusBar barStyle="dark-content" />
+        <StatusBar barStyle="light-content" backgroundColor="#14B8A6" />
         <ActivityIndicator size="large" color="#14B8A6" />
         <Text className="text-gray-600 font-medium mt-4 text-base">
           Loading sponsorship form...
@@ -314,7 +328,7 @@ const { formatCurrency, currency } = useCurrency(); // Add currency here
   if (error || !event) {
     return (
       <View className="flex-1 bg-gray-50 justify-center items-center px-8">
-        <StatusBar barStyle="dark-content" />
+        <StatusBar barStyle="light-content" backgroundColor="#14B8A6" />
         <View className="bg-red-100 rounded-full p-4 mb-4">
           <Ionicons name="alert-circle" size={48} color="#DC2626" />
         </View>
@@ -337,7 +351,7 @@ const { formatCurrency, currency } = useCurrency(); // Add currency here
   if (hasExistingSponsorship) {
     return (
       <View className="flex-1 bg-gray-50 justify-center items-center px-8">
-        <StatusBar barStyle="dark-content" />
+        <StatusBar barStyle="light-content" backgroundColor="#14B8A6" />
         <View className="bg-blue-100 rounded-full p-4 mb-4">
           <Ionicons name="information-circle" size={48} color="#3B82F6" />
         </View>
@@ -359,22 +373,24 @@ const { formatCurrency, currency } = useCurrency(); // Add currency here
 
   return (
     <View className="flex-1 bg-gray-50">
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" backgroundColor="#14B8A6" />
       
-      {/* Header */}
+      {/* Enhanced Header */}
       <View 
-        className="bg-white pt-4 px-4 border-b border-gray-200"
+        className="bg-teal-500 pt-4 px-4"
         style={{ paddingTop: insets.top + 16 }}
       >
-        <View className="flex-row items-center justify-between mb-4">
+        <View className="flex-row items-center justify-between pb-4">
           <Pressable
             onPress={handleBack}
-            className="w-10 h-10 items-center justify-center rounded-full bg-gray-100"
+            className="w-10 h-10 items-center justify-center rounded-full bg-white/20"
           >
-            <Ionicons name="chevron-back" size={24} color="#374151" />
+            <Ionicons name="chevron-back" size={24} color="white" />
           </Pressable>
           
-          <Text className="text-lg font-semibold text-gray-900">Sponsor Event</Text>
+          <View className="flex-1 items-center">
+            <Text className="text-white text-lg font-semibold">Sponsor Event</Text>
+          </View>
           
           <View className="w-10" />
         </View>
@@ -390,66 +406,72 @@ const { formatCurrency, currency } = useCurrency(); // Add currency here
           contentContainerStyle={{ paddingBottom: 100 }}
         >
           <View className="px-4 pt-6 pb-8">
-            {/* Event Info Card */}
-            <View className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-200">
+            {/* Enhanced Event Info Card */}
+            <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-200">
+              <View className="flex-row items-center mb-4">
+                <Ionicons name="calendar" size={24} color="#14B8A6" />
+                <Text className="text-gray-900 font-bold text-xl ml-2">Event Details</Text>
+              </View>
+              
               <Text className="text-gray-900 font-semibold text-lg mb-2">
                 {event.title}
               </Text>
-              <Text className="text-gray-600 text-sm mb-4">
-                {event.description?.substring(0, 100)}...
+              <Text className="text-gray-600 text-sm mb-4 leading-5">
+                {event.description?.substring(0, 120)}...
               </Text>
               
-              <View className="flex-row justify-between items-center">
+              <View className="flex-row justify-between items-center bg-teal-50 rounded-xl p-4 border border-teal-100">
                 <View>
-                  <Text className="text-gray-700 font-medium text-sm">
+                  <Text className="text-teal-700 font-medium text-sm">
                     {hasFundingGoal ? 'Funding Progress' : 'Current Support'}
                   </Text>
-                  <Text className="text-gray-900 font-bold text-lg">
+                  <Text className="text-teal-900 font-bold text-lg">
                     {formatCurrency(event.currentFunding || 0)}
                     {hasFundingGoal && ` / ${formatCurrency(event.fundingGoal || 0)}`}
                   </Text>
                 </View>
-                <View className="bg-teal-100 px-3 py-1 rounded-full">
-                  <Text className="text-teal-700 font-semibold text-sm">
+                <View className="bg-teal-500 px-3 py-2 rounded-full">
+                  <Text className="text-white font-semibold text-sm">
                     {event.sponsorCount || 0} sponsors
                   </Text>
                 </View>
               </View>
             </View>
 
-            {/* Sponsorship Type */}
-            <View className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-200">
-              <Text className="text-gray-900 font-semibold text-lg mb-4">
-                Sponsorship Type
-              </Text>
+            {/* Enhanced Sponsorship Type */}
+            <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-200">
+              <View className="flex-row items-center mb-5">
+                <Ionicons name="business" size={24} color="#14B8A6" />
+                <Text className="text-gray-900 font-bold text-xl ml-2">Sponsorship Type</Text>
+              </View>
 
-              <View className="space-y-3">
+              <View className="space-y-4">
                 {sponsorshipTypes.map((type) => (
                   <Pressable
                     key={type.value}
                     onPress={() => handleInputChange('sponsorshipType', type.value)}
-                    className={`p-4 border rounded-xl ${
+                    className={`p-5 border-2 rounded-2xl ${
                       formData.sponsorshipType === type.value
-                        ? 'bg-teal-50 border-teal-200'
+                        ? 'bg-teal-50 border-teal-300'
                         : 'bg-white border-gray-200'
                     }`}
                   >
                     <View className="flex-row items-start">
                       <View
-                        className={`w-5 h-5 rounded-full border-2 mr-3 mt-0.5 ${
+                        className={`w-6 h-6 rounded-full border-2 mr-4 mt-0.5 ${
                           formData.sponsorshipType === type.value
                             ? 'bg-teal-500 border-teal-500'
                             : 'border-gray-300'
                         }`}
                       >
                         {formData.sponsorshipType === type.value && (
-                          <Ionicons name="checkmark" size={12} color="white" />
+                          <Ionicons name="checkmark" size={14} color="white" />
                         )}
                       </View>
                       <View className="flex-1">
-                        <Text className="text-gray-900 font-medium text-base">{type.label}</Text>
-                        <Text className="text-teal-600 text-sm font-medium mt-1">{type.description}</Text>
-                        <Text className="text-gray-500 text-sm mt-2">{type.details}</Text>
+                        <Text className="text-gray-900 font-bold text-lg">{type.label}</Text>
+                        <Text className="text-teal-600 text-base font-medium mt-1">{type.description}</Text>
+                        <Text className="text-gray-500 text-sm mt-2 leading-5">{type.details}</Text>
                       </View>
                     </View>
                   </Pressable>
@@ -457,28 +479,31 @@ const { formatCurrency, currency } = useCurrency(); // Add currency here
               </View>
             </View>
 
-            {/* Sponsorship Amount */}
+            {/* Enhanced Sponsorship Amount */}
             {formData.sponsorshipType !== 'in_kind' && (
-              <View className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-200">
-                <Text className="text-gray-900 font-semibold text-lg mb-4">
-                Sponsorship Amount ({currency}) {/* Add this line to show current currency */}
-                </Text>
+              <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-200">
+                <View className="flex-row items-center mb-5">
+                  <Ionicons name="wallet" size={24} color="#14B8A6" />
+                  <Text className="text-gray-900 font-bold text-xl ml-2">
+                    Sponsorship Amount ({currency})
+                  </Text>
+                </View>
 
                 {/* Suggested Amounts */}
-                <Text className="text-gray-600 text-sm mb-3">Suggested amounts:</Text>
-                <View className="flex-row flex-wrap mb-4">
+                <Text className="text-gray-600 text-base mb-4 font-medium">Suggested amounts:</Text>
+                <View className="flex-row flex-wrap mb-6 -mx-1">
                   {suggestedAmounts.map((amount) => (
                     <Pressable
                       key={amount}
                       onPress={() => handleInputChange('amount', amount.toString())}
-                      className={`mr-2 mb-2 px-4 py-2 rounded-full border ${
+                      className={`m-1 px-5 py-3 rounded-xl border-2 ${
                         formData.amount === amount.toString()
                           ? 'bg-teal-500 border-teal-500'
                           : 'bg-white border-gray-300'
                       }`}
                     >
                       <Text
-                        className={`font-medium ${
+                        className={`font-bold text-base ${
                           formData.amount === amount.toString()
                             ? 'text-white'
                             : 'text-gray-700'
@@ -491,35 +516,32 @@ const { formatCurrency, currency } = useCurrency(); // Add currency here
                 </View>
 
                 {/* Custom Amount */}
-           {/* Custom Amount */}
-{/* Custom Amount */}
-<View>
-  <Text className="text-gray-600 text-sm mb-2">Or enter custom amount:</Text>
-  <View className="flex-row items-center border border-gray-300 rounded-xl px-4 py-3 bg-white">
-    <Text className="text-gray-500 text-lg mr-2">{currency}</Text> {/* Now properly wrapped in Text */}
-    <TextInput
-      value={formData.amount ? formatCurrency(parseCurrency(formData.amount)) : ''}
-      onChangeText={(value) => handleInputChange('amount', value)}
-      placeholder="0"
-      keyboardType="number-pad"
-      className="flex-1 text-gray-900 text-lg font-medium"
-      placeholderTextColor="#9CA3AF"
-    />
-  </View>
-</View>
-
-                
+                <View>
+                  <Text className="text-gray-600 text-base mb-3 font-medium">Or enter custom amount:</Text>
+                  <View className="flex-row items-center border-2 border-gray-300 rounded-xl px-4 py-4 bg-white">
+                    <Text className="text-gray-500 text-lg font-medium mr-2">{currency}</Text>
+                    <TextInput
+                      value={formData.amount ? formatCurrency(parseCurrency(formData.amount)) : ''}
+                      onChangeText={(value) => handleInputChange('amount', value)}
+                      placeholder="0"
+                      keyboardType="number-pad"
+                      className="flex-1 text-gray-900 text-lg font-bold"
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+                </View>
               </View>
             )}
 
-            {/* In-Kind Description */}
+            {/* Enhanced In-Kind Description */}
             {formData.sponsorshipType !== 'financial' && (
-              <View className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-200">
-                <Text className="text-gray-900 font-semibold text-lg mb-4">
-                  In-Kind Sponsorship Details
-                </Text>
+              <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-200">
+                <View className="flex-row items-center mb-5">
+                  <Ionicons name="gift" size={24} color="#14B8A6" />
+                  <Text className="text-gray-900 font-bold text-xl ml-2">In-Kind Sponsorship Details</Text>
+                </View>
 
-                <Text className="text-gray-600 text-sm mb-3">
+                <Text className="text-gray-600 text-base mb-4 leading-5">
                   Please describe the goods, services, or resources you are providing:
                 </Text>
 
@@ -530,65 +552,77 @@ const { formatCurrency, currency } = useCurrency(); // Add currency here
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
-                  className="border border-gray-300 rounded-xl px-4 py-3 bg-white text-gray-900 min-h-[100px]"
+                  className="border-2 border-gray-300 rounded-xl px-4 py-4 bg-white text-gray-900 min-h-[120px] text-base"
                   placeholderTextColor="#9CA3AF"
                 />
               </View>
             )}
 
-            {/* Contact Information */}
-            <View className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-200">
-              <Text className="text-gray-900 font-semibold text-lg mb-4">
-                Contact Information
-              </Text>
+            {/* Enhanced Contact Information */}
+            <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-200">
+              <View className="flex-row items-center mb-5">
+                <Ionicons name="person" size={24} color="#14B8A6" />
+                <Text className="text-gray-900 font-bold text-xl ml-2">Contact Information</Text>
+              </View>
 
-              <View className="space-y-4">
+              <View className="space-y-5">
                 <View>
-                  <Text className="text-gray-600 text-sm mb-2">Company/Organization Name (Optional)</Text>
+                  <Text className="text-gray-600 text-base mb-3 font-medium">Company/Organization Name</Text>
                   <TextInput
                     value={formData.companyName}
                     onChangeText={(value) => handleInputChange('companyName', value)}
                     placeholder="Enter company or organization name"
-                    className="border border-gray-300 rounded-xl px-4 py-3 bg-white text-gray-900"
+                    className="border-2 border-gray-300 rounded-xl px-4 py-4 bg-white text-gray-900 text-base"
                     placeholderTextColor="#9CA3AF"
                   />
+                  {userProfile?.companyName && !formData.companyName && (
+                    <Text className="text-teal-600 text-sm mt-2">
+                      💡 Your profile has: {userProfile.companyName}
+                    </Text>
+                  )}
                 </View>
 
                 <View>
-                  <Text className="text-gray-600 text-sm mb-2">Email Address *</Text>
+                  <Text className="text-gray-600 text-base mb-3 font-medium">Email Address *</Text>
                   <TextInput
                     value={formData.contactEmail}
                     onChangeText={(value) => handleInputChange('contactEmail', value)}
                     placeholder="your@email.com"
                     keyboardType="email-address"
                     autoCapitalize="none"
-                    className="border border-gray-300 rounded-xl px-4 py-3 bg-white text-gray-900"
+                    className="border-2 border-gray-300 rounded-xl px-4 py-4 bg-white text-gray-900 text-base"
                     placeholderTextColor="#9CA3AF"
                   />
                 </View>
 
                 <View>
-                  <Text className="text-gray-600 text-sm mb-2">Phone Number *</Text>
+                  <Text className="text-gray-600 text-base mb-3 font-medium">Phone Number *</Text>
                   <TextInput
                     value={formData.contactPhone}
                     onChangeText={(value) => handleInputChange('contactPhone', value)}
                     placeholder="+94 77 123 4567 or international format"
                     keyboardType="phone-pad"
-                    className="border border-gray-300 rounded-xl px-4 py-3 bg-white text-gray-900"
+                    className="border-2 border-gray-300 rounded-xl px-4 py-4 bg-white text-gray-900 text-base"
                     placeholderTextColor="#9CA3AF"
                   />
-                  <Text className="text-gray-500 text-xs mt-1">
+                  {userProfile?.phone && !formData.contactPhone && (
+                    <Text className="text-teal-600 text-sm mt-2">
+                      💡 Your profile has: {userProfile.phone}
+                    </Text>
+                  )}
+                  <Text className="text-gray-500 text-sm mt-2">
                     Include country code for international numbers
                   </Text>
                 </View>
               </View>
             </View>
 
-            {/* Message to Organizer */}
-            <View className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-200">
-              <Text className="text-gray-900 font-semibold text-lg mb-4">
-                Additional Message (Optional)
-              </Text>
+            {/* Enhanced Message to Organizer */}
+            <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-200">
+              <View className="flex-row items-center mb-5">
+                <Ionicons name="chatbubble" size={24} color="#14B8A6" />
+                <Text className="text-gray-900 font-bold text-xl ml-2">Additional Message</Text>
+              </View>
 
               <TextInput
                 value={formData.message}
@@ -597,33 +631,33 @@ const { formatCurrency, currency } = useCurrency(); // Add currency here
                 multiline
                 numberOfLines={4}
                 textAlignVertical="top"
-                className="border border-gray-300 rounded-xl px-4 py-3 bg-white text-gray-900 min-h-[100px]"
+                className="border-2 border-gray-300 rounded-xl px-4 py-4 bg-white text-gray-900 min-h-[120px] text-base"
                 placeholderTextColor="#9CA3AF"
               />
             </View>
 
-            {/* Terms and Conditions */}
-            <View className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-200">
+            {/* Enhanced Terms and Conditions */}
+            <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-200">
               <Pressable
                 onPress={() => handleInputChange('termsAccepted', !formData.termsAccepted)}
                 className="flex-row items-start"
               >
                 <View
-                  className={`w-5 h-5 rounded border-2 mr-3 mt-0.5 ${
+                  className={`w-6 h-6 rounded border-2 mr-4 mt-0.5 ${
                     formData.termsAccepted
                       ? 'bg-teal-500 border-teal-500'
                       : 'border-gray-300'
                   }`}
                 >
                   {formData.termsAccepted && (
-                    <Ionicons name="checkmark" size={12} color="white" />
+                    <Ionicons name="checkmark" size={14} color="white" />
                   )}
                 </View>
                 <View className="flex-1">
-                  <Text className="text-gray-900 font-medium">
+                  <Text className="text-gray-900 font-bold text-lg">
                     I agree to the terms and conditions *
                   </Text>
-                  <Text className="text-gray-500 text-sm mt-1">
+                  <Text className="text-gray-500 text-base mt-2 leading-6">
                     By checking this box, I confirm that I want to sponsor this event. The event organizer will contact me via email or phone to coordinate the sponsorship details. I understand that this sponsorship request is subject to approval by the event organizer.
                   </Text>
                 </View>
@@ -633,21 +667,15 @@ const { formatCurrency, currency } = useCurrency(); // Add currency here
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Submit Button */}
-      <View className="px-4 pb-4 pt-3 bg-white border-t border-gray-200 absolute bottom-0 left-0 right-0" style={{ paddingBottom: insets.bottom + 16 }}>
+      {/* Enhanced Submit Button */}
+           {/* Submit Button */}
+      <View className="px-4 pb-4 pt-3 bg-white border-t border-gray-200" style={{ paddingBottom: insets.bottom + 16 }}>
         <Pressable
           onPress={handleSubmit}
           disabled={submitting || hasExistingSponsorship}
-          className={`rounded-xl py-4 items-center shadow-lg ${
+          className={`rounded-xl py-4 items-center ${
             submitting || hasExistingSponsorship ? 'bg-gray-400' : 'bg-teal-500'
           }`}
-          style={{
-            shadowColor: "#14B8A6",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 8,
-            elevation: 6,
-          }}
         >
           {submitting ? (
             <ActivityIndicator size="small" color="white" />

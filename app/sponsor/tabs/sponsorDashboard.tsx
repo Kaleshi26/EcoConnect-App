@@ -21,6 +21,8 @@ type EventDoc = {
   fundingGoal?: number;
   currentFunding?: number;
   image?: string;
+  imageUrl?: string;
+  imageUrls?: string[];
   goal?: string;
   organizer?: string;
   organizerId?: string;
@@ -38,6 +40,9 @@ type EventDoc = {
   requirements?: string[];
   resourcesNeeded?: string;
 };
+
+// Filter types
+type EventFilter = 'all' | 'upcoming' | 'completed' | 'requires_sponsorship';
 
 // Helpers
 function tsToDate(ts: any): Date | null {
@@ -60,15 +65,8 @@ function formatDate(d?: Date | null) {
   return d.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
+    year: "numeric"
   });
-}
-
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-  }).format(amount);
 }
 
 function isEventUpcoming(event: EventDoc): boolean {
@@ -77,18 +75,31 @@ function isEventUpcoming(event: EventDoc): boolean {
   return eventDate ? eventDate > now : false;
 }
 
-function isEventActive(event: EventDoc): boolean {
+function isEventCompleted(event: EventDoc): boolean {
   const normalizedStatus = event.status?.toLowerCase();
-  if (normalizedStatus === 'completed' || normalizedStatus === 'cancelled') {
-    return false;
-  }
+  if (normalizedStatus === 'completed') return true;
   
   const eventDate = tsToDate(event.eventAt);
-  if (eventDate && eventDate < new Date()) {
-    return false;
+  const now = new Date();
+  return eventDate ? eventDate < now : false;
+}
+
+function requiresSponsorship(event: EventDoc): boolean {
+  return event.sponsorshipRequired === true;
+}
+
+// NEW: Safe progress calculation
+function calculateFundingProgress(event: EventDoc): { percentage: number; hasValidGoal: boolean } {
+  const funding = event.currentFunding || 0;
+  const goal = event.fundingGoal || 0;
+  
+  // If no goal is set, we can't calculate a meaningful percentage
+  if (goal <= 0) {
+    return { percentage: 0, hasValidGoal: false };
   }
   
-  return true;
+  const percentage = (funding / goal) * 100;
+  return { percentage: Math.min(percentage, 100), hasValidGoal: true };
 }
 
 // Press animation hook
@@ -114,24 +125,24 @@ function StatsCard({ icon, label, value, color, bgColor }: any) {
     <View
       className="flex-1 bg-white rounded-2xl p-4 mx-1.5"
       style={{
-        shadowColor: "#000",
+        shadowColor: color,
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
+        shadowOpacity: 0.15,
         shadowRadius: 12,
-        elevation: 5,
+        elevation: 6,
       }}
     >
-      <View className={`w-12 h-12 ${bgColor} rounded-xl items-center justify-center mb-3`}>
-        <Ionicons name={icon} size={24} color={color} />
+      <View className={`w-10 h-10 ${bgColor} rounded-xl items-center justify-center mb-3`}>
+        <Ionicons name={icon} size={20} color={color} />
       </View>
-      <Text className="text-gray-900 text-xl font-bold mb-1">{value}</Text>
-      <Text className="text-gray-600 text-sm font-medium">{label}</Text>
+      <Text className="text-gray-900 text-lg font-bold mb-1">{value}</Text>
+      <Text className="text-gray-600 text-xs font-medium">{label}</Text>
     </View>
   );
 }
 
-// Progress Bar Component
-function ProgressBar({ percentage, color = "#14B8A6" }: any) {
+// Progress Bar Component - UPDATED
+function ProgressBar({ percentage, color = "#14B8A6", height = 8, showPercentage = false }: any) {
   return (
     <View className="h-2 bg-gray-200 rounded-full overflow-hidden">
       <View 
@@ -139,13 +150,127 @@ function ProgressBar({ percentage, color = "#14B8A6" }: any) {
         style={{ 
           width: `${Math.min(percentage, 100)}%`,
           backgroundColor: color,
+          height: height,
         }}
       />
+      {showPercentage && (
+        <View className="absolute inset-0 items-center justify-center">
+          <Text className="text-xs font-bold text-gray-800">{Math.round(percentage)}%</Text>
+        </View>
+      )}
     </View>
   );
 }
 
-// Compact Event Card
+// Status Badge Component
+function StatusBadge({ status }: { status?: string }) {
+  const getStatusConfig = (status: string = 'active') => {
+    const normalizedStatus = status.toLowerCase();
+    
+    switch (normalizedStatus) {
+      case 'completed':
+        return { bg: 'bg-green-100', text: 'text-green-800', label: 'Completed' };
+      case 'upcoming':
+        return { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Upcoming' };
+      case 'ongoing':
+        return { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Ongoing' };
+      case 'cancelled':
+        return { bg: 'bg-red-100', text: 'text-red-800', label: 'Cancelled' };
+      default:
+        return { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Active' };
+    }
+  };
+
+  const config = getStatusConfig(status);
+
+  return (
+    <View className={`${config.bg} px-2 py-1 rounded-full`}>
+      <Text className={`${config.text} text-xs font-medium`}>
+        {config.label}
+      </Text>
+    </View>
+  );
+}
+
+// NEW: Compact Filter Button Component
+function CompactFilterButton({ 
+  filter, 
+  currentFilter, 
+  onPress, 
+  icon, 
+  label 
+}: { 
+  filter: EventFilter;
+  currentFilter: EventFilter;
+  onPress: (filter: EventFilter) => void;
+  icon: string;
+  label: string;
+}) {
+  const isActive = currentFilter === filter;
+  
+  return (
+    <Pressable
+      onPress={() => onPress(filter)}
+      className={`flex-row items-center px-3 py-2 rounded-full border mx-1 ${
+        isActive 
+          ? 'bg-teal-500 border-teal-500' 
+          : 'bg-white border-gray-300'
+      }`}
+      style={{
+        shadowColor: isActive ? "#14B8A6" : "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: isActive ? 0.3 : 0.1,
+        shadowRadius: isActive ? 4 : 2,
+        elevation: isActive ? 3 : 1,
+      }}
+    >
+      <Ionicons 
+        name={icon as any} 
+        size={14} 
+        color={isActive ? 'white' : '#6B7280'} 
+      />
+      <Text className={`ml-1.5 text-xs font-medium ${
+        isActive ? 'text-white' : 'text-gray-700'
+      }`}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+// NEW: Active Filter Indicator
+function ActiveFilterIndicator({ filter, count }: { filter: EventFilter; count: number }) {
+  const getFilterConfig = (filter: EventFilter) => {
+    switch (filter) {
+      case 'all':
+        return { label: 'All Events', color: 'bg-gray-500' };
+      case 'upcoming':
+        return { label: 'Upcoming', color: 'bg-blue-500' };
+      case 'completed':
+        return { label: 'Completed', color: 'bg-green-500' };
+      case 'requires_sponsorship':
+        return { label: 'Need Sponsors', color: 'bg-teal-500' };
+      default:
+        return { label: 'All Events', color: 'bg-gray-500' };
+    }
+  };
+
+  const config = getFilterConfig(filter);
+
+  return (
+    <View className="flex-row items-center bg-teal-50 rounded-lg px-3 py-2 border border-teal-200">
+      <View className={`w-2 h-2 ${config.color} rounded-full mr-2`} />
+      <Text className="text-teal-800 text-sm font-medium flex-1">
+        Showing {count} {config.label.toLowerCase()}
+      </Text>
+      <View className="bg-teal-100 px-2 py-1 rounded">
+        <Text className="text-teal-700 text-xs font-bold">{count}</Text>
+      </View>
+    </View>
+  );
+}
+
+// Compact Event Card - UPDATED
 function CompactEventCard({ ev, index }: { ev: EventDoc; index: number }) {
   const { user } = useAuth();
   const router = useRouter();
@@ -154,11 +279,13 @@ function CompactEventCard({ ev, index }: { ev: EventDoc; index: number }) {
   const cardAnim = usePressScale();
   const { formatCurrency } = useCurrency();
 
+  // UPDATED: Use safe progress calculation
   const funding = ev.currentFunding || 0;
-  const goal = ev.fundingGoal || 1;
-  const progress = (funding / goal) * 100;
+  const { percentage, hasValidGoal } = calculateFundingProgress(ev);
   const sponsorCount = ev.sponsorCount || 0;
   
+  const isCompleted = isEventCompleted(ev);
+  const isUpcoming = isEventUpcoming(ev);
 
   const handlePress = () => {
     if (!user) {
@@ -199,7 +326,11 @@ function CompactEventCard({ ev, index }: { ev: EventDoc; index: number }) {
         <View className="flex-row items-start justify-between mb-3">
           <View className="flex-row items-start flex-1">
             <View className={`${colorScheme.bg} rounded-xl p-2.5 mr-3`}>
-              <Ionicons name="calendar" size={18} color={colorScheme.accent} />
+              <Ionicons 
+                name={isCompleted ? "checkmark-circle" : "calendar"} 
+                size={18} 
+                color={colorScheme.accent} 
+              />
             </View>
             
             <View className="flex-1">
@@ -207,15 +338,18 @@ function CompactEventCard({ ev, index }: { ev: EventDoc; index: number }) {
                 {ev.title}
               </Text>
               
-              <View className="flex-row items-center mb-1">
-                <Ionicons name="time-outline" size={14} color="#6B7280" />
-                <Text className="text-gray-600 text-sm ml-1.5">{dateStr}</Text>
+              <View className="flex-row items-center justify-between mb-1">
+                <StatusBadge status={ev.status} />
+                <View className="flex-row items-center">
+                  <Ionicons name="time-outline" size={12} color="#6B7280" />
+                  <Text className="text-gray-600 text-xs ml-1">{dateStr}</Text>
+                </View>
               </View>
 
               {ev.location?.label && (
                 <View className="flex-row items-center">
-                  <Ionicons name="location-outline" size={14} color="#6B7280" />
-                  <Text className="text-gray-600 text-sm ml-1.5" numberOfLines={1}>
+                  <Ionicons name="location-outline" size={12} color="#6B7280" />
+                  <Text className="text-gray-600 text-xs ml-1" numberOfLines={1}>
                     {ev.location.label}
                   </Text>
                 </View>
@@ -228,47 +362,62 @@ function CompactEventCard({ ev, index }: { ev: EventDoc; index: number }) {
           </View>
         </View>
 
-        {/* Funding Progress */}
-        <View className="mb-2">
-          <View className="flex-row justify-between items-center mb-1">
-            <Text className="text-gray-700 text-sm font-medium">Funding Progress</Text>
-            <Text className="text-gray-900 text-sm font-semibold">{Math.round(progress)}%</Text>
+        {/* Funding Progress - Only show for events that need sponsorship */}
+        {ev.sponsorshipRequired && (
+          <View className="mb-2">
+            <View className="flex-row justify-between items-center mb-1">
+              <Text className="text-gray-700 text-sm font-medium">Funding Progress</Text>
+              {hasValidGoal && (
+                <Text className="text-gray-900 text-sm font-semibold">{Math.round(percentage)}%</Text>
+              )}
+            </View>
+            <ProgressBar percentage={percentage} color={colorScheme.accent} />
+            <View className="flex-row justify-between mt-1">
+              <Text className="text-gray-500 text-xs">{formatCurrency(funding)} raised</Text>
+              <Text className="text-gray-500 text-xs">
+                {hasValidGoal ? `Goal: ${formatCurrency(ev.fundingGoal || 0)}` : 'No goal set'}
+              </Text>
+            </View>
           </View>
-          <ProgressBar percentage={progress} color={colorScheme.accent} />
-          <View className="flex-row justify-between mt-1">
-            <Text className="text-gray-500 text-xs">{formatCurrency(funding)} raised</Text>
-            <Text className="text-gray-500 text-xs">Goal: {formatCurrency(goal)}</Text>
-          </View>
-        </View>
+        )}
 
         {/* Sponsors Count */}
-        <View className="flex-row items-center">
-          <Ionicons name="people" size={14} color="#6B7280" />
-          <Text className="text-gray-600 text-sm ml-1.5">
-            {sponsorCount} sponsor{sponsorCount !== 1 ? 's' : ''}
-          </Text>
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center">
+            <Ionicons name="people" size={14} color="#6B7280" />
+            <Text className="text-gray-600 text-sm ml-1.5">
+              {sponsorCount} sponsor{sponsorCount !== 1 ? 's' : ''}
+            </Text>
+          </View>
+          
+          {ev.sponsorshipRequired && isUpcoming && (
+            <View className="bg-teal-100 px-2 py-1 rounded-full">
+              <Text className="text-teal-700 text-xs font-medium">Needs Sponsors</Text>
+            </View>
+          )}
         </View>
       </Pressable>
     </Animated.View>
   );
 }
 
-// Main Sponsor Dashboard
+// Main Sponsor Dashboard - UPDATED
 export default function SponsorDashboard() {
   const [events, setEvents] = useState<EventDoc[]>([]);
+  const [filteredEvents, setFilteredEvents] = useState<EventDoc[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState<EventFilter>('all');
   const [showAll, setShowAll] = useState(false);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
   const { formatCurrency } = useCurrency();
+  
 
+  // Fetch all events
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        // Get current date for filtering
-        const now = new Date();
-        
         // Query for events that require sponsorship
         const eventsQuery = query(
           collection(db, "events"), 
@@ -281,18 +430,19 @@ export default function SponsorDashboard() {
             ...(d.data() as any),
           }));
 
-          // Filter for upcoming and active events on the client side
-          const upcomingEvents = allEvents.filter((event) => {
-            const isUpcoming = isEventUpcoming(event);
-            const isActive = isEventActive(event);
-            return isUpcoming && isActive;
-          });
-          
-          // Sort by date (soonest first)
-          const sortedEvents = upcomingEvents.sort((a, b) => {
+          console.log('Fetched events:', allEvents.map(ev => ({
+            id: ev.id,
+            title: ev.title,
+            fundingGoal: ev.fundingGoal,
+            currentFunding: ev.currentFunding,
+            sponsorshipRequired: ev.sponsorshipRequired
+          })));
+
+          // Sort by date (most recent first)
+          const sortedEvents = allEvents.sort((a, b) => {
             const dateA = tsToDate(a.eventAt)?.getTime() || 0;
             const dateB = tsToDate(b.eventAt)?.getTime() || 0;
-            return dateA - dateB;
+            return dateB - dateA; // Most recent first
           });
           
           setEvents(sortedEvents);
@@ -312,141 +462,231 @@ export default function SponsorDashboard() {
     fetchEvents();
   }, []);
 
-  // Calculate analytics
-  const totalEvents = events.length;
-  const totalFunding = events.reduce((sum, event) => sum + (event.currentFunding || 0), 0);
-  const totalGoal = events.reduce((sum, event) => sum + (event.fundingGoal || 0), 0);
-  const totalSponsors = events.reduce((sum, event) => sum + (event.sponsorCount || 0), 0);
+  // Filter events based on active filter
+  useEffect(() => {
+    const filterEvents = () => {
+      let filtered = events;
+
+      switch (activeFilter) {
+        case 'upcoming':
+          filtered = events.filter(event => isEventUpcoming(event));
+          break;
+        case 'completed':
+          filtered = events.filter(event => isEventCompleted(event));
+          break;
+        case 'requires_sponsorship':
+          filtered = events.filter(event => requiresSponsorship(event) && isEventUpcoming(event));
+          break;
+        case 'all':
+        default:
+          filtered = events;
+          break;
+      }
+
+      setFilteredEvents(filtered);
+    };
+
+    filterEvents();
+  }, [events, activeFilter]);
+
+  // Calculate analytics based on filtered events
+  const totalEvents = filteredEvents.length;
+  const totalFunding = filteredEvents.reduce((sum, event) => sum + (event.currentFunding || 0), 0);
+  const totalGoal = filteredEvents.reduce((sum, event) => sum + (event.fundingGoal || 0), 0);
+  const totalSponsors = filteredEvents.reduce((sum, event) => sum + (event.sponsorCount || 0), 0);
+  const upcomingEventsCount = events.filter(event => isEventUpcoming(event)).length;
+  const completedEventsCount = events.filter(event => isEventCompleted(event)).length;
   
-  const displayedEvents = showAll ? events : events.slice(0, 3);
+  const displayedEvents = showAll ? filteredEvents : filteredEvents.slice(0, 6);
+
+  const handleFilterChange = (filter: EventFilter) => {
+    setActiveFilter(filter);
+    setShowAll(false); // Reset show all when filter changes
+  };
 
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" />
+      <View 
+        className="bg-teal-500 pt-4 px-4 border-b border-gray-200"
+        style={{ paddingTop: insets.top + 16 }}
+      >
+        <View className="flex-row items-center justify-between mb-4">
+          <View className="flex-1 items-center">
+            <Text className="text-xl font-bold text-white ">Home</Text>
+            <Text className="text-white text-base mt-1">
+              Discover beach cleanup opportunities
+            </Text>
+          </View>
+          
+          
+          
+        </View>
+      </View>
       
-      <ScrollView
+      
+      
+
+      <ScrollView 
         className="flex-1"
-        contentContainerStyle={{
-          paddingTop: insets.top + 16,
-          paddingBottom: insets.bottom + 80,
-          paddingHorizontal: 16,
-        }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View className="mb-6">
-          <Text className="text-3xl font-bold text-gray-900">Sponsor Dashboard</Text>
-          <Text className="text-gray-600 text-base mt-2">
-            Discover and support upcoming beach cleanup events
-          </Text>
-        </View>
-
-        {loading ? (
-          <View className="flex-1 justify-center items-center py-32">
-            <ActivityIndicator size="large" color="#14B8A6" />
-            <Text className="text-gray-600 font-medium mt-4 text-base">Loading events...</Text>
-          </View>
-        ) : (
-          <>
-            {/* Stats Overview */}
-            <View className="mb-6">
-              <Text className="text-lg font-semibold text-gray-900 mb-3">Overview</Text>
-              <View className="flex-row">
-                <StatsCard
-                  icon="calendar"
-                  label="Upcoming Events"
-                  value={totalEvents}
-                  color="#14B8A6"
-                  bgColor="bg-teal-50"
-                />
-                <StatsCard
-                  icon="wallet"
-                  label="Total Raised"
-                  value={formatCurrency(totalFunding)} 
-                  color="#3B82F6"
-                  bgColor="bg-blue-50"
-                />
-              </View>
-              <View className="flex-row mt-3">
-                <StatsCard
-                  icon="people"
-                  label="Active Sponsors"
-                  value={totalSponsors}
-                  color="#A855F7"
-                  bgColor="bg-purple-50"
-                />
-                <StatsCard
-                  icon="flag"
-                  label="Funding Goal"
-                  value={formatCurrency(totalGoal)} 
-                  color="#F59E0B"
-                  bgColor="bg-amber-50"
-                />
-              </View>
+        {/* Content starts here */}
+        <View className="px-4 pt-6 pb-8">
+          {loading ? (
+            <View className="flex-1 justify-center items-center py-32">
+              <ActivityIndicator size="large" color="#14B8A6" />
+              <Text className="text-gray-600 font-medium mt-4 text-base">Loading events...</Text>
             </View>
-
-            {/* Events Section */}
-            <View className="mb-6">
-              <View className="flex-row items-center justify-between mb-4">
-                <View>
-                  <Text className="text-lg font-semibold text-gray-900">
-                    Sponsorship Opportunities
-                  </Text>
-                  <Text className="text-gray-600 text-sm mt-1">
-                    {totalEvents} upcoming events seeking sponsorship
-                  </Text>
-                </View>
-                <View className="bg-teal-100 px-3 py-1.5 rounded-full">
-                  <Text className="text-teal-700 font-semibold text-xs">{totalEvents} Total</Text>
-                </View>
-              </View>
-
-              {events.length === 0 ? (
-                <View className="bg-white rounded-2xl p-8 items-center">
-                  <View className="bg-gray-100 rounded-full p-4 mb-4">
-                    <Ionicons name="calendar-outline" size={32} color="#9CA3AF" />
+          ) : (
+            <>
+              {/* Quick Stats Overview */}
+              <View className="flex-row justify-between mb-6 -mx-1">
+                <View className="flex-1 p-1">
+                  <View className="bg-white rounded-xl p-4 border border-gray-200">
+                    <View className="flex-row items-center mb-2">
+                      <Ionicons name="calendar" size={20} color="#14B8A6" />
+                      <Text className="text-gray-700 font-medium ml-2">Total</Text>
+                    </View>
+                    <Text className="text-gray-900 text-xl font-bold">{events.length}</Text>
+                    <Text className="text-gray-500 text-xs mt-1">Events</Text>
                   </View>
-                  <Text className="text-gray-900 font-semibold text-lg mb-2">No Events Available</Text>
-                  <Text className="text-gray-600 text-sm text-center">
-                    There are currently no upcoming events seeking sponsorship.
-                  </Text>
                 </View>
-              ) : (
-                <>
-                  {displayedEvents.map((ev, idx) => (
-                    <CompactEventCard key={ev.id} ev={ev} index={idx} />
-                  ))}
+                
+                <View className="flex-1 p-1">
+                  <View className="bg-white rounded-xl p-4 border border-gray-200">
+                    <View className="flex-row items-center mb-2">
+                      <Ionicons name="trending-up" size={20} color="#3B82F6" />
+                      <Text className="text-gray-700 font-medium ml-2">Raised</Text>
+                    </View>
+                    <Text className="text-gray-900 text-xl font-bold">
+                      {formatCurrency(totalFunding).replace('LKR', '').trim()}
+                    </Text>
+                    <Text className="text-gray-500 text-xs mt-1">Total</Text>
+                  </View>
+                </View>
+                
+                <View className="flex-1 p-1">
+                  <View className="bg-white rounded-xl p-4 border border-gray-200">
+                    <View className="flex-row items-center mb-2">
+                      <Ionicons name="rocket" size={20} color="#A855F7" />
+                      <Text className="text-gray-700 font-medium ml-2">Active</Text>
+                    </View>
+                    <Text className="text-gray-900 text-xl font-bold">{upcomingEventsCount}</Text>
+                    <Text className="text-gray-500 text-xs mt-1">Upcoming</Text>
+                  </View>
+                </View>
+              </View>
 
-                  {/* View More Button */}
-                  {events.length > 3 && (
-                    <Pressable
-                      onPress={() => setShowAll(!showAll)}
-                      className="bg-white border border-gray-200 rounded-2xl py-4 mt-2 items-center"
-                      style={{
-                        shadowColor: "#000",
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: 0.1,
-                        shadowRadius: 6,
-                        elevation: 3,
-                      }}
-                    >
-                      <View className="flex-row items-center">
-                        <Text className="text-gray-700 font-semibold text-base mr-2">
-                          {showAll ? "Show Less" : `View ${events.length - 3} More Events`}
-                        </Text>
-                        <Ionicons
-                          name={showAll ? "chevron-up" : "chevron-down"}
-                          size={20}
-                          color="#374151"
-                        />
-                      </View>
-                    </Pressable>
-                  )}
-                </>
-              )}
-            </View>
-          </>
-        )}
+              {/* Filter Section */}
+              <View className="mb-6">
+                <View className="flex-row items-center justify-between mb-3">
+                  <Text className="text-lg font-semibold text-gray-900">Browse Events</Text>
+                  <View className="bg-gray-100 px-2 py-1 rounded">
+                    <Text className="text-gray-700 text-xs font-medium">{filteredEvents.length} events</Text>
+                  </View>
+                </View>
+                
+                {/* Compact Filter Buttons */}
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  className="flex-row mb-2"
+                >
+                  <CompactFilterButton
+                    filter="all"
+                    currentFilter={activeFilter}
+                    onPress={handleFilterChange}
+                    icon="grid"
+                    label="All"
+                  />
+                  <CompactFilterButton
+                    filter="upcoming"
+                    currentFilter={activeFilter}
+                    onPress={handleFilterChange}
+                    icon="calendar"
+                    label="Upcoming"
+                  />
+                  <CompactFilterButton
+                    filter="completed"
+                    currentFilter={activeFilter}
+                    onPress={handleFilterChange}
+                    icon="checkmark-circle"
+                    label="Completed"
+                  />
+                  <CompactFilterButton
+                    filter="requires_sponsorship"
+                    currentFilter={activeFilter}
+                    onPress={handleFilterChange}
+                    icon="business"
+                    label="Need Sponsors"
+                  />
+                </ScrollView>
+                
+                {/* Active Filter Indicator */}
+                <ActiveFilterIndicator filter={activeFilter} count={filteredEvents.length} />
+              </View>
+
+              {/* Events Section */}
+              <View className="mb-6">
+                {filteredEvents.length === 0 ? (
+                  <View className="bg-white rounded-2xl p-8 items-center border border-gray-200">
+                    <View className="bg-gray-100 rounded-full p-4 mb-4">
+                      <Ionicons name="search-outline" size={32} color="#9CA3AF" />
+                    </View>
+                    <Text className="text-gray-900 font-semibold text-lg mb-2">No Events Found</Text>
+                    <Text className="text-gray-600 text-sm text-center">
+                      {activeFilter === 'upcoming' ? 'No upcoming events at the moment.' :
+                       activeFilter === 'completed' ? 'No completed events yet.' :
+                       activeFilter === 'requires_sponsorship' ? 'No events currently need sponsorship.' :
+                       'No events available.'}
+                    </Text>
+                    {activeFilter !== 'all' && (
+                      <Pressable
+                        onPress={() => setActiveFilter('all')}
+                        className="bg-teal-500 rounded-lg py-2 px-4 mt-4"
+                      >
+                        <Text className="text-white font-medium">Show All Events</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                ) : (
+                  <>
+                    {displayedEvents.map((ev, idx) => (
+                      <CompactEventCard key={ev.id} ev={ev} index={idx} />
+                    ))}
+
+                    {/* View More Button */}
+                    {filteredEvents.length > 6 && (
+                      <Pressable
+                        onPress={() => setShowAll(!showAll)}
+                        className="bg-white border border-gray-200 rounded-2xl py-3 mt-2 items-center"
+                        style={{
+                          shadowColor: "#000",
+                          shadowOffset: { width: 0, height: 2 },
+                          shadowOpacity: 0.1,
+                          shadowRadius: 6,
+                          elevation: 3,
+                        }}
+                      >
+                        <View className="flex-row items-center">
+                          <Text className="text-gray-700 font-semibold text-sm mr-2">
+                            {showAll ? "Show Less" : `View ${filteredEvents.length - 6} More Events`}
+                          </Text>
+                          <Ionicons
+                            name={showAll ? "chevron-up" : "chevron-down"}
+                            size={16}
+                            color="#374151"
+                          />
+                        </View>
+                      </Pressable>
+                    )}
+                  </>
+                )}
+              </View>
+            </>
+          )}
+        </View>
       </ScrollView>
     </View>
   );

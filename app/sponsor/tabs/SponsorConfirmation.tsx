@@ -46,7 +46,6 @@ export default function SponsorConfirmation() {
   const { user } = useAuth();
   const { formatCurrency } = useCurrency();
 
-
   // Real-time listener for sponsorship updates
   useEffect(() => {
     if (!sponsorshipId) return;
@@ -90,14 +89,6 @@ export default function SponsorConfirmation() {
 
     return () => unsubscribe();
   }, [eventId]);
-/*
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('en-LK', {
-      style: 'currency',
-      currency: 'LKR',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };*/
 
   const formatDate = (timestamp: any): string => {
     if (!timestamp) return "TBA";
@@ -200,7 +191,7 @@ export default function SponsorConfirmation() {
   if (loading || !sponsorship) {
     return (
       <View className="flex-1 bg-gray-50 justify-center items-center">
-        <StatusBar barStyle="dark-content" />
+        <StatusBar barStyle="light-content" backgroundColor="#14B8A6" />
         <Text className="text-gray-600 font-medium text-base">
           Loading sponsorship details...
         </Text>
@@ -213,22 +204,24 @@ export default function SponsorConfirmation() {
 
   return (
     <View className="flex-1 bg-gray-50">
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" backgroundColor="#14B8A6" />
       
-      {/* Header */}
+      {/* Fixed Header */}
       <View 
-        className="bg-white pt-4 px-4 border-b border-gray-200"
+        className="bg-teal-500 pt-4 px-4"
         style={{ paddingTop: insets.top + 16 }}
       >
-        <View className="flex-row items-center justify-between mb-4">
+        <View className="flex-row items-center justify-between pb-4">
           <Pressable
             onPress={handleBack}
-            className="w-10 h-10 items-center justify-center rounded-full bg-gray-100"
+            className="w-10 h-10 items-center justify-center rounded-full bg-white/20"
           >
-            <Ionicons name="chevron-back" size={24} color="#374151" />
+            <Ionicons name="chevron-back" size={24} color="white" />
           </Pressable>
           
-          <Text className="text-lg font-semibold text-gray-900">Sponsorship Details</Text>
+          <View className="flex-1 items-center">
+            <Text className="text-l font-bold text-white">Sponsorship Details</Text>
+          </View>
           
           <View className="w-10" />
         </View>
@@ -271,18 +264,28 @@ export default function SponsorConfirmation() {
 
           {/* Event Card */}
           <View className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-200">
+            <View className="flex-row items-center mb-3">
+              <Ionicons name="calendar" size={20} color="#14B8A6" />
+              <Text className="text-gray-900 font-semibold text-lg ml-2">Event Details</Text>
+            </View>
             <Text className="text-xl font-bold text-teal-700 mb-2">
               {sponsorship.eventTitle}
             </Text>
             {event?.location?.label && (
-              <Text className="text-gray-600 text-sm mb-3">
-                📍 {event.location.label}
-              </Text>
+              <View className="flex-row items-center mb-1">
+                <Ionicons name="location" size={16} color="#6B7280" />
+                <Text className="text-gray-600 text-sm ml-2">
+                  {event.location.label}
+                </Text>
+              </View>
             )}
             {event?.eventAt && (
-              <Text className="text-gray-600 text-sm">
-                📅 {formatDate(event.eventAt)}
-              </Text>
+              <View className="flex-row items-center">
+                <Ionicons name="time" size={16} color="#6B7280" />
+                <Text className="text-gray-600 text-sm ml-2">
+                  {formatDate(event.eventAt)}
+                </Text>
+              </View>
             )}
           </View>
 
@@ -290,7 +293,7 @@ export default function SponsorConfirmation() {
           <View className="bg-white rounded-2xl p-5 mb-6 shadow-sm border border-gray-200">
             <View className="flex-row items-center mb-4">
               <Ionicons name="receipt" size={24} color="#14B8A6" />
-              <Text className="text-xl font-bold text-gray-900 ml-3">
+              <Text className="text-gray-900 font-semibold text-lg ml-2">
                 Sponsorship Details
               </Text>
             </View>
@@ -400,7 +403,7 @@ export default function SponsorConfirmation() {
           <View className="bg-blue-50 rounded-2xl p-5 mb-6 border border-blue-200">
             <View className="flex-row items-center mb-4">
               <Ionicons name="information-circle" size={24} color="#2563EB" />
-              <Text className="text-xl font-bold text-blue-900 ml-3">
+              <Text className="text-blue-900 font-bold text-lg ml-2">
                 {sponsorship.status === 'approved' ? 'Next Steps' :
                  sponsorship.status === 'rejected' ? 'What Happens Next?' :
                  'What to Expect'}

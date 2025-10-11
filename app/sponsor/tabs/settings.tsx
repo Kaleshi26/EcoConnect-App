@@ -34,18 +34,18 @@ export default function SponsorSettings() {
       
       {/* Header */}
       <View 
-        className="bg-white pt-4 px-4 border-b border-gray-200"
+        className="bg-teal-500 pt-4 px-4 border-b border-gray-200"
         style={{ paddingTop: insets.top + 16 }}
       >
         <View className="flex-row items-center justify-between mb-4">
           <Pressable
             onPress={handleBack}
-            className="w-10 h-10 items-center justify-center rounded-full bg-gray-100"
+            className="w-10 h-10 items-center justify-center rounded-full bg-white/20"
           >
-            <Ionicons name="chevron-back" size={24} color="#374151" />
+            <Ionicons name="chevron-back" size={24} color="white" />
           </Pressable>
           
-          <Text className="text-lg font-semibold text-gray-900">Settings</Text>
+          <Text className="text-lg font-semibold text-white">Settings</Text>
           
           <View className="w-10" />
         </View>
