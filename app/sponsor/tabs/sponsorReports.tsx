@@ -313,13 +313,28 @@ export default function SponsorReports() {
   const filteredCount = filteredSponsorships.length;
 
   return (
-    <View className="flex-1 bg-slate-50">
+<View className="flex-1 bg-slate-50">
+      
+      {/* Fixed Header */}
+      <View 
+        className="bg-teal-500 pt-4 px-4"
+        style={{ paddingTop: insets.top + 16 }}
+      >
+        <View className="flex-row items-center justify-between pb-4">
+          <View className="flex-1 items-center">
+            <Text className="text-xl font-bold text-white">My Sponsorships</Text>
+            <Text className="text-white text-base mt-1">
+              Track your sponsorship history
+            </Text>
+          </View>
+        </View>
+      </View>
+
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ 
           padding: 20, 
-          paddingBottom: 100,
-          paddingTop: insets.top + 20 
+          paddingBottom: 100
         }}
         refreshControl={
           <RefreshControl
@@ -331,13 +346,7 @@ export default function SponsorReports() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View className="mb-6">
-          <Text className="text-3xl font-extrabold text-teal-600">My Sponsorships</Text>
-          <Text className="text-gray-600 mt-2">
-            {totalSponsorships} sponsorship{totalSponsorships !== 1 ? 's' : ''} • {formatCurrency(totalAmount)} total
-          </Text>
-        </View>
+
 
         {sponsorships.length === 0 ? (
           <View className="flex-1 justify-center items-center py-20">
@@ -357,52 +366,66 @@ export default function SponsorReports() {
           </View>
         ) : (
           <>
-            {/* Summary Cards */}
-            <View className="flex-row justify-between mb-6 space-x-4">
-              <View className="flex-1 bg-white rounded-2xl border border-gray-200 p-5">
-                <Text className="text-lg font-bold text-teal-700 mb-2">Total Sponsored</Text>
-                <Text className="text-2xl font-bold text-teal-600">{formatCurrency(totalAmount)}</Text>
+            {/* Summary Cards  */}
+            <View className="flex-row justify-between mb-4 -mx-1">
+              <View className="flex-1 p-1">
+                <View className="bg-white rounded-xl p-3 border border-gray-200">
+                  <Text className="text-gray-700 text-s font-medium mb-1">Total Sponsored</Text>
+                  <Text className="text-gray-900 text-base font-bold">{formatCurrency(totalAmount)}</Text>
+                </View>
               </View>
               
-              <View className="flex-1 bg-white rounded-2xl border border-gray-200 p-5">
-                <Text className="text-lg font-bold text-teal-700 mb-2">Total Sponsorships</Text>
-                <Text className="text-2xl font-bold text-teal-600">{totalSponsorships}</Text>
+              <View className="flex-1 p-1">
+                <View className="bg-white rounded-xl p-3 border border-gray-200">
+                  <Text className="text-gray-700 text-s font-medium mb-1">Total Sponsorships</Text>
+                  <Text className="text-gray-900 text-base font-bold">{totalSponsorships}</Text>
+                </View>
               </View>
             </View>
 
             {/* Additional Stats */}
-            <View className="flex-row justify-between mb-6 space-x-4">
-              <View className="flex-1 bg-white rounded-2xl border border-gray-200 p-5">
-                <Text className="text-lg font-bold text-teal-700 mb-2">Approved</Text>
-                <Text className="text-2xl font-bold text-teal-600">{approvedSponsorships}</Text>
+<View className="flex-row justify-between mb-6 -mx-1">
+              <View className="flex-1 p-1">
+                <View className="bg-white rounded-xl p-3 border border-gray-200">
+                  <Text className="text-gray-700 text-s font-medium mb-1">Approved</Text>
+                  <Text className="text-gray-900 text-base font-bold">{approvedSponsorships}</Text>
+                </View>
               </View>
               
-              <View className="flex-1 bg-white rounded-2xl border border-gray-200 p-5">
-                <Text className="text-lg font-bold text-teal-700 mb-2">Pending</Text>
-                <Text className="text-2xl font-bold text-teal-600">{pendingSponsorships}</Text>
+              <View className="flex-1 p-1">
+                <View className="bg-white rounded-xl p-3 border border-gray-200">
+                  <Text className="text-gray-700 text-s font-medium mb-1">Pending</Text>
+                  <Text className="text-gray-900 text-base font-bold">{pendingSponsorships}</Text>
+                </View>
               </View>
             </View>
 
             {/* Filter Section */}
-            <View className="mb-6">
-              <Text className="text-xl font-bold text-teal-700 mb-4">Filter Sponsorships</Text>
+                  <View className="mb-6">
+              <View className="flex-row items-center justify-between mb-3">
+                <Text className="text-lg font-semibold text-gray-900">Filter Sponsorships</Text>
+                <View className="bg-gray-100 px-2 py-1 rounded">
+                  <Text className="text-gray-700 text-s font-medium">{filteredCount} events</Text>
+                </View>
+              </View>
+              
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
-                className="flex-row space-x-3"
+                className="flex-row mb-2"
               >
                 {filterOptions.map((option) => (
                   <Pressable
                     key={option.value}
                     onPress={() => handleFilterPress(option.value)}
-                    className={`px-4 py-3 rounded-xl border ${
+                    className={`px-3 py-2 rounded-full border mx-1 ${
                       activeFilter === option.value
                         ? 'bg-teal-500 border-teal-500'
                         : 'bg-white border-gray-300'
                     }`}
                   >
                     <Text
-                      className={`font-medium ${
+                      className={`text-s font-medium ${
                         activeFilter === option.value ? 'text-white' : 'text-gray-700'
                       }`}
                     >
@@ -414,21 +437,20 @@ export default function SponsorReports() {
               
               {/* Filter Results Summary */}
               {activeFilter !== 'all' && (
-                <View className="mt-4 bg-teal-50 rounded-xl p-4 border border-teal-200">
-                  <Text className="text-teal-700 font-medium text-center">
-                    Showing {filteredCount} {activeFilter} sponsorship{filteredCount !== 1 ? 's' : ''} • {formatCurrency(filteredAmount)} total
+                <View className="bg-teal-50 rounded-lg px-3 py-2 border border-teal-200">
+                  <Text className="text-teal-700 text-xs text-center">
+                    Showing {filteredCount} {activeFilter} sponsorship{filteredCount !== 1 ? 's' : ''}
                   </Text>
                 </View>
               )}
             </View>
-
             {/* Sponsorships List Header */}
             <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-xl font-bold text-teal-700">
+              <Text className="text-lg font-semibold text-gray-900">
                 Your Sponsorships {activeFilter !== 'all' && `(${getStatusText(activeFilter)})`}
               </Text>
-              <Text className="text-gray-500 text-sm">
-                {displayedSponsorships.length} of {filteredSponsorships.length} shown
+              <Text className="text-gray-500 text-xs">
+                {displayedSponsorships.length} of {filteredSponsorships.length}
               </Text>
             </View>
             
@@ -452,7 +474,7 @@ export default function SponsorReports() {
               </View>
             ) : (
               <>
-                {/* Sponsorships List */}
+               {/* Sponsorships List */}
                 {displayedSponsorships.map((sponsorship) => {
                   const event = events.find((e) => e.id === sponsorship.eventId);
                   const eventDate = tsToDate(event?.eventAt);
@@ -462,24 +484,24 @@ export default function SponsorReports() {
                     <Pressable
                       key={sponsorship.id}
                       onPress={() => handleSponsorshipPress(sponsorship.id, sponsorship.eventId)}
-                      className="bg-white rounded-2xl border border-gray-200 overflow-hidden mb-6"
+                      className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-4"
                     >
                       {/* Event Image */}
                       {event?.image && (
                         <Image
                           source={{ uri: event.image }}
-                          className="w-full h-48"
+                          className="w-full h-32"
                           resizeMode="cover"
                         />
                       )}
                       
-                      <View className="p-6">
+                      <View className="p-4">
                         {/* Event Header */}
-                        <View className="flex-row justify-between items-start mb-4">
-                          <Text className="text-xl font-bold text-teal-700 flex-1 mr-3">
+                        <View className="flex-row justify-between items-start mb-3">
+                          <Text className="text-base font-semibold text-gray-900 flex-1 mr-2">
                             {event?.title || sponsorship.eventTitle}
                           </Text>
-                          <View className={`px-3 py-1 rounded-full ${getStatusBackground(sponsorship.status)}`}>
+                          <View className={`px-2 py-1 rounded-full ${getStatusBackground(sponsorship.status)}`}>
                             <Text className={`text-xs font-medium capitalize ${getStatusColor(sponsorship.status)}`}>
                               {getStatusText(sponsorship.status)}
                             </Text>
@@ -487,110 +509,59 @@ export default function SponsorReports() {
                         </View>
 
                         {/* Sponsorship Details */}
-                        <View className="space-y-3 mb-4">
+                        <View className="space-y-2 mb-3">
                           <View className="flex-row items-center">
-                            <Ionicons name="calendar-outline" size={16} color="#6B7280" />
-                            <Text className="text-gray-600 ml-2">
-                              Event Date: {formatDate(eventDate)}
+                            <Ionicons name="calendar-outline" size={12} color="#6B7280" />
+                            <Text className="text-gray-600 text-xs ml-2">
+                              Event: {formatDate(eventDate)}
                             </Text>
                           </View>
                           
                           <View className="flex-row items-center">
-                            <Ionicons name="time-outline" size={16} color="#6B7280" />
-                            <Text className="text-gray-600 ml-2">
+                            <Ionicons name="time-outline" size={12} color="#6B7280" />
+                            <Text className="text-gray-600 text-xs ml-2">
                               Sponsored: {formatDate(sponsorshipDate)}
                             </Text>
                           </View>
 
                           {event?.location?.label && (
                             <View className="flex-row items-center">
-                              <Ionicons name="location-outline" size={16} color="#6B7280" />
-                              <Text className="text-gray-600 ml-2">{event.location.label}</Text>
+                              <Ionicons name="location-outline" size={12} color="#6B7280" />
+                              <Text className="text-gray-600 text-xs ml-2">{event.location.label}</Text>
                             </View>
                           )}
                         </View>
 
                         {/* Sponsorship Summary */}
-                        <View className="bg-teal-50 rounded-xl p-4 border-l-4 border-l-teal-500">
-                          <Text className="text-lg font-semibold text-teal-700 mb-3">
-                            Your Sponsorship Details
-                          </Text>
-                          
-                          <View className="space-y-3">
-                            <View className="flex-row justify-between items-center">
-                              <Text className="text-gray-600">Amount:</Text>
-                              <Text className="text-teal-700 font-bold text-lg">
-                                {formatCurrency(sponsorship.amount)}
-                              </Text>
-                            </View>
-                            
-                            <View className="flex-row justify-between items-center">
-                              <Text className="text-gray-600">Type:</Text>
-                              <Text className="text-teal-700 font-medium">
-                                {getSponsorshipTypeText(sponsorship.sponsorshipType)}
-                              </Text>
-                            </View>
-
-                            {sponsorship.companyName && (
-                              <View className="flex-row justify-between items-center">
-                                <Text className="text-gray-600">Company:</Text>
-                                <Text className="text-gray-600">{sponsorship.companyName}</Text>
-                              </View>
-                            )}
-
-                            {/* In-Kind Description */}
-                            {sponsorship.inKindDescription && (
-                              <View className="mt-2">
-                                <Text className="text-gray-600 text-sm mb-1">In-Kind Contribution:</Text>
-                                <Text className="text-gray-700 text-sm italic">
-                                  {sponsorship.inKindDescription}
-                                </Text>
-                              </View>
-                            )}
-
-                            {/* Message to Organizer */}
-                            {sponsorship.message && (
-                              <View className="mt-2">
-                                <Text className="text-gray-600 text-sm mb-1">Your Message:</Text>
-                                <Text className="text-gray-700 text-sm">
-                                  {sponsorship.message}
-                                </Text>
-                              </View>
-                            )}
+                        <View className="bg-teal-50 rounded-lg p-3 border-l-2 border-l-teal-500">
+                          <View className="flex-row justify-between items-center mb-2">
+                            <Text className="text-gray-600 text-xs">Amount:</Text>
+                            <Text className="text-teal-700 font-bold text-sm">
+                              {formatCurrency(sponsorship.amount)}
+                            </Text>
                           </View>
+                          
+                          <View className="flex-row justify-between items-center">
+                            <Text className="text-gray-600 text-xs">Type:</Text>
+                            <Text className="text-teal-700 font-medium text-xs">
+                              {getSponsorshipTypeText(sponsorship.sponsorshipType)}
+                            </Text>
+                          </View>
+
+                          {sponsorship.companyName && (
+                            <View className="flex-row justify-between items-center mt-1">
+                              <Text className="text-gray-600 text-xs">Company:</Text>
+                              <Text className="text-gray-600 text-xs">{sponsorship.companyName}</Text>
+                            </View>
+                          )}
                         </View>
 
-                        {/* Event Status (if available) */}
-                        {event && (
-                          <View className="mt-4 pt-4 border-t border-gray-200">
-                            <Text className="text-lg font-semibold text-teal-700 mb-2">
-                              Event Status
-                            </Text>
-                            <View className="flex-row items-center justify-between">
-                              <View className="flex-row items-center">
-                                <Ionicons name="information-circle" size={16} color="#6B7280" />
-                                <Text className="text-gray-600 ml-2 capitalize">
-                                  {event.status || "Upcoming"}
-                                </Text>
-                              </View>
-                              {event.wasteCollected && event.status === 'completed' && (
-                                <View className="flex-row items-center">
-                                  <Ionicons name="leaf-outline" size={16} color="#10B981" />
-                                  <Text className="text-green-600 text-sm ml-1">
-                                    {event.wasteCollected} kg collected
-                                  </Text>
-                                </View>
-                              )}
-                            </View>
-                          </View>
-                        )}
-
                         {/* Tap to view details */}
-                        <View className="flex-row items-center justify-center mt-4 pt-4 border-t border-gray-200">
-                          <Text className="text-teal-600 font-medium text-sm">
-                            Tap to view sponsorship details
+                        <View className="flex-row items-center justify-center mt-3 pt-3 border-t border-gray-200">
+                          <Text className="text-teal-600 font-medium text-xs">
+                            Tap to view details
                           </Text>
-                          <Ionicons name="chevron-forward" size={16} color="#14B8A6" />
+                          <Ionicons name="chevron-forward" size={12} color="#14B8A6" />
                         </View>
                       </View>
                     </Pressable>
@@ -599,24 +570,24 @@ export default function SponsorReports() {
 
                 {/* View More / Show Less Buttons */}
                 {filteredSponsorships.length > INITIAL_ITEMS_TO_SHOW && (
-                  <View className="flex-row justify-center space-x-4 mt-6">
+                  <View className="flex-row justify-center mt-4">
                     {hasMoreSponsorships ? (
                       <Pressable
                         onPress={handleViewMore}
-                        className="bg-teal-500 rounded-xl py-3 px-6 flex-row items-center"
+                        className="bg-teal-500 rounded-lg py-2 px-4 flex-row items-center"
                       >
-                        <Ionicons name="chevron-down" size={20} color="white" />
-                        <Text className="text-white font-bold text-lg ml-2">
-                          View More ({filteredSponsorships.length - displayedSponsorships.length} remaining)
+                        <Ionicons name="chevron-down" size={16} color="white" />
+                        <Text className="text-white font-medium text-sm ml-1">
+                          View More ({filteredSponsorships.length - displayedSponsorships.length})
                         </Text>
                       </Pressable>
                     ) : (
                       <Pressable
                         onPress={handleShowLess}
-                        className="bg-gray-500 rounded-xl py-3 px-6 flex-row items-center"
+                        className="bg-gray-500 rounded-lg py-2 px-4 flex-row items-center"
                       >
-                        <Ionicons name="chevron-up" size={20} color="white" />
-                        <Text className="text-white font-bold text-lg ml-2">
+                        <Ionicons name="chevron-up" size={16} color="white" />
+                        <Text className="text-white font-medium text-sm ml-1">
                           Show Less
                         </Text>
                       </Pressable>

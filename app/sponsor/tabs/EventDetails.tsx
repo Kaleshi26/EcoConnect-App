@@ -30,6 +30,8 @@ type EventDoc = {
   fundingGoal?: number;
   currentFunding?: number;
   image?: string;
+  imageUrl?: string;
+  imageUrls?: string[];
   goal?: string;
   organizer?: string;
   organizerId?: string;
@@ -82,14 +84,6 @@ function formatTime(d?: Date | null): string {
     minute: '2-digit',
   });
 }
-
-/*function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-  }).format(amount);
-}*/
 
 function calculateDaysLeft(eventDate?: Date | null): string {
   if (!eventDate) return "TBA";
@@ -147,8 +141,37 @@ function getEventStatus(event: EventDoc): string {
   return normalizedStatus || 'upcoming';
 }
 
-// Progress Bar Component
-function ProgressBar({ percentage, color = "#14B8A6", height = 8 }: any) {
+// NEW: Safe progress calculation
+function calculateFundingProgress(event: EventDoc): { percentage: number; hasValidGoal: boolean } {
+  const funding = event.currentFunding || 0;
+  const goal = event.fundingGoal || 0;
+  
+  // If no goal is set, we can't calculate a meaningful percentage
+  if (goal <= 0) {
+    return { percentage: 0, hasValidGoal: false };
+  }
+  
+  const percentage = (funding / goal) * 100;
+  return { percentage: Math.min(percentage, 100), hasValidGoal: true };
+}
+
+// NEW: Function to get the correct image URL
+function getEventImage(event: EventDoc): string | null {
+  // Priority order: imageUrls (array) -> imageUrl (string) -> image (old field)
+  if (event.imageUrls && event.imageUrls.length > 0) {
+    return event.imageUrls[0];
+  }
+  if (event.imageUrl) {
+    return event.imageUrl;
+  }
+  if (event.image) {
+    return event.image;
+  }
+  return null;
+}
+
+// Progress Bar Component - UPDATED
+function ProgressBar({ percentage, color = "#14B8A6", height = 8, showPercentage = true }: any) {
   return (
     <View className="h-2 bg-gray-200 rounded-full overflow-hidden">
       <View 
@@ -159,6 +182,11 @@ function ProgressBar({ percentage, color = "#14B8A6", height = 8 }: any) {
           height: height,
         }}
       />
+      {showPercentage && (
+        <View className="absolute inset-0 items-center justify-center">
+          <Text className="text-xs font-bold text-gray-800">{Math.round(percentage)}%</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -251,6 +279,93 @@ function SponsorshipStatus({ event }: { event: EventDoc }) {
   return null;
 }
 
+// Image Gallery Component
+function EventImageGallery({ event }: { event: EventDoc }) {
+  const imageUrl = getEventImage(event);
+  
+  if (!imageUrl) {
+    return (
+      <View className="w-full h-64 bg-teal-100 items-center justify-center">
+        <Ionicons name="calendar" size={64} color="#14B8A6" />
+        <Text className="text-teal-700 font-medium mt-2">Event Image</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View className="w-full">
+      <Image
+        source={{ uri: imageUrl }}
+        className="w-full h-64"
+        resizeMode="cover"
+      />
+      
+      {event.imageUrls && event.imageUrls.length > 1 && (
+        <View className="absolute top-4 right-4 bg-black/70 px-3 py-1 rounded-full">
+          <Text className="text-white text-sm font-medium">
+            {event.imageUrls.length} photos
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// NEW: Funding Progress Component
+function FundingProgress({ event, formatCurrency }: { event: EventDoc; formatCurrency: (amount: number) => string }) {
+  const funding = event.currentFunding || 0;
+  const goal = event.fundingGoal || 0;
+  const { percentage, hasValidGoal } = calculateFundingProgress(event);
+  const sponsorCount = event.sponsorCount || 0;
+
+  if (!event.sponsorshipRequired) {
+    return null;
+  }
+
+  return (
+    <View className="bg-white rounded-xl p-5 mb-6 shadow-sm border border-gray-200">
+      <View className="flex-row items-center justify-between mb-3">
+        <Text className="text-gray-900 font-semibold text-lg">
+          Funding Progress
+        </Text>
+        {hasValidGoal && (
+          <Text className="text-gray-700 font-bold">
+            {Math.round(percentage)}%
+          </Text>
+        )}
+      </View>
+      
+      {hasValidGoal ? (
+        <>
+          <ProgressBar percentage={percentage} height={10} showPercentage={false} />
+          
+          <View className="flex-row justify-between mt-2">
+            <Text className="text-gray-600 text-sm">
+              {formatCurrency(funding)} raised
+            </Text>
+            <Text className="text-gray-600 text-sm">
+              Goal: {formatCurrency(goal)}
+            </Text>
+          </View>
+        </>
+      ) : (
+        <View className="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
+          <Text className="text-yellow-800 text-sm text-center">
+            No funding goal set. {formatCurrency(funding)} raised so far.
+          </Text>
+        </View>
+      )}
+      
+      <View className="flex-row items-center mt-3">
+        <Ionicons name="people" size={16} color="#6B7280" />
+        <Text className="text-gray-600 text-sm ml-2">
+          {sponsorCount} sponsor{sponsorCount !== 1 ? 's' : ''} supporting
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 export default function EventDetails() {
   const { eventId } = useLocalSearchParams();
   const [event, setEvent] = useState<EventDoc | null>(null);
@@ -260,7 +375,6 @@ export default function EventDetails() {
   const router = useRouter();
   const { user } = useAuth();
   const { formatCurrency } = useCurrency();
-
 
   useEffect(() => {
     if (!eventId) {
@@ -275,9 +389,21 @@ export default function EventDetails() {
       eventDocRef,
       (docSnap) => {
         if (docSnap.exists()) {
+          const eventData = docSnap.data();
+          console.log('Event data received:', {
+            id: docSnap.id,
+            title: eventData.title,
+            fundingGoal: eventData.fundingGoal,
+            currentFunding: eventData.currentFunding,
+            sponsorshipRequired: eventData.sponsorshipRequired,
+            image: eventData.image,
+            imageUrl: eventData.imageUrl,
+            imageUrls: eventData.imageUrls
+          });
+          
           setEvent({
             id: docSnap.id,
-            ...docSnap.data(),
+            ...eventData,
           } as EventDoc);
           setError(null);
         } else {
@@ -316,7 +442,6 @@ export default function EventDetails() {
       return;
     }
 
-    // Navigate to sponsor form page
     router.push({
       pathname: "/sponsor/tabs/SponsorForm",
       params: { 
@@ -359,7 +484,7 @@ export default function EventDetails() {
           {error || "Event not found"}
         </Text>
         <Text className="text-gray-600 text-base text-center mb-6">
-          The event you are looking for doesnot exist or may have been removed.
+          The event you are looking for does not exist or may have been removed.
         </Text>
         <Pressable
           onPress={handleBack}
@@ -372,54 +497,40 @@ export default function EventDetails() {
   }
 
   const eventDate = tsToDate(event.eventAt);
-  const funding = event.currentFunding || 0;
-  const goal = event.fundingGoal || 1;
-  const progress = (funding / goal) * 100;
-  const sponsorCount = event.sponsorCount || 0;
   const daysLeft = calculateDaysLeft(eventDate);
   const eventStatus = getEventStatus(event);
   const canSponsor = canSponsorEvent(event);
 
   return (
     <View className="flex-1 bg-gray-50">
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" backgroundColor="#14B8A6" />
       
-      {/* Header */}
+      {/* Enhanced Header */}
       <View 
-        className="bg-white pt-4 px-4 border-b border-gray-200"
+        className="bg-teal-500 pt-4 px-4"
         style={{ paddingTop: insets.top + 16 }}
       >
-        <View className="flex-row items-center justify-between mb-4">
+        <View className="flex-row items-center justify-between pb-4">
           <Pressable
             onPress={handleBack}
-            className="w-10 h-10 items-center justify-center rounded-full bg-gray-100"
+            className="w-10 h-10 items-center justify-center rounded-full bg-white/20"
           >
-            <Ionicons name="chevron-back" size={24} color="#374151" />
+            <Ionicons name="chevron-back" size={24} color="white" />
           </Pressable>
           
-          <StatusBadge status={eventStatus} />
+          <View className="flex-1 items-center">
+            <Text className="text-white text-lg font-semibold">Event Details</Text>
+          </View>
           
-          <View className="w-10" />
+          <StatusBadge status={eventStatus} />
         </View>
       </View>
-
       <ScrollView 
         className="flex-1"
         showsVerticalScrollIndicator={false}
       >
         {/* Event Image */}
-        {event.image ? (
-          <Image
-            source={{ uri: event.image }}
-            className="w-full h-64"
-            resizeMode="cover"
-          />
-        ) : (
-          <View className="w-full h-64 bg-teal-100 items-center justify-center">
-            <Ionicons name="calendar" size={64} color="#14B8A6" />
-            <Text className="text-teal-700 font-medium mt-2">Event Image</Text>
-          </View>
-        )}
+        <EventImageGallery event={event} />
 
         {/* Content */}
         <View className="px-4 pt-6 pb-8">
@@ -470,87 +581,63 @@ export default function EventDetails() {
             </View>
           )}
 
-          {/* Funding Progress */}
-          {event.sponsorshipRequired && (
-            <View className="bg-white rounded-xl p-5 mb-6 shadow-sm border border-gray-200">
-              <View className="flex-row items-center justify-between mb-3">
-                <Text className="text-gray-900 font-semibold text-lg">
-                  Funding Progress
-                </Text>
-                <Text className="text-gray-700 font-bold">
-                  {Math.round(progress)}%
-                </Text>
-              </View>
-              
-              <ProgressBar percentage={progress} height={10} />
-              
-              <View className="flex-row justify-between mt-2">
-                <Text className="text-gray-600 text-sm">
-                  {formatCurrency(funding)} raised
-                </Text>
-                <Text className="text-gray-600 text-sm">
-                  Goal: {formatCurrency(goal)}
-                </Text>
-              </View>
-              
-              <View className="flex-row items-center mt-3">
-                <Ionicons name="people" size={16} color="#6B7280" />
-                <Text className="text-gray-600 text-sm ml-2">
-                  {sponsorCount} sponsor{sponsorCount !== 1 ? 's' : ''} supporting
-                </Text>
-              </View>
+          {/* Funding Progress - UPDATED */}
+          <FundingProgress event={event} formatCurrency={formatCurrency} />
+
+{/* Event Details Card */}
+          <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm border border-gray-200">
+            <View className="flex-row items-center mb-5">
+              <Ionicons name="information-circle" size={24} color="#14B8A6" />
+              <Text className="text-gray-900 font-bold text-xl ml-2">
+                Event Details
+              </Text>
             </View>
-          )}
+            
+            <View className="space-y-4">
+              <InfoRow
+                icon="calendar"
+                label="Date & Time"
+                value={eventDate ? `${formatDate(eventDate)} at ${formatTime(eventDate)}` : "TBA"}
+              />
+              
+              <InfoRow
+                icon="location"
+                label="Location"
+                value={event.location?.label || event.location?.address}
+              />
+              
+              {event.category && (
+                <InfoRow
+                  icon="pricetag"
+                  label="Category"
+                  value={event.category}
+                />
+              )}
+              
+              {event.goal && (
+                <InfoRow
+                  icon="flag"
+                  label="Event Goal"
+                  value={event.goal}
+                />
+              )}
+              
+              {(event.maxVolunteers || event.volunteersNeeded) && (
+                <InfoRow
+                  icon="people"
+                  label="Volunteer Capacity"
+                  value={`${event.currentVolunteers || 0} / ${event.maxVolunteers || event.volunteersNeeded} volunteers`}
+                />
+              )}
 
-          {/* Event Details */}
-          <View className="bg-white rounded-xl p-5 mb-6 shadow-sm border border-gray-200">
-            <Text className="text-gray-900 font-semibold text-lg mb-4">
-              Event Details
-            </Text>
-            
-            <InfoRow
-              icon="calendar"
-              label="Date & Time"
-              value={eventDate ? `${formatDate(eventDate)} at ${formatTime(eventDate)}` : "TBA"}
-            />
-            
-            <InfoRow
-              icon="location"
-              label="Location"
-              value={event.location?.label || event.location?.address}
-            />
-            
-            {event.category && (
-              <InfoRow
-                icon="pricetag"
-                label="Category"
-                value={event.category}
-              />
-            )}
-            
-            {event.goal && (
-              <InfoRow
-                icon="flag"
-                label="Event Goal"
-                value={event.goal}
-              />
-            )}
-            
-            {(event.maxVolunteers || event.volunteersNeeded) && (
-              <InfoRow
-                icon="people"
-                label="Volunteer Capacity"
-                value={`${event.currentVolunteers || 0} / ${event.maxVolunteers || event.volunteersNeeded} volunteers`}
-              />
-            )}
-
-            {event.resourcesNeeded && (
-              <InfoRow
-                icon="construct"
-                label="Resources Needed"
-                value={event.resourcesNeeded}
-              />
-            )}
+              {event.resourcesNeeded && (
+                <InfoRow
+                  icon="construct"
+                  label="Resources Needed"
+                  value={event.resourcesNeeded}
+                />
+              )}
+            </View>
           </View>
 
           {/* Organizer Info */}
@@ -607,7 +694,7 @@ export default function EventDetails() {
 
       {/* Sponsor Button - Only show if event can be sponsored */}
       {canSponsor && (
-        <View className="px-4 pb-4 pt-3 bg-white border-t border-gray-200" style={{ paddingBottom: insets.bottom + 16 }}>
+        <View className="px-8 pb-4 pt-3 bg-white border-t border-gray-200" style={{ paddingBottom: insets.bottom + 1 }}>
           <Pressable
             onPress={handleSponsorEvent}
             className="bg-teal-500 rounded-xl py-4 items-center shadow-lg"
