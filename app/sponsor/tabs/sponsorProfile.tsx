@@ -291,51 +291,45 @@ export default function SponsorProfileSummary() {
     }
   }, [sponsorProfile]);
 
-
 const handleLogout = async () => {
-  Alert.alert(
-    "Confirm Logout",
-    "Are you sure you want to logout?",
-    [
-      {
-        text: "Cancel",
-        style: "cancel"
-      },
-      {
-        text: "Logout",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            // Clear any cached data first
-            if (Platform.OS === 'web') {
-              // Clear localStorage and sessionStorage
-              localStorage.clear();
-              sessionStorage.clear();
-              
-              // Clear any Firebase auth persistence
-              await auth.signOut();
-              
-              // Force complete reload
-              window.location.href = '/auth/login';
-            } else {
-              // Native logout
+  // For web, use browser confirm instead of Alert.alert
+  if (Platform.OS === 'web') {
+    const confirmed = window.confirm("Are you sure you want to logout?");
+    if (!confirmed) return;
+    
+    try {
+      await signOut(auth);
+      window.location.href = '/auth/login';
+    } catch (error) {
+      console.error("Logout error:", error);
+      window.location.href = '/auth/login';
+    }
+  } else {
+    // For mobile, use Alert.alert
+    Alert.alert(
+      "Confirm Logout",
+      "Are you sure you want to logout?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            try {
               await signOut(auth);
               router.replace("/(public)/auth/login");
-            }
-          } catch (error: any) {
-            console.error("Logout error:", error);
-            
-            // Even if signOut fails, try to redirect anyway
-            if (Platform.OS === 'web') {
-              window.location.href = '/auth/login';
-            } else {
+            } catch (error: any) {
+              console.error("Logout error:", error);
               router.replace("/(public)/auth/login");
             }
           }
         }
-      }
-    ]
-  );
+      ]
+    );
+  }
 };
   const openEditModal = (field: string, value: string) => {
     setEditingField(field);
@@ -527,13 +521,14 @@ const handleLogout = async () => {
                   </Text>
                   <Text className="text-gray-500 text-xs">Sponsored</Text>
                 </View>
-                <View className="items-start">
+                <View className="items-center">
                   <Text className="text-lg font-semibold text-gray-900">
                     {eventsSupported}
                   </Text>
                   <Text className="text-gray-500 text-xs">Events</Text>
                 </View>
-                <View className="items-start">
+                
+                <View className="items-end">
                   <Text className="text-lg font-semibold text-gray-900">
                     {memberSince}
                   </Text>

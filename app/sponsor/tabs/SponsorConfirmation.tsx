@@ -2,10 +2,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { db } from "@/services/firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
+import * as Print from 'expo-print';
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { shareAsync } from 'expo-sharing';
 import { doc, onSnapshot } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
-import { Pressable, ScrollView, StatusBar, Text, View } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StatusBar, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type SponsorshipDoc = {
@@ -45,6 +47,7 @@ export default function SponsorConfirmation() {
   const router = useRouter();
   const { user } = useAuth();
   const { formatCurrency } = useCurrency();
+    const [generatingPDF, setGeneratingPDF] = useState(false);
 
   // Real-time listener for sponsorship updates
   useEffect(() => {
@@ -90,6 +93,235 @@ export default function SponsorConfirmation() {
     return () => unsubscribe();
   }, [eventId]);
 
+
+const generatePDF = async () => {
+  if (!sponsorship || !event) return;
+  
+  setGeneratingPDF(true);
+  try {
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Sponsorship Confirmation - ${sponsorship.eventTitle}</title>
+        <style>
+          body { 
+            font-family: Arial, sans-serif; 
+            margin: 40px; 
+            color: #333;
+            line-height: 1.4;
+          }
+          .header { 
+            text-align: center; 
+            border-bottom: 2px solid #14B8A6; 
+            padding-bottom: 20px; 
+            margin-bottom: 30px;
+          }
+          .logo { 
+            font-size: 24px; 
+            font-weight: bold; 
+            color: #14B8A6; 
+            margin-bottom: 10px;
+          }
+          .title { 
+            font-size: 20px; 
+            font-weight: bold; 
+            margin-bottom: 5px;
+          }
+          .subtitle { 
+            color: #666; 
+            margin-bottom: 20px;
+          }
+          .section { 
+            margin-bottom: 25px; 
+          }
+          .section-title { 
+            font-size: 16px; 
+            font-weight: bold; 
+            color: #14B8A6; 
+            margin-bottom: 10px; 
+            border-bottom: 1px solid #eee; 
+            padding-bottom: 5px;
+          }
+          .row { 
+            display: flex; 
+            justify-content: space-between; 
+            margin-bottom: 8px; 
+          }
+          .label { 
+            font-weight: bold; 
+            color: #555; 
+          }
+          .value { 
+            color: #333; 
+          }
+          .status { 
+            padding: 5px 10px; 
+            border-radius: 15px; 
+            font-weight: bold; 
+            display: inline-block;
+            background-color: ${getStatusBackground(sponsorship.status).replace('#', '')};
+            color: ${getStatusColor(sponsorship.status).replace('#', '')};
+          }
+          .amount { 
+            font-size: 18px; 
+            font-weight: bold; 
+            color: #14B8A6; 
+          }
+          .footer { 
+            margin-top: 40px; 
+            padding-top: 20px; 
+            border-top: 1px solid #eee; 
+            text-align: center; 
+            color: #666; 
+            font-size: 12px;
+          }
+          .message-box {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #14B8A6;
+            margin-top: 10px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="logo">🌱 EcoConnect</div>
+          <div class="title">Sponsorship Confirmation</div>
+          <div class="subtitle">${sponsorship.eventTitle}</div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Event Details</div>
+          <div class="row">
+            <span class="label">Event:</span>
+            <span class="value">${sponsorship.eventTitle}</span>
+          </div>
+          <div class="row">
+            <span class="label">Location:</span>
+            <span class="value">${event?.location?.label || 'TBA'}</span>
+          </div>
+          <div class="row">
+            <span class="label">Date:</span>
+            <span class="value">${formatDate(event?.eventAt)}</span>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Sponsorship Details</div>
+          <div class="row">
+            <span class="label">Status:</span>
+            <span class="status">${getStatusText(sponsorship.status)}</span>
+          </div>
+          ${sponsorship.amount > 0 ? `
+          <div class="row">
+            <span class="label">Amount:</span>
+            <span class="value amount">${formatCurrency(sponsorship.amount)}</span>
+          </div>
+          ` : ''}
+          <div class="row">
+            <span class="label">Sponsorship Type:</span>
+            <span class="value">${getSponsorshipTypeText(sponsorship.sponsorshipType)}</span>
+          </div>
+          ${sponsorship.companyName ? `
+          <div class="row">
+            <span class="label">Company:</span>
+            <span class="value">${sponsorship.companyName}</span>
+          </div>
+          ` : ''}
+        </div>
+
+        <div class="section">
+          <div class="section-title">Contact Information</div>
+          <div class="row">
+            <span class="label">Email:</span>
+            <span class="value">${sponsorship.contactEmail}</span>
+          </div>
+          <div class="row">
+            <span class="label">Phone:</span>
+            <span class="value">${sponsorship.contactPhone}</span>
+          </div>
+        </div>
+
+        ${sponsorship.inKindDescription ? `
+        <div class="section">
+          <div class="section-title">In-Kind Contribution</div>
+          <div class="message-box">${sponsorship.inKindDescription}</div>
+        </div>
+        ` : ''}
+
+        ${sponsorship.message ? `
+        <div class="section">
+          <div class="section-title">Message to Organizer</div>
+          <div class="message-box">${sponsorship.message}</div>
+        </div>
+        ` : ''}
+
+        <div class="section">
+          <div class="section-title">Timeline</div>
+          <div class="row">
+            <span class="label">Submitted:</span>
+            <span class="value">${formatDate(sponsorship.createdAt)}</span>
+          </div>
+          <div class="row">
+            <span class="label">Last Updated:</span>
+            <span class="value">${formatDate(sponsorship.updatedAt)}</span>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Reference</div>
+          <div class="row">
+            <span class="label">Reference ID:</span>
+            <span class="value">#${sponsorship.id.substring(0, 8).toUpperCase()}</span>
+          </div>
+        </div>
+
+        <div class="footer">
+          Generated on ${new Date().toLocaleDateString()} • EcoConnect Sponsorship Platform
+          <br>Thank you for supporting environmental initiatives!
+        </div>
+      </body>
+      </html>
+    `;
+
+    if (Platform.OS === 'web') {
+      // Web PDF generation
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        printWindow.print();
+      }
+    } else {
+      // Mobile PDF generation with Expo
+      const { uri } = await Print.printToFileAsync({
+        html: htmlContent,
+        width: 612,
+        height: 792,
+        margins: {
+          left: 36,
+          top: 36,
+          right: 36,
+          bottom: 36,
+        },
+      });
+      
+      // Share the PDF file
+      await shareAsync(uri, {
+        mimeType: 'application/pdf',
+        dialogTitle: 'Save Sponsorship Confirmation',
+      });
+    }
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    Alert.alert('Error', 'Failed to generate PDF. Please try again.');
+  } finally {
+    setGeneratingPDF(false);
+  }
+};
   const formatDate = (timestamp: any): string => {
     if (!timestamp) return "TBA";
     try {
@@ -207,25 +439,36 @@ export default function SponsorConfirmation() {
       <StatusBar barStyle="light-content" backgroundColor="#14B8A6" />
       
       {/* Fixed Header */}
-      <View 
-        className="bg-teal-500 pt-4 px-4"
-        style={{ paddingTop: insets.top + 16 }}
-      >
-        <View className="flex-row items-center justify-between pb-4">
-          <Pressable
-            onPress={handleBack}
-            className="w-10 h-10 items-center justify-center rounded-full bg-white/20"
-          >
-            <Ionicons name="chevron-back" size={24} color="white" />
-          </Pressable>
-          
-          <View className="flex-1 items-center">
-            <Text className="text-l font-bold text-white">Sponsorship Details</Text>
-          </View>
-          
-          <View className="w-10" />
-        </View>
-      </View>
+<View 
+  className="bg-teal-500 pt-4 px-4"
+  style={{ paddingTop: insets.top + 16 }}
+>
+  <View className="flex-row items-center justify-between pb-4">
+    <Pressable
+      onPress={handleBack}
+      className="w-10 h-10 items-center justify-center rounded-full bg-white/20"
+    >
+      <Ionicons name="chevron-back" size={24} color="white" />
+    </Pressable>
+    
+    <View className="flex-1 items-center">
+      <Text className="text-l font-bold text-white">Sponsorship Details</Text>
+    </View>
+    
+    {/* Download Button - Moved inside the flex container */}
+    <Pressable
+      onPress={generatePDF}
+      disabled={generatingPDF}
+      className="w-10 h-10 items-center justify-center rounded-full bg-white/20"
+    >
+      <Ionicons 
+        name="download" 
+        size={20} 
+        color={generatingPDF ? "#cccccc" : "white"} 
+      />
+    </Pressable>
+  </View>
+</View>
 
       <ScrollView 
         className="flex-1"
@@ -477,21 +720,38 @@ export default function SponsorConfirmation() {
           </View>
 
           {/* Action Buttons */}
-          <View className="space-y-3">
-            <Pressable
-              onPress={handleViewMySponsorships}
-              className="bg-teal-500 rounded-xl py-4 items-center shadow-lg"
-            >
-              <Text className="text-white font-bold text-lg">View All My Sponsorships</Text>
-            </Pressable>
-            
-            <Pressable
-              onPress={handleViewDashboard}
-              className="bg-white border border-teal-300 rounded-xl py-4 items-center shadow-sm"
-            >
-              <Text className="text-teal-700 font-semibold text-lg">Back to Dashboard</Text>
-            </Pressable>
-          </View>
+<View className="space-y-3">
+  {/* Add Download Button here too */}
+  <Pressable
+    onPress={generatePDF}
+    disabled={generatingPDF}
+    className="bg-white border border-teal-300 rounded-xl py-4 items-center shadow-sm flex-row justify-center"
+  >
+    <Ionicons 
+      name="download" 
+      size={20} 
+      color={generatingPDF ? "#cccccc" : "#14B8A6"} 
+      style={{ marginRight: 8 }}
+    />
+    <Text className={`font-semibold text-lg ${generatingPDF ? 'text-gray-400' : 'text-teal-700'}`}>
+      {generatingPDF ? 'Generating PDF...' : 'Download as PDF'}
+    </Text>
+  </Pressable>
+
+  <Pressable
+    onPress={handleViewMySponsorships}
+    className="bg-teal-500 rounded-xl py-4 items-center shadow-lg"
+  >
+    <Text className="text-white font-bold text-lg">View All My Sponsorships</Text>
+  </Pressable>
+  
+  <Pressable
+    onPress={handleViewDashboard}
+    className="bg-white border border-teal-300 rounded-xl py-4 items-center shadow-sm"
+  >
+    <Text className="text-teal-700 font-semibold text-lg">Back to Dashboard</Text>
+  </Pressable>
+</View>
         </View>
       </ScrollView>
     </View>

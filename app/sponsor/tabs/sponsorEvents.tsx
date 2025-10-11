@@ -73,28 +73,28 @@ export default function SponsorAnalytics() {
 
   const screenWidth = Dimensions.get('window').width - 40;
 
-  // Fallback dummy data for demonstration
+  // Realistic fallback data for typical cleanup events
   const fallbackData: AnalyticsData = {
-    totalWasteCollected: 1560, // kg
-    totalParticipants: 89,
-    totalEventsSupported: 12,
-    totalInvestment: 45000,
+    totalWasteCollected: 245, // kg - realistic for few events
+    totalParticipants: 67,
+    totalEventsSupported: 8,
+    totalInvestment: 18500, // LKR - realistic sponsorship amounts
     wasteByType: [
-      { type: 'Plastic', weight: 650, percentage: 42, color: WASTE_TYPE_COLORS.Plastic },
-      { type: 'Polythene', weight: 480, percentage: 31, color: WASTE_TYPE_COLORS.Polythene },
-      { type: 'Paper', weight: 280, percentage: 18, color: WASTE_TYPE_COLORS.Paper },
-      { type: 'Other', weight: 150, percentage: 9, color: WASTE_TYPE_COLORS.Other }
+      { type: 'Plastic', weight: 98, percentage: 40, color: WASTE_TYPE_COLORS.Plastic },
+      { type: 'Polythene', weight: 68, percentage: 28, color: WASTE_TYPE_COLORS.Polythene },
+      { type: 'Paper', weight: 44, percentage: 18, color: WASTE_TYPE_COLORS.Paper },
+      { type: 'Other', weight: 35, percentage: 14, color: WASTE_TYPE_COLORS.Other }
     ],
     monthlyImpact: [
-      { month: 'Oct', waste: 120, investment: 3000 },
-      { month: 'Nov', waste: 180, investment: 4500 },
-      { month: 'Dec', waste: 220, investment: 5200 },
-      { month: 'Jan', waste: 280, investment: 6800 },
-      { month: 'Feb', waste: 320, investment: 7500 },
-      { month: 'Mar', waste: 440, investment: 8500 }
+      { month: 'Jan', waste: 35, investment: 2500 },
+      { month: 'Feb', waste: 42, investment: 3200 },
+      { month: 'Mar', waste: 38, investment: 2800 },
+      { month: 'Apr', waste: 55, investment: 4500 },
+      { month: 'May', waste: 48, investment: 3800 },
+      { month: 'Jun', waste: 27, investment: 1700 }
     ],
-    impactScore: 87,
-    monthlyGrowth: 55
+    impactScore: 72,
+    monthlyGrowth: 28
   };
 
   const fetchData = async () => {
@@ -205,7 +205,7 @@ export default function SponsorAnalytics() {
   }
 
   return (
- <View className="flex-1 bg-slate-50">
+    <View className="flex-1 bg-slate-50">
       
       {/* Fixed Header */}
       <View 
@@ -237,7 +237,8 @@ export default function SponsorAnalytics() {
           />
         }
         showsVerticalScrollIndicator={false}
-      >        {analytics && (
+      >
+        {analytics && (
           <>
             {/* Funds vs Waste Chart */}
             <View className="bg-white rounded-2xl p-6 mb-6 border border-gray-200">
@@ -259,7 +260,7 @@ export default function SponsorAnalytics() {
                       color: () => COLORS.primary,
                     },
                     {
-                      data: analytics.monthlyImpact.map(item => item.investment / 100),
+                      data: analytics.monthlyImpact.map(item => item.investment / 50), // Scale down for chart
                       color: () => COLORS.secondary,
                     }
                   ],
@@ -299,7 +300,7 @@ export default function SponsorAnalytics() {
               <Text className="text-lg font-bold text-gray-900 mb-4">Types of Waste Removed</Text>
               
               <View className="flex-row items-center justify-between mb-4">
-                <Text className="text-gray-600 text-base">Apr-Jan</Text>
+                <Text className="text-gray-600 text-base">Jan-Jun 2024</Text>
                 <View className="bg-blue-50 px-3 py-1 rounded-full">
                   <Text className="text-blue-700 text-sm font-semibold">
                     Funding: {formatCurrency(analytics.totalInvestment)}
@@ -348,14 +349,13 @@ export default function SponsorAnalytics() {
             </View>
 
             {/* Impact Summary */}
-                        {/* Impact Summary */}
             <View className="bg-white rounded-2xl p-6 border border-gray-200">
               <Text className="text-lg font-bold text-gray-900 mb-4">Your Impact Summary</Text>
               
               <View className="flex-row justify-between items-center mb-4">
-                <Text className="text-gray-600 text-base">Mar-Jan 2025</Text>
+                <Text className="text-gray-600 text-base">Jan-Jun 2024</Text>
                 <View className="bg-green-50 px-3 py-1 rounded-full">
-                  <Text className="text-green-700 text-sm font-semibold">+239% growth</Text>
+                  <Text className="text-green-700 text-sm font-semibold">+{analytics.monthlyGrowth}% growth</Text>
                 </View>
               </View>
 
@@ -364,7 +364,7 @@ export default function SponsorAnalytics() {
                 <View className="bg-teal-50 rounded-xl p-4 border border-teal-100">
                   <Text className="text-teal-700 text-sm font-medium mb-1">Total Sponsored</Text>
                   <Text className="text-teal-900 text-2xl font-bold">{formatCurrency(analytics.totalInvestment)}</Text>
-                  <Text className="text-teal-600 text-xs mt-1">+17% from last period</Text>
+                  <Text className="text-teal-600 text-xs mt-1">Supporting {analytics.totalEventsSupported} events</Text>
                 </View>
                 
                 <View className="bg-blue-50 rounded-xl p-4 border border-blue-100">
@@ -374,10 +374,10 @@ export default function SponsorAnalytics() {
                 </View>
                 
                 <View className="bg-purple-50 rounded-xl p-4 border border-purple-100">
-                  <Text className="text-purple-700 text-sm font-medium mb-1">Events Supported</Text>
-                  <Text className="text-purple-900 text-2xl font-bold">{analytics.totalEventsSupported} events</Text>
+                  <Text className="text-purple-700 text-sm font-medium mb-1">Community Impact</Text>
+                  <Text className="text-purple-900 text-2xl font-bold">{analytics.totalParticipants} people</Text>
                   <Text className="text-purple-600 text-xs mt-1">
-                    {analytics.totalParticipants} volunteers mobilized
+                    {analytics.totalEventsSupported} events supported
                   </Text>
                 </View>
               </View>
@@ -391,7 +391,7 @@ export default function SponsorAnalytics() {
                     <View className="bg-gray-50 rounded-xl p-3 border border-gray-200">
                       <Text className="text-gray-600 text-xs mb-1">CO₂ Reduced</Text>
                       <Text className="text-gray-900 text-base font-bold">
-                        {(analytics.totalWasteCollected * 2.5).toFixed(0)} kg
+                        {(analytics.totalWasteCollected * 1.2).toFixed(0)} kg
                       </Text>
                     </View>
                   </View>
@@ -400,7 +400,7 @@ export default function SponsorAnalytics() {
                     <View className="bg-gray-50 rounded-xl p-3 border border-gray-200">
                       <Text className="text-gray-600 text-xs mb-1">Plastic Bottles</Text>
                       <Text className="text-gray-900 text-base font-bold">
-                        {(analytics.totalWasteCollected * 50).toLocaleString()}
+                        {(analytics.totalWasteCollected * 25).toLocaleString()}
                       </Text>
                     </View>
                   </View>
