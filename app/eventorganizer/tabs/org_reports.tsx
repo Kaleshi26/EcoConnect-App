@@ -63,6 +63,11 @@ export default function OrgReports() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<"all" | "month" | "quarter" | "year">("all");
 
+  const [cameraReady, setCameraReady] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
+
+  const [isAiModalVisible, setAiModalVisible] = useState(false);
+
   const [isCameraVisible, setCameraVisible] = useState(false);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
@@ -73,6 +78,12 @@ export default function OrgReports() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any[] | null>(null);
 
+  useEffect(() => {
+  if (!isCameraVisible) {
+    setCameraReady(false);
+    setIsCapturing(false);
+    }
+  }, [isCameraVisible]);
 
   // Live events subscription
   useEffect(() => {
@@ -105,6 +116,8 @@ export default function OrgReports() {
     
     return () => unsub();
   }, [user?.uid]);
+
+
 
   // Calculate report data
   const reportData: ReportData = React.useMemo(() => {
@@ -212,30 +225,96 @@ Join me in making our environment cleaner! 🌍
     }
   };
 
+  const generateAISuggestions = () => {
+    const suggestions = [];
+
+    // Rule 1: Low Participation Rate
+    if (reportData.participationRate < 60 && reportData.completedEvents > 0) {
+      suggestions.push({
+        icon: "megaphone-outline",
+        title: "Boost Volunteer Engagement",
+        text: `Your participation rate is ${reportData.participationRate.toFixed(0)}%. Try promoting your next event earlier on social media or partner with local community groups to attract more volunteers.`
+      });
+    }
+
+    // Rule 2: High amount of a specific waste type
+    if (reportData.favoriteWasteType === "Plastic Bottles" && reportData.totalWasteCollected > 10) {
+      suggestions.push({
+        icon: "water-outline",
+        title: "Tackle Plastic Bottle Waste",
+        text: "Plastic bottles are a significant portion of your collected waste. Consider providing water refill stations at your next event to reduce single-use plastic."
+      });
+    }
+
+    // Rule 3: High amount of fishing gear
+    if (reportData.favoriteWasteType === "Fishing Gear" && reportData.totalWasteCollected > 5) {
+      suggestions.push({
+        icon: "boat-outline",
+        title: "Collaborate with Fishermen",
+        text: "You're collecting a lot of fishing gear. Partnering with local fishing communities for a targeted cleanup could have a massive impact."
+      });
+    }
+
+    // Rule 4: General Encouragement
+    if (reportData.completedEvents > 0) {
+        suggestions.push({
+          icon: "trending-up-outline",
+          title: "Keep Up the Great Work!",
+          text: `You've collected ${reportData.totalWasteCollected.toFixed(1)} kg of waste so far. Each event creates a significant positive impact on the local environment.`
+        });
+    }
+
+    // Default message if no data
+    if (suggestions.length === 0) {
+      suggestions.push({
+        icon: "bulb-outline",
+        title: "Start Your First Event",
+        text: "Once you complete a few cleanup events, our AI will provide personalized suggestions here to help you maximize your impact."
+      });
+    }
+    
+    return suggestions;
+  };
+
 
   const takePicture = async () => {
-    if (!cameraRef.current) return;
+  if (!permission?.granted) {
+    Alert.alert("Permission Required", "Please enable camera access.");
+    return;
+  }
 
-    // Show the loading indicator immediately
-    setIsAnalyzing(true);
+  const camera = cameraRef.current;
+  if (!camera || !cameraReady) {
+    Alert.alert("Camera not ready", "Please wait a moment and try again.");
+    return;
+  }
+
+  try {
+    setIsCapturing(true);
+
+    const photo = await camera.takePictureAsync({
+      base64: true,
+      quality: 0.7,
+      skipProcessing: true,
+    });
+
+    if (!photo?.base64) {
+      throw new Error("Captured image data is missing.");
+    }
+
+    // Close the camera only after a successful capture
     setCameraVisible(false);
 
-    try {
-      const photo = await cameraRef.current.takePictureAsync({ base64: true });
-
-      // Check if we actually got the base64 data needed for the AI
-      if (photo && photo.base64) {
-        // Now, call the analysis function with the photo data
-        await analyzeImage(photo.base64);
-      } else {
-        throw new Error("Captured image data is missing.");
-      }
-    } catch (error: any) {
-      console.error("Failed to capture or analyze image:", error);
-      Alert.alert("Capture Failed", "Could not capture or process the image. Please try again.");
-      // Stop the loading indicator if an error occurs
-      setIsAnalyzing(false);
-    }
+    // Show analyzing overlay after closing the camera
+    setIsAnalyzing(true);
+    await analyzeImage(photo.base64);
+  } catch (error: any) {
+    console.error("Failed to capture or analyze image:", error);
+    Alert.alert("Capture Failed", error?.message ?? "Could not capture image. Please try again.");
+    setIsAnalyzing(false);
+  } finally {
+    setIsCapturing(false);
+  }
   };
 
 
@@ -379,6 +458,46 @@ Join me in making our environment cleaner! 🌍
     );
   };
 
+  const MonthlyTrendChart = ({ data }: { data: { month: string; events: number; waste: number }[] }) => {
+    // Find the highest waste amount to scale the bars correctly
+    const maxWaste = Math.max(...data.map(item => item.waste), 0);
+  
+    // If there's no data, show a placeholder
+    if (maxWaste === 0) {
+      return (
+        <View className="items-center justify-center py-8 bg-gray-50 rounded-xl">
+          <Ionicons name="analytics-outline" size={32} color="#9ca3af" />
+          <Text className="text-gray-500 mt-2">Not enough data for a monthly trend yet.</Text>
+        </View>
+      );
+    }
+  
+    return (
+      <View className="space-y-4">
+        {data.map((stat, index) => {
+          // Calculate how wide the bar should be (as a percentage)
+          const barWidthPercentage = (stat.waste / maxWaste) * 100;
+  
+          return (
+            <View key={index} className="flex-row items-center">
+              <Text className="text-gray-600 font-medium w-20">{stat.month.split(' ')[0]}</Text>
+              <View className="flex-1 bg-gray-200 rounded-full h-8">
+                <View 
+                  className="bg-blue-500 h-8 rounded-full items-end justify-center pr-2"
+                  // Use a minimum width to make sure even small values are visible
+                  style={{ width: `${Math.max(barWidthPercentage, 15)}%` }} 
+                >
+                  <Text className="text-white text-xs font-bold">{stat.waste.toFixed(1)} kg</Text>
+                </View>
+              </View>
+            </View>
+          );
+        })}
+        </View>
+      );
+    };
+
+
   if (loading) {
     return (
       <View className="flex-1 bg-gradient-to-br from-blue-50 to-purple-50 justify-center items-center">
@@ -451,29 +570,40 @@ Join me in making our environment cleaner! 🌍
         showsVerticalScrollIndicator={false}
       >
 
-        <View className="mb-6">
+        <View className="mb-6 flex-row space-x-3">
+          {/* Your existing AI camera button */}
           <Pressable
-              onPress={async () => {
-                // This logic correctly checks and requests permission
-                if (!permission) {
-                  // Permissions are still loading
-                  return;
-                }
-                if (!permission.granted) {
-                  // Ask for permission
-                  const { granted } = await requestPermission();
-                  if (!granted) {
-                    Alert.alert("Permission Required", "Please enable camera access in your device settings to use this feature.");
-                    return;
-                  }
-                }
-                // If we have permission, open the camera
+            onPress={async () => {
+              // Check the current permission status
+              let hasPermission = permission?.granted;
+
+              // If we don't have permission, ask for it
+              if (!hasPermission) {
+                const { granted } = await requestPermission();
+                hasPermission = granted;
+              }
+
+              // If we have permission, open the camera
+              if (hasPermission) {
                 setCameraVisible(true);
-              }}
-              className="bg-purple-600 p-4 rounded-2xl shadow-lg flex-row items-center justify-center"
-          >
+              } else {
+                // If permission was denied, show an alert
+                Alert.alert("Permission Required", "Please enable camera access in your device settings to use this feature.");
+              }
+            }}
+            className="bg-purple-600 flex-1 p-4 rounded-2xl shadow-lg flex-row items-center justify-center"
+        >
               <Ionicons name="sparkles" size={22} color="white" />
-              <Text className="text-white font-bold text-base ml-3">Create AI Impact Report</Text>
+              <Text className="text-white font-bold text-base ml-3">AI Scan</Text>
+          </Pressable>
+          
+          {/* ADD THIS NEW AI INSIGHTS BUTTON */}
+          <Pressable
+              onPress={() => setAiModalVisible(true)}
+              className="bg-sky-500 flex-1 p-4 rounded-2xl shadow-lg flex-row items-center justify-center"
+          >
+              <Ionicons name="bulb" size={22} color="white" />
+              <Text className="text-white font-bold text-base ml-3">AI Insights</Text>
           </Pressable>
         </View>
 
@@ -566,18 +696,8 @@ Join me in making our environment cleaner! 🌍
 
         {/* Monthly Trends */}
         <View className="bg-white rounded-3xl p-6 shadow-xl mb-6 border-2 border-gray-100">
-          <Text className="text-xl font-bold text-gray-900 mb-4">Monthly Trends</Text>
-          <View className="space-y-3">
-            {reportData.monthlyStats.map((stat, index) => (
-              <View key={index} className="flex-row justify-between items-center py-2 border-b border-gray-100 last:border-b-0">
-                <Text className="text-gray-700 font-medium flex-1">{stat.month}</Text>
-                <View className="flex-row space-x-4">
-                  <Text className="text-gray-600 font-medium">{stat.events} events</Text>
-                  <Text className="text-orange-600 font-bold">{stat.waste} kg</Text>
-                </View>
-              </View>
-            ))}
-          </View>
+          <Text className="text-xl font-bold text-gray-900 mb-4">Monthly Waste Collection</Text>
+          <MonthlyTrendChart data={reportData.monthlyStats} />
         </View>
 
         {/* Recent Events */}
@@ -649,27 +769,51 @@ Join me in making our environment cleaner! 🌍
       </ScrollView>
 
       <Modal visible={isCameraVisible} animationType="slide">
-        <View style={{ flex: 1 }}>
-          {permission?.granted ? (
-            <CameraView ref={cameraRef} style={{ flex: 1 }} facing="back" />
-          ) : (
-            <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "black" }}>
-              <Text style={{ color: "white", fontSize: 18, marginBottom: 20 }}>
-                Camera permission required
-              </Text>
-              <Pressable onPress={requestPermission} className="bg-blue-600 px-6 py-3 rounded-xl">
-                <Text className="text-white font-bold">Grant Permission</Text>
-              </Pressable>
-            </View>
-          )}
-          
-          <View className="absolute bottom-12 left-0 right-0 items-center">
-            <Pressable onPress={takePicture} className="w-20 h-20 bg-white rounded-full border-4 border-gray-400" />
-            <Pressable onPress={() => setCameraVisible(false)} className="mt-4">
-              <Text className="text-white font-semibold text-lg" style={{ textShadowColor: 'rgba(0, 0, 0, 0.7)', textShadowRadius: 4 }}>Cancel</Text>
-            </Pressable>
+          <View style={{ flex: 1 }}>
+            {permission?.granted ? (
+              <>
+                <CameraView
+                  ref={cameraRef}
+                  style={{ flex: 1 }}
+                  facing="back"
+                  onCameraReady={() => setCameraReady(true)}
+                />
+
+                <View className="absolute bottom-12 left-0 right-0 items-center">
+                  <Pressable
+                    onPress={takePicture}
+                    disabled={!cameraReady || isCapturing}
+                    className={`w-20 h-20 rounded-full border-4 ${
+                      !cameraReady || isCapturing ? "bg-white/60 border-gray-300" : "bg-white border-gray-400"
+                    }`}
+                  />
+                  <Pressable onPress={() => setCameraVisible(false)} className="mt-4">
+                    <Text
+                      className="text-white font-semibold text-lg"
+                      style={{ textShadowColor: "rgba(0, 0, 0, 0.7)", textShadowRadius: 4 }}
+                    >
+                      Cancel
+                    </Text>
+                  </Pressable>
+
+                  {!cameraReady && (
+                    <View className="mt-3 px-3 py-1 rounded-full bg-black/60">
+                      <Text className="text-white text-xs">Initializing camera…</Text>
+                    </View>
+                  )}
+                </View>
+              </>
+            ) : (
+              <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "black" }}>
+                <Text style={{ color: "white", fontSize: 18, marginBottom: 20 }}>
+                  Camera permission required
+                </Text>
+                <Pressable onPress={requestPermission} className="bg-blue-600 px-6 py-3 rounded-xl">
+                  <Text className="text-white font-bold">Grant Permission</Text>
+                </Pressable>
+              </View>
+            )}
           </View>
-        </View>
       </Modal>
 
 
@@ -695,6 +839,32 @@ Join me in making our environment cleaner! 🌍
         </View>
       </Modal>
 
+      <Modal visible={isAiModalVisible} transparent={true} animationType="fade">
+        <View className="flex-1 bg-black/60 justify-center items-center p-6">
+          <View className="bg-white rounded-2xl p-6 w-full">
+            <View className="flex-row items-center mb-4">
+              <Ionicons name="bulb" size={28} color="#0ea5e9" />
+              <Text className="text-2xl font-bold text-gray-900 ml-3">AI Insights</Text>
+            </View>
+            
+            <View className="space-y-4 mb-6">
+              {generateAISuggestions().map((suggestion, index) => (
+                <View key={index} className="flex-row items-start bg-sky-50 p-3 rounded-lg">
+                  <Ionicons name={suggestion.icon as any} size={24} color="#0ea5e9" className="mt-1" />
+                  <View className="ml-3 flex-1">
+                    <Text className="font-bold text-sky-800">{suggestion.title}</Text>
+                    <Text className="text-sky-700 text-sm mt-1">{suggestion.text}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            <Pressable onPress={() => setAiModalVisible(false)} className="bg-gray-200 py-3 rounded-xl items-center">
+              <Text className="text-gray-800 font-semibold">Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>      
 
     </View>
   );
