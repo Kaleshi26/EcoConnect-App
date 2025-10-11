@@ -1,5 +1,5 @@
 import { Redirect, Tabs } from "expo-router";
-import { BarChart3, ClipboardList, Home, Navigation, User } from "lucide-react-native";
+import { BarChart3, ClipboardList, Home, User } from "lucide-react-native";
 import { useAuth } from "../../../contexts/AuthContext";
 
 export default function WasteCollectorTabsLayout() {
@@ -25,13 +25,6 @@ export default function WasteCollectorTabsLayout() {
         options={{ 
           title: "Assignments",
           tabBarIcon: ({ color, size }) => <ClipboardList color={color} size={size} />
-        }} 
-      />
-      <Tabs.Screen 
-        name="wc_route_navigation" 
-        options={{ 
-          title: "Navigation",
-          tabBarIcon: ({ color, size }) => <Navigation color={color} size={size} />
         }} 
       />
       <Tabs.Screen 

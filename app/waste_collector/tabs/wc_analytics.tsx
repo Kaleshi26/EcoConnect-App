@@ -4,9 +4,9 @@ import * as Sharing from 'expo-sharing';
 import {
     collection,
     onSnapshot,
-    orderBy,
     query,
-    Timestamp
+    Timestamp,
+    where
 } from "firebase/firestore";
 import {
     BarChart3,
@@ -31,22 +31,27 @@ import {
     Text,
     View
 } from "react-native";
+import { useAuth } from "../../../contexts/AuthContext";
 import { db } from "../../../services/firebaseConfig";
 
-type EventDoc = {
+type WasteCollection = {
   id: string;
-  title: string;
-  description?: string;
-  eventAt?: Timestamp;
+  eventId: string;
+  eventTitle: string;
+  eventDescription: string;
+  collectorId: string;
+  collectorEmail: string;
   location?: { label?: string; lat?: number; lng?: number };
-  wasteTypes?: string[];
+  collectedWeights: Record<string, string>;
+  proofImages: string[];
+  wasteTypes: string[];
+  status: string;
+  collectedAt?: Timestamp;
+  createdAt?: Timestamp;
+  completedAt?: Timestamp;
   estimatedQuantity?: string;
   priority?: string;
-  status?: "Pending" | "In-progress" | "Completed";
-  assignedTo?: string;
-  proofUrl?: string;
-  completedAt?: Timestamp;
-  collectedWeights?: Record<string, string>;
+  organizerId?: string;
 };
 
 function tsToDate(ts?: Timestamp) {
@@ -58,8 +63,10 @@ function tsToDate(ts?: Timestamp) {
   return null;
 }
 
-const Analytics = ({ userId }: { userId: string }) => {
-  const [events, setEvents] = useState<EventDoc[]>([]);
+const Analytics = () => {
+  const { user, loading: authLoading } = useAuth();
+  const userId = user?.uid || "";
+  const [wasteCollections, setWasteCollections] = useState<WasteCollection[]>([]);
   const [loading, setLoading] = useState(true);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportType, setReportType] = useState<'weekly' | 'monthly' | 'all'>('monthly');
@@ -68,29 +75,74 @@ const Analytics = ({ userId }: { userId: string }) => {
   const [generatedReportContent, setGeneratedReportContent] = useState('');
   const screenWidth = Dimensions.get('window').width;
 
-  // Fetch assigned events
+  // Fetch waste collections
   useEffect(() => {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
-    const q = query(collection(db, "events"), orderBy("createdAt", "desc"));
+    // Query without orderBy to avoid index requirement, sort on client side
+    const q = query(
+      collection(db, "wasteCollections"),
+      where("collectorId", "==", userId)
+    );
+    
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const all: EventDoc[] = snap.docs
-          .map((d) => ({ id: d.id, ...(d.data() as any) }))
-          .filter((ev) => ev.assignedTo === userId);
-        setEvents(all);
+        let collections: WasteCollection[] = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<WasteCollection, "id">)
+        }));
+        
+        // Sort by completedAt on the client side (newest first)
+        collections = collections.sort((a, b) => {
+          const dateA = tsToDate(a.completedAt)?.getTime() || 0;
+          const dateB = tsToDate(b.completedAt)?.getTime() || 0;
+          return dateB - dateA;
+        });
+        
+        setWasteCollections(collections);
         setLoading(false);
       },
-      () => setLoading(false)
+      (error) => {
+        console.error("Error fetching waste collections:", error);
+        setLoading(false);
+      }
     );
     return () => unsub();
   }, [userId]);
+  
+  // Show loading state while auth is being checked
+  if (authLoading) {
+    return (
+      <View className="flex-1 bg-gray-50 justify-center items-center">
+        <View 
+          style={{
+            backgroundColor: '#ffffff',
+            padding: 32,
+            borderRadius: 24,
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.1,
+            shadowRadius: 12,
+            elevation: 6,
+          }}
+        >
+          <ActivityIndicator size="large" color="#059669" />
+          <Text className="text-gray-700 mt-4 font-semibold text-base">Loading Analytics...</Text>
+        </View>
+      </View>
+    );
+  }
 
   // Calculate comprehensive waste statistics
   const wasteAnalytics = useMemo(() => {
-    const completedEvents = events.filter(ev => ev.status === "Completed");
-    const pendingEvents = events.filter(ev => ev.status === "Pending");
-    const inProgressEvents = events.filter(ev => ev.status === "In-progress");
+    // All wasteCollections are completed by definition
+    const completedCollections = wasteCollections;
     
     let stats = {
       totalWeight: 0,
@@ -102,9 +154,9 @@ const Analytics = ({ userId }: { userId: string }) => {
       other: 0
     };
 
-    completedEvents.forEach(ev => {
-      if (ev.collectedWeights) {
-        Object.entries(ev.collectedWeights).forEach(([type, weight]) => {
+    completedCollections.forEach(collection => {
+      if (collection.collectedWeights) {
+        Object.entries(collection.collectedWeights).forEach(([type, weight]) => {
           const weightNum = parseFloat(weight) || 0;
           const normalizedType = type.toLowerCase().replace(/\s+/g, '');
           
@@ -161,12 +213,12 @@ const Analytics = ({ userId }: { userId: string }) => {
 
     // Calculate monthly data for trend analysis
     const monthlyData: Record<string, number> = {};
-    completedEvents.forEach(ev => {
-      if (ev.completedAt && ev.collectedWeights) {
-        const date = tsToDate(ev.completedAt);
+    completedCollections.forEach(collection => {
+      if (collection.completedAt && collection.collectedWeights) {
+        const date = tsToDate(collection.completedAt);
         if (date) {
           const monthKey = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-          const totalWeight = Object.values(ev.collectedWeights).reduce((sum, weight) => {
+          const totalWeight = Object.values(collection.collectedWeights).reduce((sum, weight) => {
             return sum + (parseFloat(weight) || 0);
           }, 0);
           monthlyData[monthKey] = (monthlyData[monthKey] || 0) + totalWeight;
@@ -175,20 +227,20 @@ const Analytics = ({ userId }: { userId: string }) => {
     });
 
     // Calculate performance metrics
-    const completionRate = events.length > 0 ? (completedEvents.length / events.length) * 100 : 0;
-    const averageWeightPerAssignment = completedEvents.length > 0 ? stats.totalWeight / completedEvents.length : 0;
+    const completionRate = 100; // All wasteCollections are completed
+    const averageWeightPerAssignment = completedCollections.length > 0 ? stats.totalWeight / completedCollections.length : 0;
     
     // Calculate weekly data
     const weeklyData: Record<string, number> = {};
     const today = new Date();
     const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
     
-    completedEvents.forEach(ev => {
-      if (ev.completedAt) {
-        const date = tsToDate(ev.completedAt);
+    completedCollections.forEach(collection => {
+      if (collection.completedAt) {
+        const date = tsToDate(collection.completedAt);
         if (date && date >= weekAgo) {
           const dayKey = date.toLocaleDateString('en-US', { weekday: 'short' });
-          const totalWeight = Object.values(ev.collectedWeights || {}).reduce((sum, weight) => {
+          const totalWeight = Object.values(collection.collectedWeights || {}).reduce((sum, weight) => {
             return sum + (parseFloat(weight) || 0);
           }, 0);
           weeklyData[dayKey] = (weeklyData[dayKey] || 0) + totalWeight;
@@ -199,10 +251,10 @@ const Analytics = ({ userId }: { userId: string }) => {
     
     return {
       ...stats,
-      completedAssignments: completedEvents.length,
-      totalAssignments: events.length,
-      pendingAssignments: pendingEvents.length,
-      inProgressAssignments: inProgressEvents.length,
+      completedAssignments: completedCollections.length,
+      totalAssignments: completedCollections.length,
+      pendingAssignments: 0,
+      inProgressAssignments: 0,
       completionRate,
       averageWeightPerAssignment,
       wasteTypeBreakdown: wasteTypes,
@@ -215,7 +267,7 @@ const Analytics = ({ userId }: { userId: string }) => {
         weight
       }))
     };
-  }, [events]);
+  }, [wasteCollections]);
 
   // Share Report Function (PDF)
   const shareReport = async (htmlContent: string, reportTitle: string) => {
@@ -290,27 +342,27 @@ const Analytics = ({ userId }: { userId: string }) => {
     try {
       setGeneratingReport(true);
       
-      // Filter events based on report type
-      let filteredEvents = events.filter(ev => ev.status === "Completed");
+      // Filter collections based on report type
+      let filteredCollections = wasteCollections;
       const now = new Date();
       
       if (reportType === 'weekly') {
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        filteredEvents = filteredEvents.filter(ev => {
-          if (!ev.completedAt) return false;
-          const date = tsToDate(ev.completedAt);
+        filteredCollections = filteredCollections.filter(collection => {
+          if (!collection.completedAt) return false;
+          const date = tsToDate(collection.completedAt);
           return date && date >= weekAgo;
         });
       } else if (reportType === 'monthly') {
         const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        filteredEvents = filteredEvents.filter(ev => {
-          if (!ev.completedAt) return false;
-          const date = tsToDate(ev.completedAt);
+        filteredCollections = filteredCollections.filter(collection => {
+          if (!collection.completedAt) return false;
+          const date = tsToDate(collection.completedAt);
           return date && date >= monthAgo;
         });
       }
 
-      // Calculate stats for filtered events
+      // Calculate stats for filtered collections
       let reportStats = {
         totalWeight: 0,
         plasticBottles: 0,
@@ -321,9 +373,9 @@ const Analytics = ({ userId }: { userId: string }) => {
         other: 0
       };
 
-      filteredEvents.forEach(ev => {
-        if (ev.collectedWeights) {
-          Object.entries(ev.collectedWeights).forEach(([type, weight]) => {
+      filteredCollections.forEach(collection => {
+        if (collection.collectedWeights) {
+          Object.entries(collection.collectedWeights).forEach(([type, weight]) => {
             const weightNum = parseFloat(weight) || 0;
             const normalizedType = type.toLowerCase().replace(/\s+/g, '');
             
@@ -553,12 +605,12 @@ const Analytics = ({ userId }: { userId: string }) => {
         <div class="stat-label">kg Total Waste</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value">${filteredEvents.length}</div>
-        <div class="stat-label">Assignments Completed</div>
+        <div class="stat-value">${filteredCollections.length}</div>
+        <div class="stat-label">Collections Completed</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value">${filteredEvents.length > 0 ? (reportStats.totalWeight / filteredEvents.length).toFixed(1) : 0}</div>
-        <div class="stat-label">kg Average per Assignment</div>
+        <div class="stat-value">${filteredCollections.length > 0 ? (reportStats.totalWeight / filteredCollections.length).toFixed(1) : 0}</div>
+        <div class="stat-label">kg Average per Collection</div>
       </div>
     </div>
   </div>
@@ -640,21 +692,21 @@ const Analytics = ({ userId }: { userId: string }) => {
   </div>
 
   <div class="section">
-    <div class="section-title">📋 Detailed Assignments</div>
-    ${filteredEvents.map((ev, idx) => {
-      const completedDate = ev.completedAt ? tsToDate(ev.completedAt) : null;
-      const totalWeight = ev.collectedWeights ? 
-        Object.values(ev.collectedWeights).reduce((sum, w) => sum + (parseFloat(w) || 0), 0) : 0;
+    <div class="section-title">📋 Detailed Collections</div>
+    ${filteredCollections.map((collection, idx) => {
+      const completedDate = collection.completedAt ? tsToDate(collection.completedAt) : null;
+      const totalWeight = collection.collectedWeights ? 
+        Object.values(collection.collectedWeights).reduce((sum, w) => sum + (parseFloat(w) || 0), 0) : 0;
       
       return `
         <div class="assignment-card">
-          <div class="assignment-header">Assignment #${idx + 1}: ${ev.title}</div>
-          <div class="assignment-detail"><strong>📍 Location:</strong> ${ev.location?.label || 'N/A'}</div>
+          <div class="assignment-header">Collection #${idx + 1}: ${collection.eventTitle}</div>
+          <div class="assignment-detail"><strong>📍 Location:</strong> ${collection.location?.label || 'N/A'}</div>
           <div class="assignment-detail"><strong>📅 Completed:</strong> ${completedDate ? completedDate.toLocaleDateString() : 'N/A'}</div>
           <div class="assignment-detail"><strong>⚖️ Weight Collected:</strong> ${totalWeight.toFixed(2)} kg</div>
           <div class="assignment-detail">
             <strong>🗑️ Waste Types:</strong>
-            ${ev.wasteTypes?.map(wt => `<span class="badge">${wt}</span>`).join('') || 'N/A'}
+            ${collection.wasteTypes?.map(wt => `<span class="badge">${wt}</span>`).join('') || 'N/A'}
           </div>
         </div>
       `;
@@ -665,24 +717,20 @@ const Analytics = ({ userId }: { userId: string }) => {
     <div class="section-title">📈 Performance Metrics</div>
     <table class="waste-table">
       <tr>
-        <td><strong>Efficiency Rating</strong></td>
-        <td>${wasteAnalytics.completionRate.toFixed(1)}%</td>
+        <td><strong>Total Collections</strong></td>
+        <td>${wasteCollections.length}</td>
       </tr>
       <tr>
-        <td><strong>Total Assignments</strong></td>
-        <td>${events.length}</td>
+        <td><strong>Collections in Report</strong></td>
+        <td>${filteredCollections.length}</td>
       </tr>
       <tr>
-        <td><strong>Completed</strong></td>
-        <td>${wasteAnalytics.completedAssignments}</td>
+        <td><strong>Average Weight per Collection</strong></td>
+        <td>${wasteAnalytics.averageWeightPerAssignment.toFixed(2)} kg</td>
       </tr>
       <tr>
-        <td><strong>In Progress</strong></td>
-        <td>${wasteAnalytics.inProgressAssignments}</td>
-      </tr>
-      <tr>
-        <td><strong>Pending</strong></td>
-        <td>${wasteAnalytics.pendingAssignments}</td>
+        <td><strong>Total Weight Collected</strong></td>
+        <td>${reportStats.totalWeight.toFixed(2)} kg</td>
       </tr>
     </table>
   </div>
@@ -822,50 +870,140 @@ const Analytics = ({ userId }: { userId: string }) => {
 
   if (loading) {
     return (
-      <View className="flex-1 bg-gradient-to-br from-slate-50 to-blue-50 justify-center items-center">
-        <View className="bg-white p-6 rounded-2xl shadow-sm">
-          <ActivityIndicator size="large" color="#2563eb" />
-          <Text className="text-gray-600 mt-3 font-medium">Loading analytics...</Text>
+      <View className="flex-1 bg-gray-50 justify-center items-center">
+        <View 
+          style={{
+            backgroundColor: '#ffffff',
+            padding: 32,
+            borderRadius: 24,
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.1,
+            shadowRadius: 12,
+            elevation: 6,
+          }}
+        >
+          <ActivityIndicator size="large" color="#059669" />
+          <Text className="text-gray-700 mt-4 font-semibold text-base">Loading Analytics...</Text>
         </View>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-gradient-to-br from-slate-50 to-blue-50">
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 }}>
+    <View className="flex-1 bg-gray-50">
+      {/* Curved Header Background */}
+      <View 
+        style={{
+          backgroundColor: '#059669',
+          height: 200,
+          borderBottomLeftRadius: 40,
+          borderBottomRightRadius: 40,
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          elevation: 5,
+        }}
+      >
+        {/* Decorative circles */}
+        <View style={{
+          position: 'absolute',
+          width: 100,
+          height: 100,
+          borderRadius: 50,
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          top: -20,
+          right: 30,
+        }} />
+        <View style={{
+          position: 'absolute',
+          width: 60,
+          height: 60,
+          borderRadius: 30,
+          backgroundColor: 'rgba(255, 255, 255, 0.08)',
+          top: 100,
+          left: 20,
+        }} />
+      </View>
+
+      <ScrollView contentContainerStyle={{ paddingTop: 60, paddingHorizontal: 16, paddingBottom: 80 }}>
         {/* Header */}
-        <View className="flex-row items-center mb-6">
-          <View className="bg-blue-100 p-3 rounded-2xl mr-4">
-            <BarChart3 size={28} color="#2563eb" />
-          </View>
-          <View>
-            <Text className="text-2xl font-bold text-gray-900">Analytics Dashboard</Text>
-            <Text className="text-gray-600">Your collection performance overview</Text>
+        <View className="mb-6">
+          <View className="flex-row items-center mb-2">
+            <View 
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                padding: 12,
+                borderRadius: 16,
+                marginRight: 12,
+              }}
+            >
+              <BarChart3 size={32} color="#ffffff" strokeWidth={2.5} />
+            </View>
+            <View className="flex-1">
+              <Text className="text-3xl font-bold text-white" style={{ letterSpacing: 0.5 }}>Analytics</Text>
+              <Text className="text-emerald-50 text-base mt-1">Performance Overview</Text>
+            </View>
           </View>
         </View>
 
         {/* Key Metrics Row */}
         <View className="flex-row flex-wrap mb-6">
           <View className="w-1/2 pr-2 mb-4">
-            <View className="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-blue-400">
-              <View className="flex-row items-center mb-2">
-                <Package size={20} color="#2563eb" />
-                <Text className="text-gray-600 text-sm ml-2">Total Weight</Text>
+            <View 
+              style={{
+                backgroundColor: '#ffffff',
+                padding: 16,
+                borderRadius: 20,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.08,
+                shadowRadius: 8,
+                elevation: 3,
+                borderLeftWidth: 5,
+                borderLeftColor: '#10b981',
+              }}
+            >
+              <View className="flex-row items-center mb-3">
+                <View style={{ backgroundColor: '#d1fae5', padding: 8, borderRadius: 12 }}>
+                  <Package size={20} color="#059669" />
+                </View>
+                <Text className="text-gray-600 text-sm ml-2 font-medium">Total Weight</Text>
               </View>
-              <Text className="text-2xl font-bold text-gray-900">{wasteAnalytics.totalWeight.toFixed(1)}</Text>
-              <Text className="text-gray-500 text-xs">kg collected</Text>
+              <Text className="text-3xl font-bold text-gray-900">{wasteAnalytics.totalWeight.toFixed(1)}</Text>
+              <Text className="text-emerald-600 text-xs font-semibold mt-1">kg collected</Text>
             </View>
           </View>
           
           <View className="w-1/2 pl-2 mb-4">
-            <View className="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-green-400">
-              <View className="flex-row items-center mb-2">
-                <CheckCircle size={20} color="#059669" />
-                <Text className="text-gray-600 text-sm ml-2">Completed</Text>
+            <View 
+              style={{
+                backgroundColor: '#ffffff',
+                padding: 16,
+                borderRadius: 20,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.08,
+                shadowRadius: 8,
+                elevation: 3,
+                borderLeftWidth: 5,
+                borderLeftColor: '#3b82f6',
+              }}
+            >
+              <View className="flex-row items-center mb-3">
+                <View style={{ backgroundColor: '#dbeafe', padding: 8, borderRadius: 12 }}>
+                  <CheckCircle size={20} color="#2563eb" />
+                </View>
+                <Text className="text-gray-600 text-sm ml-2 font-medium">Completed</Text>
               </View>
-              <Text className="text-2xl font-bold text-gray-900">{wasteAnalytics.completedAssignments}</Text>
-              <Text className="text-gray-500 text-xs">assignments</Text>
+              <Text className="text-3xl font-bold text-gray-900">{wasteAnalytics.completedAssignments}</Text>
+              <Text className="text-blue-600 text-xs font-semibold mt-1">assignments</Text>
             </View>
           </View>
         </View>
@@ -873,36 +1011,81 @@ const Analytics = ({ userId }: { userId: string }) => {
         {/* Performance Metrics */}
         <View className="flex-row flex-wrap mb-6">
           <View className="w-1/2 pr-2 mb-4">
-            <View className="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-purple-400">
-              <View className="flex-row items-center mb-2">
-                <TrendingUp size={20} color="#7c3aed" />
-                <Text className="text-gray-600 text-sm ml-2">Efficiency</Text>
+            <View 
+              style={{
+                backgroundColor: '#ffffff',
+                padding: 16,
+                borderRadius: 20,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.08,
+                shadowRadius: 8,
+                elevation: 3,
+                borderLeftWidth: 5,
+                borderLeftColor: '#8b5cf6',
+              }}
+            >
+              <View className="flex-row items-center mb-3">
+                <View style={{ backgroundColor: '#ede9fe', padding: 8, borderRadius: 12 }}>
+                  <TrendingUp size={20} color="#7c3aed" />
+                </View>
+                <Text className="text-gray-600 text-sm ml-2 font-medium">Efficiency</Text>
               </View>
-              <Text className="text-2xl font-bold text-gray-900">{wasteAnalytics.completionRate.toFixed(0)}%</Text>
-              <Text className="text-gray-500 text-xs">completion rate</Text>
+              <Text className="text-3xl font-bold text-gray-900">{wasteAnalytics.completionRate.toFixed(0)}%</Text>
+              <Text className="text-purple-600 text-xs font-semibold mt-1">completion rate</Text>
             </View>
           </View>
           
           <View className="w-1/2 pl-2 mb-4">
-            <View className="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-orange-400">
-              <View className="flex-row items-center mb-2">
-                <Clock size={20} color="#f97316" />
-                <Text className="text-gray-600 text-sm ml-2">Avg Weight</Text>
+            <View 
+              style={{
+                backgroundColor: '#ffffff',
+                padding: 16,
+                borderRadius: 20,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.08,
+                shadowRadius: 8,
+                elevation: 3,
+                borderLeftWidth: 5,
+                borderLeftColor: '#f59e0b',
+              }}
+            >
+              <View className="flex-row items-center mb-3">
+                <View style={{ backgroundColor: '#fef3c7', padding: 8, borderRadius: 12 }}>
+                  <Clock size={20} color="#d97706" />
+                </View>
+                <Text className="text-gray-600 text-sm ml-2 font-medium">Avg Weight</Text>
               </View>
-              <Text className="text-2xl font-bold text-gray-900">{wasteAnalytics.averageWeightPerAssignment.toFixed(1)}</Text>
-              <Text className="text-gray-500 text-xs">kg per assignment</Text>
+              <Text className="text-3xl font-bold text-gray-900">{wasteAnalytics.averageWeightPerAssignment.toFixed(1)}</Text>
+              <Text className="text-amber-600 text-xs font-semibold mt-1">kg per assignment</Text>
             </View>
           </View>
         </View>
 
         {/* Weekly Performance Chart */}
         {wasteAnalytics.weeklyTrend.length > 0 && (
-          <View className="bg-white rounded-2xl p-4 mb-6 shadow-sm">
-            <View className="flex-row items-center mb-4">
-              <View className="bg-green-100 p-2 rounded-lg mr-3">
-                <Calendar size={20} color="#059669" />
+          <View 
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: 20,
+              padding: 20,
+              marginBottom: 24,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.08,
+              shadowRadius: 8,
+              elevation: 3,
+            }}
+          >
+            <View className="flex-row items-center mb-5">
+              <View style={{ backgroundColor: '#d1fae5', padding: 10, borderRadius: 12, marginRight: 12 }}>
+                <Calendar size={22} color="#059669" />
               </View>
-              <Text className="text-lg font-bold text-gray-900">This Week's Performance</Text>
+              <View className="flex-1">
+                <Text className="text-xl font-bold text-gray-900">Weekly Performance</Text>
+                <Text className="text-gray-500 text-xs mt-1">Last 7 days activity</Text>
+              </View>
             </View>
             
             <View className="space-y-3">
@@ -911,18 +1094,42 @@ const Analytics = ({ userId }: { userId: string }) => {
                 const barWidth = maxWeight > 0 ? (item.weight / maxWeight) * 100 : 0;
                 
                 return (
-                  <View key={index} className="flex-row items-center">
-                    <Text className="text-gray-600 text-sm w-12">{item.day}</Text>
-                    <View className="flex-1 bg-gray-200 rounded-full h-4 mx-3 overflow-hidden">
+                  <View key={index} className="flex-row items-center mb-3">
+                    <Text className="text-gray-700 font-semibold text-sm w-14">{item.day}</Text>
+                    <View 
+                      style={{
+                        flex: 1,
+                        backgroundColor: '#e5e7eb',
+                        borderRadius: 12,
+                        height: 36,
+                        marginHorizontal: 8,
+                        overflow: 'hidden',
+                      }}
+                    >
                       <View 
-                        className="bg-green-500 h-4 rounded-full flex-row items-center justify-end pr-2"
-                        style={{ width: `${Math.max(barWidth, 5)}%` }}
+                        style={{
+                          width: `${Math.max(barWidth, 8)}%`,
+                          height: 36,
+                          borderRadius: 12,
+                          backgroundColor: '#10b981',
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'flex-end',
+                          paddingRight: 12,
+                        }}
                       >
-                        <Text className="text-white text-xs font-semibold">
-                          {item.weight.toFixed(1)}kg
-                        </Text>
+                        {barWidth > 20 && (
+                          <Text className="text-white text-xs font-bold">
+                            {item.weight.toFixed(1)}kg
+                          </Text>
+                        )}
                       </View>
                     </View>
+                    {barWidth <= 20 && (
+                      <Text className="text-gray-600 text-xs font-semibold w-12 text-right">
+                        {item.weight.toFixed(1)}kg
+                      </Text>
+                    )}
                   </View>
                 );
               })}
@@ -930,32 +1137,75 @@ const Analytics = ({ userId }: { userId: string }) => {
           </View>
         )}
 
-        {/* For Waste Type Distribution */}
+        {/* Waste Type Distribution */}
         {wasteAnalytics.wasteTypeBreakdown.length > 0 && (
-          <View className="bg-white rounded-2xl p-4 mb-6 shadow-sm">
-            <View className="flex-row items-center mb-4">
-              <View className="bg-blue-100 p-2 rounded-lg mr-3">
-                <Package size={20} color="#2563eb" />
+          <View 
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: 20,
+              padding: 20,
+              marginBottom: 24,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.08,
+              shadowRadius: 8,
+              elevation: 3,
+            }}
+          >
+            <View className="flex-row items-center mb-5">
+              <View style={{ backgroundColor: '#dbeafe', padding: 10, borderRadius: 12, marginRight: 12 }}>
+                <Package size={22} color="#2563eb" />
               </View>
-              <Text className="text-lg font-bold text-gray-900">For Waste Type Distribution</Text>
+              <View className="flex-1">
+                <Text className="text-xl font-bold text-gray-900">Waste Distribution</Text>
+                <Text className="text-gray-500 text-xs mt-1">Breakdown by type</Text>
+              </View>
             </View>
             
             {/* Detailed breakdown */}
             <View className="space-y-2">
               {wasteAnalytics.wasteTypeBreakdown.map((item, index) => (
-                <View key={index} className="flex-row items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <View className="flex-row items-center">
+                <View 
+                  key={index} 
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: 14,
+                    backgroundColor: '#f9fafb',
+                    borderRadius: 14,
+                    marginBottom: 8,
+                    borderLeftWidth: 4,
+                    borderLeftColor: item.color,
+                  }}
+                >
+                  <View className="flex-row items-center flex-1">
                     <View 
-                      style={{ backgroundColor: item.color }}
-                      className="w-4 h-4 rounded-full mr-3"
+                      style={{ 
+                        backgroundColor: item.color,
+                        width: 12,
+                        height: 12,
+                        borderRadius: 6,
+                        marginRight: 12,
+                      }}
                     />
-                    <Text className="font-medium text-gray-800">{item.name}</Text>
+                    <Text className="font-semibold text-gray-800 text-base">{item.name}</Text>
                   </View>
                   <View className="items-end">
-                    <Text className="font-bold text-gray-900">{item.value.toFixed(1)} kg</Text>
-                    <Text className="text-xs text-gray-500">
-                      {((item.value / wasteAnalytics.totalWeight) * 100).toFixed(1)}%
-                    </Text>
+                    <Text className="font-bold text-gray-900 text-lg">{item.value.toFixed(1)} kg</Text>
+                    <View 
+                      style={{
+                        backgroundColor: item.color,
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                        borderRadius: 8,
+                        marginTop: 4,
+                      }}
+                    >
+                      <Text className="text-xs text-white font-bold">
+                        {((item.value / wasteAnalytics.totalWeight) * 100).toFixed(1)}%
+                      </Text>
+                    </View>
                   </View>
                 </View>
               ))}
@@ -966,15 +1216,27 @@ const Analytics = ({ userId }: { userId: string }) => {
 
         {/* Empty State */}
         {wasteAnalytics.totalWeight === 0 && (
-          <View className="bg-white rounded-2xl p-8 items-center">
-            <View className="bg-gray-100 p-4 rounded-full mb-4">
-              <BarChart3 size={32} color="#6b7280" />
+          <View 
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: 20,
+              padding: 32,
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.08,
+              shadowRadius: 8,
+              elevation: 3,
+            }}
+          >
+            <View style={{ backgroundColor: '#f3f4f6', padding: 20, borderRadius: 999, marginBottom: 16 }}>
+              <BarChart3 size={40} color="#9ca3af" />
             </View>
-            <Text className="text-gray-600 text-center font-medium mb-2">
-              No data available yet
+            <Text className="text-gray-700 text-center font-bold text-lg mb-2">
+              No Analytics Yet
             </Text>
             <Text className="text-gray-500 text-center text-sm">
-              Complete some assignments to see your analytics
+              Complete waste collection assignments to see your performance metrics and insights
             </Text>
           </View>
         )}
@@ -984,17 +1246,25 @@ const Analytics = ({ userId }: { userId: string }) => {
       {wasteAnalytics.totalWeight > 0 && (
         <Pressable
           onPress={() => setShowReportModal(true)}
-          className="absolute bottom-20 right-6 bg-blue-600 rounded-full p-4 shadow-lg flex-row items-center"
           style={{
+            position: 'absolute',
+            bottom: 80,
+            right: 20,
+            backgroundColor: '#059669',
+            borderRadius: 30,
+            paddingVertical: 16,
+            paddingHorizontal: 20,
+            flexDirection: 'row',
+            alignItems: 'center',
             shadowColor: '#000',
-            shadowOffset: { width: 0, height: 4 },
+            shadowOffset: { width: 0, height: 6 },
             shadowOpacity: 0.3,
-            shadowRadius: 4.65,
-            elevation: 8,
+            shadowRadius: 8,
+            elevation: 10,
           }}
         >
-          <FileText size={24} color="white" />
-          <Text className="text-white font-bold ml-2 mr-1">Generate Report</Text>
+          <FileText size={24} color="white" strokeWidth={2.5} />
+          <Text className="text-white font-bold ml-2 text-base">Generate Report</Text>
         </Pressable>
       )}
 
