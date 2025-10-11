@@ -136,15 +136,15 @@ export default function OrgProfile() {
 
   return (
     <View className="flex-1 bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <View className="px-6 pt-12 pb-8 bg-indigo-600 shadow-2xl">
+      <View className="px-6 pt-12 pb-8 bg-sky-500 shadow-2xl">
         <View className="flex-row items-center">
           <View className="bg-white/20 p-4 rounded-3xl mr-4 border-2 border-white/30">
             <Ionicons name="person" size={32} color="white" />
           </View>
           <View className="flex-1">
             <Text className="text-2xl font-bold text-white">{profile?.orgName || profile?.displayName || "Organizer"}</Text>
-            <Text className="text-blue-100 font-medium mt-1">{user?.email}</Text>
-            <Text className="text-blue-200 text-sm mt-1">Member since {new Date(user?.metadata.creationTime || Date.now()).toLocaleDateString()}</Text>
+            <Text className="text-white font-medium mt-1">{user?.email}</Text>
+            <Text className="text-white text-sm mt-1">Member since {new Date(user?.metadata.creationTime || Date.now()).toLocaleDateString()}</Text>
           </View>
         </View>
       </View>
