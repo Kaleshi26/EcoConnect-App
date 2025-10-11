@@ -2,8 +2,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs } from "expo-router";
 import { useAuth } from "../../../contexts/AuthContext";
-import { CurrencyProvider } from "../../../contexts/CurrencyContext"; // Add this import
-import { NotificationProvider } from '../../../contexts/NotificationContext'; // Add this
+import { CurrencyProvider } from "../../../contexts/CurrencyContext";
+import { NotificationProvider } from '../../../contexts/NotificationContext';
 
 export default function SponsorTabsLayout() {
   const { user, loading, profile } = useAuth();
@@ -18,68 +18,68 @@ export default function SponsorTabsLayout() {
 
   return (
     <CurrencyProvider> 
-          <NotificationProvider> 
-
-      <Tabs screenOptions={{ 
-        headerShown: false,
-        tabBarActiveTintColor: "#4FB7B3",
-        tabBarInactiveTintColor: "#666",
-        tabBarStyle: { backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#e5e7eb" },
-      }}>
-        <Tabs.Screen 
-          name="sponsorDashboard" 
-          options={{
-            title: "Home",
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="home-outline" size={size} color={color} />
-            ),
-          }} 
-        />
-        <Tabs.Screen 
-          name="sponsorEvents" 
-          options={{
-            title: "Events",
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="calendar-outline" size={size} color={color} />
-            ),
-          }} 
-        />
-        <Tabs.Screen 
-          name="sponsorReports" 
-          options={{
-            title: "Reports",
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="bar-chart-outline" size={size} color={color} />
-            ),
-          }} 
-        />
-        <Tabs.Screen 
-          name="sponsorProfile" 
-          options={{
-            title: "Profile",
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="person-outline" size={size} color={color} />
-            ),
-          }} 
-        />
-        <Tabs.Screen 
-          name="EventDetails" 
-          options={{ title: "Event Details", href: null }} 
-        />
-        <Tabs.Screen 
-          name="SponsorForm" 
-          options={{ title: "Sponsor Form", href: null }} 
-        />
-        <Tabs.Screen 
-          name="SponsorConfirmation" 
-          options={{ title: "Confirmation", href: null }} 
-        />
-        <Tabs.Screen 
-          name="settings" 
-          options={{ title: "Settings", href: null }} 
-        />
-        
-      </Tabs>
+      <NotificationProvider> 
+        <Tabs screenOptions={{ 
+          headerShown: false,
+          tabBarActiveTintColor: "#FFFFFF", // White for active items
+          tabBarInactiveTintColor: "#E5E5E5", // Light gray for inactive
+          tabBarStyle: { 
+            backgroundColor: "#14B8A6", // Same teal as your header
+            borderTopWidth: 1          },
+        }}>
+          <Tabs.Screen 
+            name="sponsorDashboard" 
+            options={{
+              title: "Home",
+              tabBarIcon: ({ color, size }) => (
+                <Ionicons name="home-outline" size={size} color={color} />
+              ),
+            }} 
+          />
+          <Tabs.Screen 
+            name="sponsorEvents" 
+            options={{
+              title: "Impact",
+              tabBarIcon: ({ color, size }) => (
+                <Ionicons name="trending-up-outline" size={size} color={color} />
+              ),
+            }} 
+          />
+          <Tabs.Screen 
+            name="sponsorReports" 
+            options={{
+              title: "Reports",
+              tabBarIcon: ({ color, size }) => (
+                <Ionicons name="bar-chart-outline" size={size} color={color} />
+              ),
+            }} 
+          />
+          <Tabs.Screen 
+            name="sponsorProfile" 
+            options={{
+              title: "Profile",
+              tabBarIcon: ({ color, size }) => (
+                <Ionicons name="person-outline" size={size} color={color} />
+              ),
+            }} 
+          />
+          <Tabs.Screen 
+            name="EventDetails" 
+            options={{ title: "Event Details", href: null }} 
+          />
+          <Tabs.Screen 
+            name="SponsorForm" 
+            options={{ title: "Sponsor Form", href: null }} 
+          />
+          <Tabs.Screen 
+            name="SponsorConfirmation" 
+            options={{ title: "Confirmation", href: null }} 
+          />
+          <Tabs.Screen 
+            name="settings" 
+            options={{ title: "Settings", href: null }} 
+          />
+        </Tabs>
       </NotificationProvider>
     </CurrencyProvider>
   );
