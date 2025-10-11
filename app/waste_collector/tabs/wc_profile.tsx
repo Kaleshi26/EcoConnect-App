@@ -138,102 +138,233 @@ export default function WcProfile() {
   }
 
   return (
-    <View className="flex-1 bg-slate-50">
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
-        {/* Header card */}
-        <View className="bg-white rounded-2xl shadow border border-slate-100 p-6 mb-6 items-center">
-          <View className="w-24 h-24 rounded-full bg-green-50 border border-green-200 items-center justify-center mb-4">
-            <User color="#16a34a" size={40} />
+    <View className="flex-1 bg-gray-50">
+      {/* Curved Header Background */}
+      <View 
+        style={{
+          backgroundColor: '#059669',
+          height: 280,
+          borderBottomLeftRadius: 40,
+          borderBottomRightRadius: 40,
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          elevation: 5,
+        }}
+      >
+        {/* Decorative circles */}
+        <View style={{
+          position: 'absolute',
+          width: 100,
+          height: 100,
+          borderRadius: 50,
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          top: -20,
+          right: 30,
+        }} />
+        <View style={{
+          position: 'absolute',
+          width: 60,
+          height: 60,
+          borderRadius: 30,
+          backgroundColor: 'rgba(255, 255, 255, 0.08)',
+          top: 180,
+          left: 20,
+        }} />
+      </View>
+
+      <ScrollView className="flex-1" contentContainerStyle={{ paddingTop: 60, paddingHorizontal: 16, paddingBottom: 100 }}>
+        {/* Header Title */}
+        <View className="mb-6">
+          <Text className="text-3xl font-bold text-white" style={{ letterSpacing: 0.5 }}>Profile</Text>
+          <Text className="text-emerald-50 text-base mt-1">Your account information</Text>
+        </View>
+
+        {/* Profile Card */}
+        <View 
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 20,
+            padding: 24,
+            marginBottom: 24,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            elevation: 3,
+            alignItems: 'center',
+          }}
+        >
+          <View style={{
+            width: 96,
+            height: 96,
+            borderRadius: 48,
+            backgroundColor: '#d1fae5',
+            borderWidth: 4,
+            borderColor: '#10b981',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 16,
+          }}>
+            <User color="#059669" size={48} strokeWidth={2.5} />
           </View>
-          <Text className="text-xl font-bold text-slate-800 mb-1">
+          <Text className="text-2xl font-bold text-gray-900 mb-2">
             {user?.email?.split("@")[0] || "Waste Collector"}
           </Text>
-          <Text className="text-slate-600 mb-2">{user?.email}</Text>
-          <View className="px-3 py-1.5 bg-green-50 rounded-full">
-            <Text className="text-green-700 font-medium text-sm">Waste Collector</Text>
+          <Text className="text-gray-600 mb-3 text-base">{user?.email}</Text>
+          <View style={{ backgroundColor: '#d1fae5', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: '#10b981' }}>
+            <Text className="text-emerald-700 font-bold text-sm">♻️ Waste Collector</Text>
           </View>
         </View>
 
         {/* Role overview */}
-        <View className="bg-white rounded-2xl shadow border border-slate-100 overflow-hidden mb-6">
-          <View className="p-6 pb-4 border-b border-slate-100">
-            <Text className="text-xl font-bold text-slate-800">Your Role</Text>
+        <View 
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 20,
+            overflow: 'hidden',
+            marginBottom: 24,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            elevation: 3,
+          }}
+        >
+          <View style={{ padding: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
+            <View className="flex-row items-center">
+              <View style={{ backgroundColor: '#ede9fe', padding: 10, borderRadius: 12, marginRight: 12 }}>
+                <Truck size={22} color="#7c3aed" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-xl font-bold text-gray-900">Your Role</Text>
+                <Text className="text-gray-500 text-xs mt-1">Responsibilities</Text>
+              </View>
+            </View>
           </View>
-          <View className="p-6">
+          <View style={{ padding: 20 }}>
             <View className="flex-row items-center mb-4">
-              <MapPin size={18} color="#16a34a" />
-              <Text className="ml-2 text-slate-700">Navigate to assigned locations</Text>
+              <View style={{ backgroundColor: '#d1fae5', padding: 8, borderRadius: 10, marginRight: 12 }}>
+                <MapPin size={20} color="#059669" />
+              </View>
+              <Text className="text-slate-700 font-semibold flex-1">Navigate to assigned locations</Text>
             </View>
             <View className="flex-row items-center mb-4">
-              <Truck size={18} color="#16a34a" />
-              <Text className="ml-2 text-slate-700">Collect and transport waste safely</Text>
+              <View style={{ backgroundColor: '#dbeafe', padding: 8, borderRadius: 10, marginRight: 12 }}>
+                <Truck size={20} color="#2563eb" />
+              </View>
+              <Text className="text-slate-700 font-semibold flex-1">Collect and transport waste safely</Text>
             </View>
             <View className="flex-row items-center">
-              <CheckCircle size={18} color="#16a34a" />
-              <Text className="ml-2 text-slate-700">Upload disposal proof and mark completion</Text>
+              <View style={{ backgroundColor: '#d1fae5', padding: 8, borderRadius: 10, marginRight: 12 }}>
+                <CheckCircle size={20} color="#059669" />
+              </View>
+              <Text className="text-slate-700 font-semibold flex-1">Upload disposal proof and mark completion</Text>
             </View>
           </View>
         </View>
 
         {/* Collection Statistics */}
-        <View className="bg-white rounded-2xl shadow border border-slate-100 p-6 mb-6">
-          <View className="flex-row items-center mb-4">
-            <View className="bg-green-100 p-2 rounded-lg mr-3">
-              <History size={20} color="#16a34a" />
+        <View 
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 20,
+            padding: 20,
+            marginBottom: 24,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            elevation: 3,
+          }}
+        >
+          <View className="flex-row items-center mb-5">
+            <View style={{ backgroundColor: '#d1fae5', padding: 10, borderRadius: 12, marginRight: 12 }}>
+              <History size={22} color="#059669" />
             </View>
-            <Text className="text-xl font-bold text-slate-800">Collection Stats</Text>
+            <View className="flex-1">
+              <Text className="text-xl font-bold text-gray-900">Collection Stats</Text>
+              <Text className="text-gray-500 text-xs mt-1">Your achievements</Text>
+            </View>
           </View>
           <View className="flex-row justify-around">
             <View className="items-center">
-              <View className="bg-blue-50 p-3 rounded-full mb-2">
-                <Package size={24} color="#2563eb" />
+              <View style={{ backgroundColor: '#dbeafe', padding: 14, borderRadius: 999, marginBottom: 8 }}>
+                <Package size={28} color="#2563eb" />
               </View>
-              <Text className="text-2xl font-bold text-slate-800">{totalCollections}</Text>
-              <Text className="text-sm text-slate-600">Collections</Text>
+              <Text className="text-3xl font-bold text-gray-900">{totalCollections}</Text>
+              <Text className="text-sm text-gray-600 font-semibold mt-1">Collections</Text>
             </View>
             <View className="items-center">
-              <View className="bg-green-50 p-3 rounded-full mb-2">
-                <Weight size={24} color="#16a34a" />
+              <View style={{ backgroundColor: '#d1fae5', padding: 14, borderRadius: 999, marginBottom: 8 }}>
+                <Weight size={28} color="#059669" />
               </View>
-              <Text className="text-2xl font-bold text-slate-800">{totalWeight.toFixed(1)}</Text>
-              <Text className="text-sm text-slate-600">Total kg</Text>
+              <Text className="text-3xl font-bold text-gray-900">{totalWeight.toFixed(1)}</Text>
+              <Text className="text-sm text-gray-600 font-semibold mt-1">Total kg</Text>
             </View>
           </View>
         </View>
 
         {/* Assignment History */}
-        <View className="bg-white rounded-2xl shadow border border-slate-100 mb-6 overflow-hidden">
+        <View 
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 20,
+            overflow: 'hidden',
+            marginBottom: 24,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            elevation: 3,
+          }}
+        >
           <TouchableOpacity
             onPress={() => setShowHistory(!showHistory)}
-            className="flex-row items-center justify-between p-6 border-b border-slate-100"
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: 20,
+              borderBottomWidth: 1,
+              borderBottomColor: '#f3f4f6',
+            }}
           >
             <View className="flex-row items-center flex-1">
-              <View className="bg-blue-100 p-2 rounded-lg mr-3">
-                <History size={20} color="#2563eb" />
+              <View style={{ backgroundColor: '#dbeafe', padding: 10, borderRadius: 12, marginRight: 12 }}>
+                <History size={22} color="#2563eb" />
               </View>
-              <Text className="text-xl font-bold text-slate-800">Assignment History</Text>
+              <View className="flex-1">
+                <Text className="text-xl font-bold text-gray-900">History</Text>
+                <Text className="text-gray-500 text-xs mt-1">{wasteCollections.length} assignment{wasteCollections.length !== 1 ? 's' : ''}</Text>
+              </View>
             </View>
             {showHistory ? (
-              <ChevronUp size={20} color="#64748b" />
+              <ChevronUp size={24} color="#059669" strokeWidth={2.5} />
             ) : (
-              <ChevronDown size={20} color="#64748b" />
+              <ChevronDown size={24} color="#059669" strokeWidth={2.5} />
             )}
           </TouchableOpacity>
 
           {showHistory && (
-            <View className="p-6 pt-4">
+            <View style={{ padding: 20, paddingTop: 16 }}>
               {loading ? (
                 <View className="py-8 items-center">
-                  <ActivityIndicator size="large" color="#16a34a" />
-                  <Text className="text-slate-600 mt-3">Loading history...</Text>
+                  <ActivityIndicator size="large" color="#059669" />
+                  <Text className="text-gray-700 mt-3 font-semibold">Loading history...</Text>
                 </View>
               ) : wasteCollections.length === 0 ? (
                 <View className="py-8 items-center">
-                  <View className="bg-slate-100 p-4 rounded-full mb-3">
-                    <Package size={32} color="#64748b" />
+                  <View style={{ backgroundColor: '#f3f4f6', padding: 20, borderRadius: 999, marginBottom: 12 }}>
+                    <Package size={40} color="#9ca3af" />
                   </View>
-                  <Text className="text-slate-600 font-medium">No collections yet</Text>
-                  <Text className="text-slate-500 text-sm mt-1">Complete assignments to see your history</Text>
+                  <Text className="text-gray-700 font-bold text-lg">No collections yet</Text>
+                  <Text className="text-gray-500 text-sm mt-2 text-center">Complete assignments to see your history</Text>
                 </View>
               ) : (
                 <View className="space-y-4">
@@ -248,42 +379,55 @@ export default function WcProfile() {
                     return (
                       <View
                         key={collection.id}
-                        className="border border-slate-200 rounded-xl overflow-hidden"
+                        style={{
+                          borderWidth: 2,
+                          borderColor: '#e5e7eb',
+                          borderRadius: 16,
+                          overflow: 'hidden',
+                          marginBottom: 12,
+                        }}
                       >
                         <TouchableOpacity
                           onPress={() => toggleItemExpanded(collection.id)}
-                          className="bg-slate-50 p-4"
+                          style={{
+                            backgroundColor: '#f9fafb',
+                            padding: 16,
+                          }}
                         >
                           <View className="flex-row items-start justify-between mb-2">
                             <View className="flex-1">
-                              <Text className="text-base font-bold text-slate-800 mb-1">
+                              <Text className="text-base font-bold text-gray-900 mb-2">
                                 {collection.eventTitle}
                               </Text>
-                              <View className="flex-row items-center mb-1">
-                                <Calendar size={14} color="#64748b" />
-                                <Text className="text-sm text-slate-600 ml-2">
+                              <View className="flex-row items-center mb-2">
+                                <View style={{ backgroundColor: '#fef3c7', padding: 6, borderRadius: 8, marginRight: 8 }}>
+                                  <Calendar size={16} color="#d97706" />
+                                </View>
+                                <Text className="text-sm text-gray-700 font-semibold">
                                   {formatDate(completedDate)} • {formatTime(completedDate)}
                                 </Text>
                               </View>
                               {collection.location?.label && (
                                 <View className="flex-row items-center">
-                                  <MapPin size={14} color="#64748b" />
-                                  <Text className="text-sm text-slate-600 ml-2">
+                                  <View style={{ backgroundColor: '#d1fae5', padding: 6, borderRadius: 8, marginRight: 8 }}>
+                                    <MapPin size={16} color="#059669" />
+                                  </View>
+                                  <Text className="text-sm text-gray-700 font-semibold">
                                     {collection.location.label}
                                   </Text>
                                 </View>
                               )}
                             </View>
                             <View className="items-end ml-3">
-                              <View className="bg-green-100 px-3 py-1.5 rounded-full mb-2">
-                                <Text className="text-green-700 font-bold text-sm">
+                              <View style={{ backgroundColor: '#d1fae5', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#10b981' }}>
+                                <Text className="text-emerald-700 font-bold text-sm">
                                   {totalWasteWeight.toFixed(1)} kg
                                 </Text>
                               </View>
                               {isExpanded ? (
-                                <ChevronUp size={20} color="#64748b" />
+                                <ChevronUp size={22} color="#059669" strokeWidth={2.5} />
                               ) : (
-                                <ChevronDown size={20} color="#64748b" />
+                                <ChevronDown size={22} color="#059669" strokeWidth={2.5} />
                               )}
                             </View>
                           </View>
@@ -356,10 +500,19 @@ export default function WcProfile() {
                                 </Text>
                                 <TouchableOpacity
                                   onPress={() => handleViewImages(collection.proofImages)}
-                                  className="bg-blue-50 border border-blue-200 p-3 rounded-lg flex-row items-center justify-center"
+                                  style={{
+                                    backgroundColor: '#dbeafe',
+                                    borderWidth: 2,
+                                    borderColor: '#3b82f6',
+                                    padding: 12,
+                                    borderRadius: 12,
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}
                                 >
-                                  <ImageIcon size={18} color="#2563eb" />
-                                  <Text className="text-blue-700 font-semibold ml-2">
+                                  <ImageIcon size={20} color="#2563eb" strokeWidth={2.5} />
+                                  <Text className="text-blue-700 font-bold ml-2">
                                     View Images
                                   </Text>
                                 </TouchableOpacity>
@@ -377,22 +530,60 @@ export default function WcProfile() {
         </View>
 
         {/* Terms & Conditions */}
-        <View className="bg-white rounded-2xl shadow border border-slate-100 p-6 mb-6">
+        <View 
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 20,
+            padding: 20,
+            marginBottom: 24,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            elevation: 3,
+          }}
+        >
           <TouchableOpacity onPress={handleTerms} className="flex-row items-center justify-between">
             <View className="flex-row items-center flex-1">
-              <FileText size={20} color="#16a34a" />
-              <Text className="ml-3 text-slate-800 font-medium text-base">Terms & Conditions</Text>
+              <View style={{ backgroundColor: '#ede9fe', padding: 10, borderRadius: 12, marginRight: 12 }}>
+                <FileText size={22} color="#7c3aed" />
+              </View>
+              <Text className="text-gray-900 font-bold text-base">Terms & Conditions</Text>
             </View>
-            <ChevronRight size={20} color="#94a3b8" />
+            <ChevronRight size={22} color="#059669" strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
 
         {/* Account actions */}
-        <View className="bg-white rounded-2xl shadow border border-slate-100 p-6">
-          <TouchableOpacity onPress={handleLogout} className="bg-red-500 rounded-xl py-4 items-center">
+        <View 
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 20,
+            padding: 20,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            elevation: 3,
+          }}
+        >
+          <TouchableOpacity 
+            onPress={handleLogout}
+            style={{
+              backgroundColor: '#ef4444',
+              borderRadius: 14,
+              paddingVertical: 16,
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.2,
+              shadowRadius: 6,
+              elevation: 6,
+            }}
+          >
             <View className="flex-row items-center">
-              <LogOut size={18} color="#ffffff" />
-              <Text className="text-white font-semibold text-base ml-2">Sign Out</Text>
+              <LogOut size={22} color="#ffffff" strokeWidth={2.5} />
+              <Text className="text-white font-bold text-base ml-2">Sign Out</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -405,19 +596,32 @@ export default function WcProfile() {
         transparent={true}
         onRequestClose={() => setShowImageModal(false)}
       >
-        <View className="flex-1 bg-black bg-opacity-90">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.95)' }}>
           <View className="flex-1 relative">
             {/* Close Button */}
             <TouchableOpacity
               onPress={() => setShowImageModal(false)}
-              className="absolute top-12 right-6 z-10 bg-white bg-opacity-90 p-3 rounded-full shadow-lg"
+              style={{
+                position: 'absolute',
+                top: 48,
+                right: 24,
+                zIndex: 10,
+                backgroundColor: '#059669',
+                padding: 12,
+                borderRadius: 999,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 8,
+              }}
             >
-              <Text className="text-slate-800 font-bold text-lg">✕</Text>
+              <Text className="text-white font-bold text-xl">✕</Text>
             </TouchableOpacity>
 
             {/* Image Gallery */}
             <ScrollView
-              contentContainerStyle={{ padding: 20, paddingTop: 80, paddingBottom: 40 }}
+              contentContainerStyle={{ padding: 20, paddingTop: 100, paddingBottom: 40 }}
               showsVerticalScrollIndicator={false}
             >
               <View className="space-y-4">
@@ -425,11 +629,11 @@ export default function WcProfile() {
                   <View key={index} className="mb-6">
                     <Image
                       source={{ uri: imageUrl }}
-                      className="w-full h-96 rounded-xl"
+                      style={{ width: '100%', height: 384, borderRadius: 16 }}
                       resizeMode="contain"
                     />
-                    <View className="bg-white bg-opacity-80 px-3 py-2 rounded-lg mt-2 self-start">
-                      <Text className="text-slate-800 font-semibold">
+                    <View style={{ backgroundColor: 'rgba(5, 150, 105, 0.9)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, marginTop: 8, alignSelf: 'flex-start' }}>
+                      <Text className="text-white font-bold">
                         Image {index + 1} of {selectedImages.length}
                       </Text>
                     </View>

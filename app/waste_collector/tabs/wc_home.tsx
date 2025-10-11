@@ -2,44 +2,43 @@ import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { router } from "expo-router";
 import {
-  collection,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  Timestamp,
-  updateDoc
+    collection,
+    doc,
+    onSnapshot,
+    orderBy,
+    query,
+    serverTimestamp,
+    Timestamp,
+    updateDoc
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import {
-  BarChart3,
-  Calendar,
-  Camera,
-  CheckCircle,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  ClipboardList,
-  Clock,
-  MapPin,
-  Navigation,
-  Package,
-  PlayCircle,
-  Truck,
-  Zap
+    BarChart3,
+    Calendar,
+    Camera,
+    CheckCircle,
+    CheckCircle2,
+    ChevronLeft,
+    ClipboardList,
+    Clock,
+    MapPin,
+    Navigation,
+    Package,
+    PlayCircle,
+    Truck,
+    Zap
 } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Linking,
-  Platform,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Image,
+    Linking,
+    Platform,
+    ScrollView,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { db, storage } from "../../../services/firebaseConfig";
 
@@ -55,6 +54,7 @@ type EventDoc = {
   status?: "Pending" | "In-progress" | "Completed";
   assignedTo?: string;
   proofUrl?: string;
+  imageUrl?: string;
 };
 
 function tsToDate(ts?: Timestamp) {
@@ -149,7 +149,6 @@ export default function WcHome({ userId }: { userId: string }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [currentDate, setCurrentDate] = useState(new Date());
 
   // 🔹 Fetch assigned events
   useEffect(() => {
@@ -221,57 +220,155 @@ export default function WcHome({ userId }: { userId: string }) {
   ];
 
   return (
-    <View className="flex-1 bg-gradient-to-br from-slate-50 to-blue-50">
+    <View className="flex-1 bg-gray-50">
       {!selected ? (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 }}>
-          <View className="bg-white rounded-2xl p-6 mb-6 shadow-lg shadow-blue-100">
-            <View className="flex-row items-center mb-4">
-              <View className="bg-blue-100 p-3 rounded-xl mr-4">
-                <Truck size={24} color="#2563eb" />
-              </View>
-              <View className="flex-1">
-                <Text className="text-2xl font-bold text-gray-900">
-                  Waste Collection
-                </Text>
-                <Text className="text-gray-600 text-sm">
-                  Manage your assigned cleanups
-                </Text>
-              </View>
-            </View>
-            <View className="flex-row justify-between">
-              <View className="items-center">
-                <Text className="text-2xl font-bold text-blue-600">
-                  {events.filter(e => e.status !== "Completed").length}
-                </Text>
-                <Text className="text-xs text-gray-500">Active Tasks</Text>
-              </View>
-              <View className="items-center">
-                <Text className="text-2xl font-bold text-emerald-600">
-                  {events.filter(e => e.status === "Completed").length}
-                </Text>
-                <Text className="text-xs text-gray-500">Completed</Text>
-              </View>
-              <View className="items-center">
-                <Text className="text-2xl font-bold text-gray-600">
-                  {events.length}
-                </Text>
-                <Text className="text-xs text-gray-500">Total</Text>
-              </View>
-            </View>
+        <>
+          {/* Curved Header Background */}
+          <View 
+            style={{
+              backgroundColor: '#059669',
+              height: 220,
+              borderBottomLeftRadius: 40,
+              borderBottomRightRadius: 40,
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.1,
+              shadowRadius: 8,
+              elevation: 5,
+            }}
+          >
+            {/* Decorative circles */}
+            <View style={{
+              position: 'absolute',
+              width: 100,
+              height: 100,
+              borderRadius: 50,
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              top: -20,
+              right: 30,
+            }} />
+            <View style={{
+              position: 'absolute',
+              width: 60,
+              height: 60,
+              borderRadius: 30,
+              backgroundColor: 'rgba(255, 255, 255, 0.08)',
+              top: 120,
+              left: 20,
+            }} />
           </View>
+
+          <ScrollView contentContainerStyle={{ paddingTop: 60, paddingHorizontal: 16, paddingBottom: 80 }}>
+            {/* Header */}
+            <View className="mb-6">
+              <View className="flex-row items-center mb-2">
+                <View 
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                    padding: 12,
+                    borderRadius: 16,
+                    marginRight: 12,
+                  }}
+                >
+                  <Truck size={32} color="#ffffff" strokeWidth={2.5} />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-3xl font-bold text-white" style={{ letterSpacing: 0.5 }}>Home</Text>
+                  <Text className="text-emerald-50 text-base mt-1">Dashboard Overview</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Stats Card */}
+            <View 
+              style={{
+                backgroundColor: '#ffffff',
+                borderRadius: 20,
+                padding: 20,
+                marginBottom: 24,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.08,
+                shadowRadius: 8,
+                elevation: 3,
+              }}
+            >
+              <View className="flex-row items-center mb-5">
+                <View style={{ backgroundColor: '#d1fae5', padding: 10, borderRadius: 12, marginRight: 12 }}>
+                  <CheckCircle size={22} color="#059669" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-xl font-bold text-gray-900">Your Statistics</Text>
+                  <Text className="text-gray-500 text-xs mt-1">Task summary</Text>
+                </View>
+              </View>
+              <View className="flex-row justify-around">
+                <View className="items-center">
+                  <Text className="text-3xl font-bold text-blue-600">
+                    {(() => {
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      
+                      // Calculate available tasks (same logic as availableCleanups)
+                      return events.filter((ev) => {
+                        // Skip if completed
+                        if (ev.status === "Completed") return false;
+                        
+                        // Check if event date is today or in the past
+                        const date = tsToDate(ev.eventAt);
+                        if (!date) {
+                          // If no date, count it as active
+                          return true;
+                        }
+                        
+                        const d = new Date(date);
+                        d.setHours(0, 0, 0, 0);
+                        
+                        // Show if date is today or past
+                        return d <= today;
+                      }).length;
+                    })()}
+                  </Text>
+                  <Text className="text-xs text-gray-500 font-semibold mt-1">Active</Text>
+                </View>
+                <View className="items-center">
+                  <Text className="text-3xl font-bold text-amber-600">
+                    {(() => {
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      
+                      // Calculate upcoming events (future dates)
+                      return events.filter((ev) => {
+                        if (ev.status === "Completed") return false;
+                        const date = tsToDate(ev.eventAt);
+                        if (!date) return false;
+                        const d = new Date(date);
+                        d.setHours(0, 0, 0, 0);
+                        return d > today; // future dates only
+                      }).length;
+                    })()}
+                  </Text>
+                  <Text className="text-xs text-gray-500 font-semibold mt-1">Upcoming</Text>
+                </View>
+              </View>
+            </View>
 
           {/* Quick Actions Section - Grid Layout */}
           <View className="mb-6">
             <View className="flex-row items-center mb-4">
-              <View className="bg-gradient-to-r from-indigo-500 to-purple-600 p-3 rounded-xl mr-4">
-                <Zap size={24} color="white" />
+              <View style={{ backgroundColor: '#ede9fe', padding: 10, borderRadius: 12, marginRight: 12 }}>
+                <Zap size={22} color="#7c3aed" />
               </View>
               <View className="flex-1">
-                <Text className="text-2xl font-bold text-gray-900">
+                <Text className="text-xl font-bold text-gray-900">
                   Quick Actions
                 </Text>
-                <Text className="text-gray-600 text-sm">
-                  Access your assignments and analytics
+                <Text className="text-gray-500 text-xs mt-1">
+                  Fast access to key features
                 </Text>
               </View>
             </View>
@@ -284,242 +381,340 @@ export default function WcHome({ userId }: { userId: string }) {
                   pathname: "/waste_collector/tabs/wc_assignment",
                   params: { tab: "available" }
                 })}
-                className="w-[48%] bg-white rounded-2xl p-4 mb-3 shadow-lg border border-blue-100"
+                style={{
+                  width: '48%',
+                  backgroundColor: '#ffffff',
+                  borderRadius: 20,
+                  padding: 16,
+                  marginBottom: 12,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.08,
+                  shadowRadius: 8,
+                  elevation: 3,
+                  borderLeftWidth: 4,
+                  borderLeftColor: '#3b82f6',
+                }}
               >
                 <View className="items-center">
-                  <View className="bg-blue-100 p-4 rounded-2xl mb-3">
+                  <View style={{ backgroundColor: '#dbeafe', padding: 16, borderRadius: 16, marginBottom: 12 }}>
                     <ClipboardList size={28} color="#2563eb" />
                   </View>
                   <Text className="text-gray-900 font-bold text-center mb-1">Available</Text>
-                  <Text className="text-gray-600 text-xs text-center">Current Tasks</Text>
+                  <Text className="text-gray-500 text-xs text-center font-semibold">Current Tasks</Text>
                 </View>
               </TouchableOpacity>
 
-              {/* View Upcoming Assignments */}
-              <TouchableOpacity
-                onPress={() => router.push({
-                  pathname: "/waste_collector/tabs/wc_assignment",
-                  params: { tab: "upcoming" }
-                })}
-                className="w-[48%] bg-white rounded-2xl p-4 mb-3 shadow-lg border border-amber-100"
-              >
-                <View className="items-center">
-                  <View className="bg-amber-100 p-4 rounded-2xl mb-3">
-                    <Calendar size={28} color="#d97706" />
-                  </View>
-                  <Text className="text-gray-900 font-bold text-center mb-1">Upcoming</Text>
-                  <Text className="text-gray-600 text-xs text-center">Scheduled Tasks</Text>
-                </View>
-              </TouchableOpacity>
-
-              {/* View Analytics - Full Width */}
+              {/* View Analytics */}
               <TouchableOpacity
                 onPress={() => router.navigate("/waste_collector/tabs/wc_analytics")}
-                className="w-full bg-white rounded-2xl p-4 shadow-lg border border-emerald-100"
+                style={{
+                  width: '48%',
+                  backgroundColor: '#ffffff',
+                  borderRadius: 20,
+                  padding: 16,
+                  marginBottom: 12,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.08,
+                  shadowRadius: 8,
+                  elevation: 3,
+                  borderLeftWidth: 4,
+                  borderLeftColor: '#059669',
+                }}
               >
-                <View className="flex-row items-center">
-                  <View className="bg-emerald-100 p-4 rounded-2xl mr-4">
+                <View className="items-center">
+                  <View style={{ backgroundColor: '#d1fae5', padding: 16, borderRadius: 16, marginBottom: 12 }}>
                     <BarChart3 size={28} color="#059669" />
                   </View>
-                  <View className="flex-1">
-                    <Text className="text-gray-900 font-bold text-lg">Analytics Dashboard</Text>
-                    <Text className="text-gray-600 text-sm">Track your performance metrics</Text>
-                  </View>
-                  <View className="bg-emerald-50 p-2 rounded-lg">
-                    <Navigation size={16} color="#059669" />
-                  </View>
+                  <Text className="text-gray-900 font-bold text-center mb-1">Analytics</Text>
+                  <Text className="text-gray-500 text-xs text-center font-semibold">Performance</Text>
                 </View>
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Assignment Calendar View */}
+          {/* Upcoming Events */}
           <View className="mb-6">
             <View className="flex-row items-center mb-4">
-              <View className="bg-gradient-to-r from-purple-500 to-pink-600 p-3 rounded-xl mr-4">
-                <Calendar size={24} color="white" />
+              <View style={{ backgroundColor: '#fef3c7', padding: 10, borderRadius: 12, marginRight: 12 }}>
+                <Calendar size={22} color="#d97706" />
               </View>
               <View className="flex-1">
-                <Text className="text-2xl font-bold text-gray-900">
-                  Assignment Calendar
+                <Text className="text-xl font-bold text-gray-900">
+                  Upcoming Events
                 </Text>
-                <Text className="text-gray-600 text-sm">
-                  View your assignments by date
+                <Text className="text-gray-500 text-xs mt-1">
+                  Future scheduled assignments
                 </Text>
               </View>
             </View>
 
-            <View className="bg-white rounded-2xl p-6 shadow-lg border border-purple-100">
-              {/* Calendar Header */}
-              <View className="flex-row items-center justify-between mb-6">
-                <TouchableOpacity
-                  onPress={() => {
-                    const newDate = new Date(currentDate);
-                    newDate.setMonth(newDate.getMonth() - 1);
-                    setCurrentDate(newDate);
+            {loading ? (
+              <View className="py-10 items-center">
+                <View 
+                  style={{
+                    backgroundColor: '#ffffff',
+                    padding: 32,
+                    borderRadius: 24,
+                    alignItems: 'center',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 12,
+                    elevation: 6,
                   }}
-                  className="bg-gray-100 p-2 rounded-lg"
                 >
-                  <ChevronLeft size={20} color="#6b7280" />
-                </TouchableOpacity>
-                
-                <Text className="text-xl font-bold text-gray-900">
-                  {currentDate.toLocaleDateString(undefined, { 
-                    month: 'long', 
-                    year: 'numeric' 
-                  })}
-                </Text>
-                
-                <TouchableOpacity
-                  onPress={() => {
-                    const newDate = new Date(currentDate);
-                    newDate.setMonth(newDate.getMonth() + 1);
-                    setCurrentDate(newDate);
-                  }}
-                  className="bg-gray-100 p-2 rounded-lg"
-                >
-                  <ChevronRight size={20} color="#6b7280" />
-                </TouchableOpacity>
-              </View>
-
-              {/* Calendar Grid */}
-              <View className="mb-4">
-                {/* Day headers */}
-                <View className="flex-row mb-2">
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                    <View key={day} className="flex-1 items-center py-2">
-                      <Text className="text-xs font-semibold text-gray-500">{day}</Text>
-                    </View>
-                  ))}
+                  <ActivityIndicator size="large" color="#059669" />
+                  <Text className="text-gray-700 mt-4 font-semibold text-base">Loading events...</Text>
                 </View>
+              </View>
+            ) : (() => {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              
+              const upcomingEvents = events.filter((ev) => {
+                if (ev.status === "Completed") return false;
+                const date = tsToDate(ev.eventAt);
+                if (!date) return false;
+                const d = new Date(date);
+                d.setHours(0, 0, 0, 0);
+                return d > today; // future dates only
+              });
 
-                {/* Calendar days */}
-                <View className="flex-row flex-wrap">
-                  {getDaysInMonth(currentDate).map((day, index) => {
-                    if (!day) {
-                      return <View key={index} className="w-[14.28%] h-12" />;
-                    }
-
-                    const dayEvents = getEventsForDate(day, events);
-                    const isToday = isSameDay(day, new Date());
-                    const hasEvents = dayEvents.length > 0;
-
-                    return (
-                      <TouchableOpacity
-                        key={day.getTime()}
-                        onPress={() => {
-                          console.log('Date clicked:', day);
-                        }}
-                        className={`w-[14.28%] h-12 items-center justify-center border-b border-r border-gray-100 ${
-                          isToday ? 'bg-blue-50' : ''
-                        }`}
-                      >
-                        <Text className={`text-sm font-medium ${
-                          isToday ? 'text-blue-600' : 'text-gray-700'
-                        }`}>
-                          {day.getDate()}
-                        </Text>
-                        {hasEvents && (
-                          <View className="flex-row mt-1">
-                            {dayEvents.slice(0, 3).map((_, eventIndex) => (
-                              <View
-                                key={eventIndex}
-                                className={`w-1.5 h-1.5 rounded-full mx-0.5 ${
-                                  dayEvents[eventIndex]?.status === 'Completed' ? 'bg-emerald-500' :
-                                  dayEvents[eventIndex]?.status === 'In-progress' ? 'bg-blue-500' :
-                                  'bg-amber-500'
-                                }`}
-                              />
-                            ))}
-                            {dayEvents.length > 3 && (
-                              <Text className="text-xs text-gray-500 ml-1">+</Text>
+               return upcomingEvents.length > 0 ? (
+                 <View>
+                   {upcomingEvents.map((ev) => {
+                     const d = tsToDate(ev.eventAt);
+                     const dateStr = d ? `${formatDate(d)} • ${formatTime(d)}` : "No date";
+                     return (
+                       <View
+                         key={ev.id}
+                         style={{
+                           marginBottom: 16,
+                           backgroundColor: '#ffffff',
+                           borderRadius: 20,
+                           overflow: 'hidden',
+                           shadowColor: '#000',
+                           shadowOffset: { width: 0, height: 2 },
+                           shadowOpacity: 0.08,
+                           shadowRadius: 8,
+                           elevation: 3,
+                           borderLeftWidth: 5,
+                           borderLeftColor: '#f59e0b',
+                         }}
+                       >
+                        {/* Event Image */}
+                        {ev.imageUrl && (
+                          <Image
+                            source={{ uri: ev.imageUrl }}
+                            style={{ width: '100%', height: 192 }}
+                            resizeMode="cover"
+                          />
+                        )}
+                        
+                        <View style={{ padding: 16 }}>
+                          <Text className="text-xl font-bold text-gray-900 mb-3">
+                            {ev.title}
+                          </Text>
+                          
+                          <View style={{ backgroundColor: '#f9fafb', borderRadius: 14, padding: 12, marginBottom: 12 }}>
+                            <View className="flex-row items-center mb-2">
+                              <View style={{ backgroundColor: '#fef3c7', padding: 6, borderRadius: 8, marginRight: 8 }}>
+                                <Clock size={16} color="#d97706" />
+                              </View>
+                              <Text className="text-gray-700 text-sm font-semibold">{dateStr}</Text>
+                            </View>
+                            
+                            {!!ev.location?.label && (
+                              <View className="flex-row items-center">
+                                <View style={{ backgroundColor: '#d1fae5', padding: 6, borderRadius: 8, marginRight: 8 }}>
+                                  <MapPin size={16} color="#059669" />
+                                </View>
+                                <Text className="text-gray-700 text-sm font-semibold flex-1" numberOfLines={1}>
+                                  {ev.location.label}
+                                </Text>
+                              </View>
                             )}
                           </View>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
+                          
+                          {ev.wasteTypes && ev.wasteTypes.length > 0 && (
+                            <View>
+                              <Text className="text-gray-500 text-xs font-bold mb-2">WASTE TYPES</Text>
+                              <View className="flex-row flex-wrap">
+                                {ev.wasteTypes.slice(0, 3).map((type, idx) => (
+                                  <View key={idx} style={{ backgroundColor: '#fef3c7', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, marginRight: 8, marginBottom: 6, borderWidth: 1, borderColor: '#f59e0b' }}>
+                                    <Text className="text-amber-700 text-xs font-bold">{type}</Text>
+                                  </View>
+                                ))}
+                                {ev.wasteTypes.length > 3 && (
+                                  <View style={{ backgroundColor: '#dbeafe', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: '#3b82f6' }}>
+                                    <Text className="text-blue-700 text-xs font-bold">+{ev.wasteTypes.length - 3}</Text>
+                                  </View>
+                                )}
+                              </View>
+                             </View>
+                           )}
+                         </View>
+                       </View>
+                     );
+                   })}
+                 </View>
+               ) : (
+                <View 
+                  style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: 20,
+                    padding: 32,
+                    alignItems: 'center',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.08,
+                    shadowRadius: 8,
+                    elevation: 3,
+                  }}
+                >
+                  <View style={{ backgroundColor: '#f3f4f6', padding: 20, borderRadius: 999, marginBottom: 16 }}>
+                    <Calendar size={40} color="#9ca3af" />
+                  </View>
+                  <Text className="text-gray-700 font-bold text-lg mb-2">
+                    No Upcoming Events
+                  </Text>
+                  <Text className="text-gray-500 text-sm text-center">
+                    You have no scheduled events in the future
+                  </Text>
                 </View>
-              </View>
-
-            </View>
+              );
+            })()}
           </View>
           
           {loading ? (
             <View className="py-10 items-center">
-              <View className="bg-white p-6 rounded-2xl shadow-sm">
-                <ActivityIndicator size="large" color="#2563eb" />
-                <Text className="text-gray-600 mt-3 font-medium">Loading assignments...</Text>
+              <View 
+                style={{
+                  backgroundColor: '#ffffff',
+                  padding: 32,
+                  borderRadius: 24,
+                  alignItems: 'center',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 12,
+                  elevation: 6,
+                }}
+              >
+                <ActivityIndicator size="large" color="#059669" />
+                <Text className="text-gray-700 mt-4 font-semibold text-base">Loading assignments...</Text>
               </View>
             </View>
           ) : null}
-        </ScrollView>
+          </ScrollView>
+        </>
       ) : (
         // 🔹 Assignment Detail View (Steps)
-        <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 60 }}>
           <View className="flex-row items-center mb-6">
             <TouchableOpacity 
-              onPress={() => setSelected(null)} 
-              className="bg-white p-2 rounded-xl shadow-sm mr-4"
+              onPress={() => setSelected(null)}
+              style={{
+                backgroundColor: '#059669',
+                padding: 10,
+                borderRadius: 14,
+                marginRight: 12,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                elevation: 3,
+              }}
             >
-              <ChevronLeft color="#2563eb" size={24} />
+              <ChevronLeft color="#ffffff" size={24} strokeWidth={3} />
             </TouchableOpacity>
             <View className="flex-1">
               <Text className="text-2xl font-bold text-gray-900">
-                Assignment Details
+                Task Details
               </Text>
-              <Text className="text-gray-600 text-sm">
-                Follow the steps to complete your task
+              <Text className="text-gray-600 text-sm font-medium">
+                Follow steps to complete
               </Text>
             </View>
           </View>
 
-          <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm border-l-4 border-blue-400">
+          <View 
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: 20,
+              padding: 20,
+              marginBottom: 24,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.08,
+              shadowRadius: 8,
+              elevation: 3,
+              borderLeftWidth: 5,
+              borderLeftColor: '#059669',
+            }}
+          >
             <View className="flex-row items-start justify-between mb-4">
               <View className="flex-1">
-                <Text className="text-xl font-bold text-gray-900 mb-2">
+                <Text className="text-2xl font-bold text-gray-900 mb-3">
                   {selected.title}
                 </Text>
-                <View className="flex-row items-center mb-2">
-                  <View className="bg-blue-100 p-1.5 rounded-lg mr-3">
-                    <MapPin size={16} color="#2563eb" />
+                <View className="flex-row items-center mb-3">
+                  <View style={{ backgroundColor: '#d1fae5', padding: 8, borderRadius: 10, marginRight: 10 }}>
+                    <MapPin size={18} color="#059669" />
                   </View>
-                  <Text className="text-gray-700 font-medium">{selected.location?.label}</Text>
+                  <Text className="text-gray-700 font-semibold">{selected.location?.label}</Text>
                 </View>
-                <View className="flex-row items-center mb-2">
-                  <View className="bg-amber-100 p-1.5 rounded-lg mr-3">
-                    <Calendar size={16} color="#d97706" />
+                <View className="flex-row items-center mb-3">
+                  <View style={{ backgroundColor: '#fef3c7', padding: 8, borderRadius: 10, marginRight: 10 }}>
+                    <Calendar size={18} color="#d97706" />
                   </View>
-                  <Text className="text-gray-700">
+                  <Text className="text-gray-700 font-semibold">
                     {formatDate(tsToDate(selected.eventAt))} •{" "}
                     {formatTime(tsToDate(selected.eventAt))}
                   </Text>
                 </View>
                 {!!selected.wasteTypes && (
                   <View className="flex-row items-center">
-                    <View className="bg-emerald-100 p-1.5 rounded-lg mr-3">
-                      <Package size={16} color="#059669" />
+                    <View style={{ backgroundColor: '#d1fae5', padding: 8, borderRadius: 10, marginRight: 10 }}>
+                      <Package size={18} color="#059669" />
                     </View>
-                    <Text className="text-gray-700">
+                    <Text className="text-gray-700 font-semibold">
                       {selected.wasteTypes.join(", ")} •{" "}
                       {selected.estimatedQuantity || "N/A"}
                     </Text>
                   </View>
                 )}
               </View>
-              <View className="bg-blue-50 p-3 rounded-xl">
-                <Truck size={24} color="#2563eb" />
+              <View style={{ backgroundColor: '#d1fae5', padding: 12, borderRadius: 16 }}>
+                <Truck size={28} color="#059669" />
               </View>
             </View>
           </View>
 
           {/* Navigate to Location Button */}
-          <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm">
+          <View 
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: 20,
+              padding: 20,
+              marginBottom: 24,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.08,
+              shadowRadius: 8,
+              elevation: 3,
+            }}
+          >
             <View className="flex-row items-center mb-4">
-              <View className="bg-green-100 p-2 rounded-lg mr-3">
-                <Navigation size={20} color="#059669" />
+              <View style={{ backgroundColor: '#d1fae5', padding: 10, borderRadius: 12, marginRight: 12 }}>
+                <Navigation size={22} color="#059669" />
               </View>
-              <Text className="text-lg font-bold text-gray-900">Navigation</Text>
+              <View className="flex-1">
+                <Text className="text-xl font-bold text-gray-900">Navigation</Text>
+                <Text className="text-gray-500 text-xs mt-1">Open in maps app</Text>
+              </View>
             </View>
             <TouchableOpacity
               onPress={() => {
@@ -545,22 +740,50 @@ export default function WcHome({ userId }: { userId: string }) {
                   Alert.alert("Error", "Location coordinates not available");
                 }
               }}
-              className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 rounded-xl flex-row items-center justify-center shadow-lg"
+              style={{
+                backgroundColor: '#059669',
+                paddingVertical: 16,
+                paddingHorizontal: 24,
+                borderRadius: 14,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.2,
+                shadowRadius: 6,
+                elevation: 6,
+              }}
             >
-              <Navigation size={20} color="white" />
-              <Text className="text-white text-center font-semibold ml-2">
+              <Navigation size={22} color="white" strokeWidth={2.5} />
+              <Text className="text-white font-bold ml-2 text-base">
                 Open in Maps
               </Text>
             </TouchableOpacity>
           </View>
 
           {/* Steps */}
-          <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm">
+          <View 
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: 20,
+              padding: 20,
+              marginBottom: 24,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.08,
+              shadowRadius: 8,
+              elevation: 3,
+            }}
+          >
             <View className="flex-row items-center mb-6">
-              <View className="bg-purple-100 p-2 rounded-lg mr-3">
-                <Zap size={20} color="#7c3aed" />
+              <View style={{ backgroundColor: '#ede9fe', padding: 10, borderRadius: 12, marginRight: 12 }}>
+                <Zap size={22} color="#7c3aed" />
               </View>
-              <Text className="text-lg font-bold text-gray-900">Collection Progress</Text>
+              <View className="flex-1">
+                <Text className="text-xl font-bold text-gray-900">Progress Tracker</Text>
+                <Text className="text-gray-500 text-xs mt-1">Complete each step</Text>
+              </View>
             </View>
             {steps.map((step, index) => (
               <View key={index} className="mb-6">
@@ -626,27 +849,34 @@ export default function WcHome({ userId }: { userId: string }) {
                         else if (index === 1) await handleTakePhoto(selected);
                         else if (index === 2) await handleComplete(selected);
                       }}
-                      className={`px-6 py-3 rounded-xl flex-row items-center justify-center shadow-lg ${
-                        index === 0 
-                          ? "bg-emerald-600" 
-                          : index === 1 
-                          ? "bg-blue-600" 
-                          : "bg-green-600"
-                      }`}
+                      style={{
+                        backgroundColor: index === 0 ? '#059669' : index === 1 ? '#3b82f6' : '#16a34a',
+                        paddingVertical: 14,
+                        paddingHorizontal: 24,
+                        borderRadius: 14,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 6,
+                        elevation: 6,
+                      }}
                     >
                       {uploading ? (
                         <ActivityIndicator color="white" size="small" />
                       ) : (
                         <>
-                          {index === 0 && <Truck size={18} color="white" />}
-                          {index === 1 && <Camera size={18} color="white" />}
-                          {index === 2 && <CheckCircle size={18} color="white" />}
-                          <Text className="text-white font-semibold ml-2">
+                          {index === 0 && <Truck size={20} color="white" strokeWidth={2.5} />}
+                          {index === 1 && <Camera size={20} color="white" strokeWidth={2.5} />}
+                          {index === 2 && <CheckCircle size={20} color="white" strokeWidth={2.5} />}
+                          <Text className="text-white font-bold ml-2 text-base">
                             {index === 0
                               ? "Mark Collected"
                               : index === 1
                               ? "Take Photo"
-                              : "Complete"}
+                              : "Complete Task"}
                           </Text>
                         </>
                       )}
@@ -664,23 +894,38 @@ export default function WcHome({ userId }: { userId: string }) {
 
           {/* Photos */}
           {photos.length > 0 && (
-            <View className="bg-white rounded-2xl p-6 mb-6 shadow-sm">
+            <View 
+              style={{
+                backgroundColor: '#ffffff',
+                borderRadius: 20,
+                padding: 20,
+                marginBottom: 24,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.08,
+                shadowRadius: 8,
+                elevation: 3,
+              }}
+            >
               <View className="flex-row items-center mb-4">
-                <View className="bg-green-100 p-2 rounded-lg mr-3">
-                  <Camera size={20} color="#059669" />
+                <View style={{ backgroundColor: '#d1fae5', padding: 10, borderRadius: 12, marginRight: 12 }}>
+                  <Camera size={22} color="#059669" />
                 </View>
-                <Text className="text-lg font-bold text-gray-900">Disposal Photos</Text>
+                <View className="flex-1">
+                  <Text className="text-xl font-bold text-gray-900">Photos</Text>
+                  <Text className="text-gray-500 text-xs mt-1">{photos.length} image{photos.length !== 1 ? 's' : ''} uploaded</Text>
+                </View>
               </View>
               <View className="space-y-3">
                 {photos.map((p, i) => (
-                  <View key={i} className="relative">
+                  <View key={i} className="relative mb-3">
                     <Image 
                       source={{ uri: p }} 
-                      className="w-full h-48 rounded-xl shadow-sm" 
+                      style={{ width: '100%', height: 192, borderRadius: 16 }}
                       resizeMode="cover"
                     />
-                    <View className="absolute top-2 right-2 bg-black bg-opacity-50 px-2 py-1 rounded">
-                      <Text className="text-white text-xs font-semibold">
+                    <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0, 0, 0, 0.6)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}>
+                      <Text className="text-white text-xs font-bold">
                         Photo {i + 1}
                       </Text>
                     </View>
