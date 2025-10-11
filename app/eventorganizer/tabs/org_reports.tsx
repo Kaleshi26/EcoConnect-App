@@ -1,23 +1,36 @@
 // app/eventorganizer/tabs/org_reports.tsx
 import { Ionicons } from "@expo/vector-icons";
+import { CameraView, useCameraPermissions } from "expo-camera";
+
 import { collection, onSnapshot, orderBy, query, where } from "firebase/firestore";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Dimensions,
   ImageBackground,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
   Share,
   Text,
-  View,
+  View
 } from "react-native";
+
 import { useAuth } from "../../../contexts/AuthContext";
 import { db } from "../../../services/firebaseConfig";
 
 const { width } = Dimensions.get('window');
+
+// --- CORRECT AI SETUP ---
+const PAT = 'ac9054dae5984f66b297de6f510bbcb0'; // Your key from the screenshot
+const USER_ID = 'yn0njmazqq4r'; // From your URL
+const APP_ID = 'EcoConnect-App'; // From your URL
+const MODEL_ID = 'general-image-recognition';
+const MODEL_VERSION_ID = 'aa7f35c01e0642fda5cf400f543e7c40';
+// --- END OF SETUP ---
+
 
 type EventDoc = {
   id: string;
@@ -49,6 +62,17 @@ export default function OrgReports() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<"all" | "month" | "quarter" | "year">("all");
+
+  const [isCameraVisible, setCameraVisible] = useState(false);
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [permission, requestPermission] = useCameraPermissions();
+  const cameraRef = useRef<CameraView>(null);
+  
+
+
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<any[] | null>(null);
+
 
   // Live events subscription
   useEffect(() => {
@@ -188,6 +212,112 @@ Join me in making our environment cleaner! 🌍
     }
   };
 
+
+  const takePicture = async () => {
+    if (!cameraRef.current) return;
+
+    // Show the loading indicator immediately
+    setIsAnalyzing(true);
+    setCameraVisible(false);
+
+    try {
+      const photo = await cameraRef.current.takePictureAsync({ base64: true });
+
+      // Check if we actually got the base64 data needed for the AI
+      if (photo && photo.base64) {
+        // Now, call the analysis function with the photo data
+        await analyzeImage(photo.base64);
+      } else {
+        throw new Error("Captured image data is missing.");
+      }
+    } catch (error: any) {
+      console.error("Failed to capture or analyze image:", error);
+      Alert.alert("Capture Failed", "Could not capture or process the image. Please try again.");
+      // Stop the loading indicator if an error occurs
+      setIsAnalyzing(false);
+    }
+  };
+
+
+
+  const analyzeImage = async (base64Image: string) => {
+  try {
+    const raw = JSON.stringify({
+      user_app_id: {
+        user_id: USER_ID,
+        app_id: APP_ID,
+      },
+      inputs: [
+        {
+          data: {
+            image: { base64: base64Image },
+          },
+        },
+      ],
+    });
+
+    const response = await fetch(
+      `https://api.clarifai.com/v2/models/${MODEL_ID}/versions/${MODEL_VERSION_ID}/outputs`,
+      {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Key " + PAT,
+        },
+        body: raw,
+      }
+    );
+
+    const jsonResponse = await response.json();
+
+    // ✅ Better error check
+    if (!response.ok || jsonResponse.status.code !== 10000) {
+      console.log("Clarifai raw response:", jsonResponse);
+      throw new Error(
+        jsonResponse.status?.description || "Failed to analyze image."
+      );
+    }
+
+    const outputs = jsonResponse.outputs?.[0];
+    if (!outputs || !outputs.data?.concepts) {
+      throw new Error("No recognizable concepts found in response.");
+    }
+
+    const concepts = outputs.data.concepts;
+    const relevantConcepts = concepts.filter((c: any) =>
+      ["plastic", "bottle", "fishing net", "bag", "wrapper", "can", "glass", "debris", "pollution"].some(
+        (keyword) => c.name.toLowerCase().includes(keyword)
+      )
+    );
+
+      setAnalysisResult(relevantConcepts);
+    } catch (error: any) {
+      console.error("Clarifai analysis error:", error);
+      Alert.alert("AI Error", error.message || "Could not analyze the image.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  
+  const generateEcologicalStory = (concepts: any[]) => {
+      const hasNets = concepts.some(c => c.name.includes('net'));
+      const hasPlastic = concepts.some(c => c.name.includes('plastic') || c.name.includes('bottle') || c.name.includes('bag'));
+      let story = "Thank you for your cleanup effort!\n\n";
+      
+      if (hasNets) {
+          story += "🐢 By removing fishing nets from the coast in October, you've helped clear a vital nesting ground for Sri Lanka's sea turtles just as their nesting season begins. Your work directly protects the next generation.\n\n";
+      }
+      if (hasPlastic) {
+          story += "🐦 Removing plastic waste prevents it from breaking into microplastics, protecting local seabirds and marine life that mistake it for food.\n";
+      }
+      if (!hasNets && !hasPlastic) {
+          story += "Even small cleanups have a big impact on maintaining the beauty and health of our local beaches for everyone to enjoy."
+      }
+      return story;
+  };
+
   // Stat Card Component
   const StatCard = ({ 
     title, 
@@ -320,6 +450,33 @@ Join me in making our environment cleaner! 🌍
         }
         showsVerticalScrollIndicator={false}
       >
+
+        <View className="mb-6">
+          <Pressable
+              onPress={async () => {
+                // This logic correctly checks and requests permission
+                if (!permission) {
+                  // Permissions are still loading
+                  return;
+                }
+                if (!permission.granted) {
+                  // Ask for permission
+                  const { granted } = await requestPermission();
+                  if (!granted) {
+                    Alert.alert("Permission Required", "Please enable camera access in your device settings to use this feature.");
+                    return;
+                  }
+                }
+                // If we have permission, open the camera
+                setCameraVisible(true);
+              }}
+              className="bg-purple-600 p-4 rounded-2xl shadow-lg flex-row items-center justify-center"
+          >
+              <Ionicons name="sparkles" size={22} color="white" />
+              <Text className="text-white font-bold text-base ml-3">Create AI Impact Report</Text>
+          </Pressable>
+        </View>
+
         {/* Quick Stats Grid */}
         <View className="mb-6">
           <Text className="text-2xl font-bold text-gray-900 mb-4">Your Impact Overview</Text>
@@ -490,6 +647,55 @@ Join me in making our environment cleaner! 🌍
           </Text>
         </View>
       </ScrollView>
+
+      <Modal visible={isCameraVisible} animationType="slide">
+        <View style={{ flex: 1 }}>
+          {permission?.granted ? (
+            <CameraView ref={cameraRef} style={{ flex: 1 }} facing="back" />
+          ) : (
+            <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "black" }}>
+              <Text style={{ color: "white", fontSize: 18, marginBottom: 20 }}>
+                Camera permission required
+              </Text>
+              <Pressable onPress={requestPermission} className="bg-blue-600 px-6 py-3 rounded-xl">
+                <Text className="text-white font-bold">Grant Permission</Text>
+              </Pressable>
+            </View>
+          )}
+          
+          <View className="absolute bottom-12 left-0 right-0 items-center">
+            <Pressable onPress={takePicture} className="w-20 h-20 bg-white rounded-full border-4 border-gray-400" />
+            <Pressable onPress={() => setCameraVisible(false)} className="mt-4">
+              <Text className="text-white font-semibold text-lg" style={{ textShadowColor: 'rgba(0, 0, 0, 0.7)', textShadowRadius: 4 }}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+
+      <Modal visible={isAnalyzing || !!analysisResult} transparent={true} animationType="fade">
+        <View className="flex-1 bg-black/60 justify-center items-center p-6">
+          <View className="bg-white rounded-2xl p-6 w-full items-center">
+            {isAnalyzing ? (
+              <>
+                <ActivityIndicator size="large" color="#4f46e5" />
+                <Text className="mt-4 text-gray-700 font-semibold text-lg">Analyzing your haul...</Text>
+              </>
+            ) : (
+              analysisResult && <>
+                <Ionicons name="leaf" size={40} color="#10b981" />
+                <Text className="text-2xl font-bold mt-4 mb-2 text-center">Impact Analysis Complete!</Text>
+                <Text className="text-gray-600 text-center mb-6">{generateEcologicalStory(analysisResult)}</Text>
+                <Pressable onPress={() => setAnalysisResult(null)} className="bg-blue-600 px-8 py-3 rounded-xl">
+                    <Text className="text-white font-bold">Awesome!</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+
     </View>
   );
 }
