@@ -2,51 +2,56 @@ import { File, Paths } from 'expo-file-system';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import {
-    collection,
-    onSnapshot,
-    orderBy,
-    query,
-    Timestamp
+  collection,
+  onSnapshot,
+  query,
+  Timestamp,
+  where
 } from "firebase/firestore";
 import {
-    BarChart3,
-    Calendar,
-    CheckCircle,
-    Clock,
-    Download,
-    FileText,
-    Package,
-    Share2,
-    TrendingUp
+  BarChart3,
+  Calendar,
+  CheckCircle,
+  Clock,
+  Download,
+  FileText,
+  Package,
+  Share2,
+  TrendingUp
 } from "lucide-react-native";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    Text,
-    View
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  View
 } from "react-native";
+import { useAuth } from "../../../contexts/AuthContext";
 import { db } from "../../../services/firebaseConfig";
 
-type EventDoc = {
+type WasteCollection = {
   id: string;
-  title: string;
-  description?: string;
-  eventAt?: Timestamp;
+  eventId: string;
+  eventTitle: string;
+  eventDescription: string;
+  collectorId: string;
+  collectorEmail: string;
   location?: { label?: string; lat?: number; lng?: number };
-  wasteTypes?: string[];
+  collectedWeights: Record<string, string>;
+  proofImages: string[];
+  wasteTypes: string[];
+  status: string;
+  collectedAt?: Timestamp;
+  createdAt?: Timestamp;
+  completedAt?: Timestamp;
   estimatedQuantity?: string;
   priority?: string;
-  status?: "Pending" | "In-progress" | "Completed";
-  assignedTo?: string;
-  proofUrl?: string;
-  completedAt?: Timestamp;
-  collectedWeights?: Record<string, string>;
+  organizerId?: string;
 };
 
 function tsToDate(ts?: Timestamp) {
@@ -58,8 +63,10 @@ function tsToDate(ts?: Timestamp) {
   return null;
 }
 
-const Analytics = ({ userId }: { userId: string }) => {
-  const [events, setEvents] = useState<EventDoc[]>([]);
+const Analytics = () => {
+  const { user, loading: authLoading } = useAuth();
+  const userId = user?.uid || "";
+  const [wasteCollections, setWasteCollections] = useState<WasteCollection[]>([]);
   const [loading, setLoading] = useState(true);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportType, setReportType] = useState<'weekly' | 'monthly' | 'all'>('monthly');
@@ -68,29 +75,62 @@ const Analytics = ({ userId }: { userId: string }) => {
   const [generatedReportContent, setGeneratedReportContent] = useState('');
   const screenWidth = Dimensions.get('window').width;
 
-  // Fetch assigned events
+  // Fetch waste collections
   useEffect(() => {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
-    const q = query(collection(db, "events"), orderBy("createdAt", "desc"));
+    // Query without orderBy to avoid index requirement, sort on client side
+    const q = query(
+      collection(db, "wasteCollections"),
+      where("collectorId", "==", userId)
+    );
+    
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const all: EventDoc[] = snap.docs
-          .map((d) => ({ id: d.id, ...(d.data() as any) }))
-          .filter((ev) => ev.assignedTo === userId);
-        setEvents(all);
+        let collections: WasteCollection[] = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<WasteCollection, "id">)
+        }));
+        
+        // Sort by completedAt on the client side (newest first)
+        collections = collections.sort((a, b) => {
+          const dateA = tsToDate(a.completedAt)?.getTime() || 0;
+          const dateB = tsToDate(b.completedAt)?.getTime() || 0;
+          return dateB - dateA;
+        });
+        
+        setWasteCollections(collections);
         setLoading(false);
       },
-      () => setLoading(false)
+      (error) => {
+        console.error("Error fetching waste collections:", error);
+        setLoading(false);
+      }
     );
     return () => unsub();
   }, [userId]);
+  
+  // Show loading state while auth is being checked
+  if (authLoading) {
+    return (
+      <View className="flex-1 bg-gradient-to-br from-slate-50 to-blue-50 justify-center items-center">
+        <View className="bg-white p-6 rounded-2xl shadow-sm">
+          <ActivityIndicator size="large" color="#2563eb" />
+          <Text className="text-gray-600 mt-3 font-medium">Loading...</Text>
+        </View>
+      </View>
+    );
+  }
 
   // Calculate comprehensive waste statistics
   const wasteAnalytics = useMemo(() => {
-    const completedEvents = events.filter(ev => ev.status === "Completed");
-    const pendingEvents = events.filter(ev => ev.status === "Pending");
-    const inProgressEvents = events.filter(ev => ev.status === "In-progress");
+    // All wasteCollections are completed by definition
+    const completedCollections = wasteCollections;
     
     let stats = {
       totalWeight: 0,
@@ -102,9 +142,9 @@ const Analytics = ({ userId }: { userId: string }) => {
       other: 0
     };
 
-    completedEvents.forEach(ev => {
-      if (ev.collectedWeights) {
-        Object.entries(ev.collectedWeights).forEach(([type, weight]) => {
+    completedCollections.forEach(collection => {
+      if (collection.collectedWeights) {
+        Object.entries(collection.collectedWeights).forEach(([type, weight]) => {
           const weightNum = parseFloat(weight) || 0;
           const normalizedType = type.toLowerCase().replace(/\s+/g, '');
           
@@ -161,12 +201,12 @@ const Analytics = ({ userId }: { userId: string }) => {
 
     // Calculate monthly data for trend analysis
     const monthlyData: Record<string, number> = {};
-    completedEvents.forEach(ev => {
-      if (ev.completedAt && ev.collectedWeights) {
-        const date = tsToDate(ev.completedAt);
+    completedCollections.forEach(collection => {
+      if (collection.completedAt && collection.collectedWeights) {
+        const date = tsToDate(collection.completedAt);
         if (date) {
           const monthKey = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-          const totalWeight = Object.values(ev.collectedWeights).reduce((sum, weight) => {
+          const totalWeight = Object.values(collection.collectedWeights).reduce((sum, weight) => {
             return sum + (parseFloat(weight) || 0);
           }, 0);
           monthlyData[monthKey] = (monthlyData[monthKey] || 0) + totalWeight;
@@ -175,20 +215,20 @@ const Analytics = ({ userId }: { userId: string }) => {
     });
 
     // Calculate performance metrics
-    const completionRate = events.length > 0 ? (completedEvents.length / events.length) * 100 : 0;
-    const averageWeightPerAssignment = completedEvents.length > 0 ? stats.totalWeight / completedEvents.length : 0;
+    const completionRate = 100; // All wasteCollections are completed
+    const averageWeightPerAssignment = completedCollections.length > 0 ? stats.totalWeight / completedCollections.length : 0;
     
     // Calculate weekly data
     const weeklyData: Record<string, number> = {};
     const today = new Date();
     const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
     
-    completedEvents.forEach(ev => {
-      if (ev.completedAt) {
-        const date = tsToDate(ev.completedAt);
+    completedCollections.forEach(collection => {
+      if (collection.completedAt) {
+        const date = tsToDate(collection.completedAt);
         if (date && date >= weekAgo) {
           const dayKey = date.toLocaleDateString('en-US', { weekday: 'short' });
-          const totalWeight = Object.values(ev.collectedWeights || {}).reduce((sum, weight) => {
+          const totalWeight = Object.values(collection.collectedWeights || {}).reduce((sum, weight) => {
             return sum + (parseFloat(weight) || 0);
           }, 0);
           weeklyData[dayKey] = (weeklyData[dayKey] || 0) + totalWeight;
@@ -199,10 +239,10 @@ const Analytics = ({ userId }: { userId: string }) => {
     
     return {
       ...stats,
-      completedAssignments: completedEvents.length,
-      totalAssignments: events.length,
-      pendingAssignments: pendingEvents.length,
-      inProgressAssignments: inProgressEvents.length,
+      completedAssignments: completedCollections.length,
+      totalAssignments: completedCollections.length,
+      pendingAssignments: 0,
+      inProgressAssignments: 0,
       completionRate,
       averageWeightPerAssignment,
       wasteTypeBreakdown: wasteTypes,
@@ -215,7 +255,7 @@ const Analytics = ({ userId }: { userId: string }) => {
         weight
       }))
     };
-  }, [events]);
+  }, [wasteCollections]);
 
   // Share Report Function (PDF)
   const shareReport = async (htmlContent: string, reportTitle: string) => {
@@ -290,27 +330,27 @@ const Analytics = ({ userId }: { userId: string }) => {
     try {
       setGeneratingReport(true);
       
-      // Filter events based on report type
-      let filteredEvents = events.filter(ev => ev.status === "Completed");
+      // Filter collections based on report type
+      let filteredCollections = wasteCollections;
       const now = new Date();
       
       if (reportType === 'weekly') {
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        filteredEvents = filteredEvents.filter(ev => {
-          if (!ev.completedAt) return false;
-          const date = tsToDate(ev.completedAt);
+        filteredCollections = filteredCollections.filter(collection => {
+          if (!collection.completedAt) return false;
+          const date = tsToDate(collection.completedAt);
           return date && date >= weekAgo;
         });
       } else if (reportType === 'monthly') {
         const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        filteredEvents = filteredEvents.filter(ev => {
-          if (!ev.completedAt) return false;
-          const date = tsToDate(ev.completedAt);
+        filteredCollections = filteredCollections.filter(collection => {
+          if (!collection.completedAt) return false;
+          const date = tsToDate(collection.completedAt);
           return date && date >= monthAgo;
         });
       }
 
-      // Calculate stats for filtered events
+      // Calculate stats for filtered collections
       let reportStats = {
         totalWeight: 0,
         plasticBottles: 0,
@@ -321,9 +361,9 @@ const Analytics = ({ userId }: { userId: string }) => {
         other: 0
       };
 
-      filteredEvents.forEach(ev => {
-        if (ev.collectedWeights) {
-          Object.entries(ev.collectedWeights).forEach(([type, weight]) => {
+      filteredCollections.forEach(collection => {
+        if (collection.collectedWeights) {
+          Object.entries(collection.collectedWeights).forEach(([type, weight]) => {
             const weightNum = parseFloat(weight) || 0;
             const normalizedType = type.toLowerCase().replace(/\s+/g, '');
             
@@ -553,12 +593,12 @@ const Analytics = ({ userId }: { userId: string }) => {
         <div class="stat-label">kg Total Waste</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value">${filteredEvents.length}</div>
-        <div class="stat-label">Assignments Completed</div>
+        <div class="stat-value">${filteredCollections.length}</div>
+        <div class="stat-label">Collections Completed</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value">${filteredEvents.length > 0 ? (reportStats.totalWeight / filteredEvents.length).toFixed(1) : 0}</div>
-        <div class="stat-label">kg Average per Assignment</div>
+        <div class="stat-value">${filteredCollections.length > 0 ? (reportStats.totalWeight / filteredCollections.length).toFixed(1) : 0}</div>
+        <div class="stat-label">kg Average per Collection</div>
       </div>
     </div>
   </div>
@@ -640,21 +680,21 @@ const Analytics = ({ userId }: { userId: string }) => {
   </div>
 
   <div class="section">
-    <div class="section-title">📋 Detailed Assignments</div>
-    ${filteredEvents.map((ev, idx) => {
-      const completedDate = ev.completedAt ? tsToDate(ev.completedAt) : null;
-      const totalWeight = ev.collectedWeights ? 
-        Object.values(ev.collectedWeights).reduce((sum, w) => sum + (parseFloat(w) || 0), 0) : 0;
+    <div class="section-title">📋 Detailed Collections</div>
+    ${filteredCollections.map((collection, idx) => {
+      const completedDate = collection.completedAt ? tsToDate(collection.completedAt) : null;
+      const totalWeight = collection.collectedWeights ? 
+        Object.values(collection.collectedWeights).reduce((sum, w) => sum + (parseFloat(w) || 0), 0) : 0;
       
       return `
         <div class="assignment-card">
-          <div class="assignment-header">Assignment #${idx + 1}: ${ev.title}</div>
-          <div class="assignment-detail"><strong>📍 Location:</strong> ${ev.location?.label || 'N/A'}</div>
+          <div class="assignment-header">Collection #${idx + 1}: ${collection.eventTitle}</div>
+          <div class="assignment-detail"><strong>📍 Location:</strong> ${collection.location?.label || 'N/A'}</div>
           <div class="assignment-detail"><strong>📅 Completed:</strong> ${completedDate ? completedDate.toLocaleDateString() : 'N/A'}</div>
           <div class="assignment-detail"><strong>⚖️ Weight Collected:</strong> ${totalWeight.toFixed(2)} kg</div>
           <div class="assignment-detail">
             <strong>🗑️ Waste Types:</strong>
-            ${ev.wasteTypes?.map(wt => `<span class="badge">${wt}</span>`).join('') || 'N/A'}
+            ${collection.wasteTypes?.map(wt => `<span class="badge">${wt}</span>`).join('') || 'N/A'}
           </div>
         </div>
       `;
@@ -665,24 +705,20 @@ const Analytics = ({ userId }: { userId: string }) => {
     <div class="section-title">📈 Performance Metrics</div>
     <table class="waste-table">
       <tr>
-        <td><strong>Efficiency Rating</strong></td>
-        <td>${wasteAnalytics.completionRate.toFixed(1)}%</td>
+        <td><strong>Total Collections</strong></td>
+        <td>${wasteCollections.length}</td>
       </tr>
       <tr>
-        <td><strong>Total Assignments</strong></td>
-        <td>${events.length}</td>
+        <td><strong>Collections in Report</strong></td>
+        <td>${filteredCollections.length}</td>
       </tr>
       <tr>
-        <td><strong>Completed</strong></td>
-        <td>${wasteAnalytics.completedAssignments}</td>
+        <td><strong>Average Weight per Collection</strong></td>
+        <td>${wasteAnalytics.averageWeightPerAssignment.toFixed(2)} kg</td>
       </tr>
       <tr>
-        <td><strong>In Progress</strong></td>
-        <td>${wasteAnalytics.inProgressAssignments}</td>
-      </tr>
-      <tr>
-        <td><strong>Pending</strong></td>
-        <td>${wasteAnalytics.pendingAssignments}</td>
+        <td><strong>Total Weight Collected</strong></td>
+        <td>${reportStats.totalWeight.toFixed(2)} kg</td>
       </tr>
     </table>
   </div>
