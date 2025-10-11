@@ -381,20 +381,25 @@ Join me in making our environment cleaner! 🌍
 
   
   const generateEcologicalStory = (concepts: any[]) => {
-      const hasNets = concepts.some(c => c.name.includes('net'));
-      const hasPlastic = concepts.some(c => c.name.includes('plastic') || c.name.includes('bottle') || c.name.includes('bag'));
-      let story = "Thank you for your cleanup effort!\n\n";
-      
-      if (hasNets) {
-          story += "🐢 By removing fishing nets from the coast in October, you've helped clear a vital nesting ground for Sri Lanka's sea turtles just as their nesting season begins. Your work directly protects the next generation.\n\n";
-      }
-      if (hasPlastic) {
-          story += "🐦 Removing plastic waste prevents it from breaking into microplastics, protecting local seabirds and marine life that mistake it for food.\n";
-      }
-      if (!hasNets && !hasPlastic) {
-          story += "Even small cleanups have a big impact on maintaining the beauty and health of our local beaches for everyone to enjoy."
-      }
-      return story;
+    if (concepts.length === 0) {
+      return "The AI couldn't confidently identify specific waste types in the photo, but every piece of trash removed helps our local environment. Thank you for your effort!";
+    }
+
+    // Get the top concept the AI is most sure about
+    const topConcept = concepts[0];
+    let story = `The AI detected **${topConcept.name}** with ${Math.round(topConcept.value * 100)}% confidence.\n\n`;
+
+    if (topConcept.name.includes('net')) {
+        story += "🐢 By removing fishing nets from the coast, you've helped clear a vital nesting ground for Sri Lanka's sea turtles, directly protecting the next generation.";
+    } else if (topConcept.name.includes('plastic') || topConcept.name.includes('bottle') || topConcept.name.includes('bag')) {
+        story += "🐦 Removing this plastic waste prevents it from breaking into microplastics, protecting local seabirds and marine life that often mistake it for food.";
+    } else if (topConcept.name.includes('can') || topConcept.name.includes('glass')) {
+        story += "♻️ Items like cans and glass can be recycled, and removing them from the beach prevents injuries to both wildlife and people.";
+    } else {
+        story += "Every piece of trash removed helps maintain the beauty and health of our local beaches for everyone to enjoy.";
+    }
+    
+    return story;
   };
 
   // Stat Card Component
@@ -591,7 +596,7 @@ Join me in making our environment cleaner! 🌍
                 Alert.alert("Permission Required", "Please enable camera access in your device settings to use this feature.");
               }
             }}
-            className="bg-purple-600 flex-1 p-4 rounded-2xl shadow-lg flex-row items-center justify-center"
+            className="bg-sky-600 flex-1 p-4 rounded-2xl shadow-lg flex-row items-center justify-center"
         >
               <Ionicons name="sparkles" size={22} color="white" />
               <Text className="text-white font-bold text-base ml-3">AI Scan</Text>
