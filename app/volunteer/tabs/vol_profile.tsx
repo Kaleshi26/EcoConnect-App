@@ -1,43 +1,50 @@
+<<<<<<< HEAD
 // app/volunteer/tabs/vol_profile.tsx
+=======
+import { useAuth } from "@/contexts/AuthContext";
+import { auth, db } from "@/services/firebaseConfig";
+>>>>>>> fb8dbdb0f0172d80c5ca05e53333166fe94dd0ee
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { signOut } from "firebase/auth";
-import React, { useRef, useState, useEffect } from "react";
 import {
-  Animated,
-  Pressable,
-  Text,
-  TouchableOpacity,
-  View,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-  Modal,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
-import { useAuth } from "@/contexts/AuthContext";
-import { auth, db } from "@/services/firebaseConfig";
-import {
+  addDoc,
   collection,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
   deleteDoc,
   doc,
-  updateDoc,
-  addDoc,
-  serverTimestamp,
   getDocs,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
   Timestamp,
+<<<<<<< HEAD
   getDoc,
   setDoc,
 } from "firebase/firestore";
 import QRCode from 'react-native-qrcode-svg';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import * as MediaLibrary from 'expo-media-library';
+=======
+  updateDoc,
+  where,
+} from "firebase/firestore";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+>>>>>>> fb8dbdb0f0172d80c5ca05e53333166fe94dd0ee
 
 // Types
 type PostCategory = "event" | "blog" | "achievement" | "suggestion" | "question";
@@ -320,6 +327,7 @@ function PrivateInfoModal({
               <Ionicons name="close" size={24} color="#64748b" />
             </Pressable>
           </View>
+<<<<<<< HEAD
           <ScrollView className="p-4" keyboardShouldPersistTaps="handled">
             {step === 1 ? (
               <>
@@ -338,6 +346,37 @@ function PrivateInfoModal({
                       className="border border-gray-300 rounded-xl p-3"
                       placeholder={`Enter ${field.label.toLowerCase()}`}
                     />
+=======
+          <Text className="text-xl font-bold text-slate-800">My Registered Events</Text>
+        </View>
+      </View>
+      <View className="p-6">
+        {registeredEvents.length === 0 ? (
+          <View className="items-center py-4">
+            <Ionicons name="calendar-outline" size={32} color="#cbd5e1" />
+            <Text className="text-slate-500 mt-2 text-center">You havet registered for any events yet</Text>
+          </View>
+        ) : (
+          registeredEvents.map((event) => {
+            const eventDate = tsToDate(event.eventDate);
+            return (
+              <View key={event.id} className="mb-4 pb-4 border-b border-slate-100 last:border-b-0 last:mb-0 last:pb-0">
+                <Text className="font-semibold text-slate-800 mb-1">{event.eventTitle}</Text>
+                {eventDate && (
+                  <Text className="text-slate-600 text-sm mb-2">
+                    {formatDate(eventDate)} • {formatTime(eventDate)}
+                  </Text>
+                )}
+                <View className="flex-row items-center">
+                  <View className={`px-3 py-1 rounded-full ${
+                    event.status === "confirmed" ? "bg-green-100" : "bg-yellow-100"
+                  }`}>
+                    <Text className={`text-xs font-medium ${
+                      event.status === "confirmed" ? "text-green-800" : "text-yellow-800"
+                    }`}>
+                      {event.status === "confirmed" ? "Confirmed" : "Pending"}
+                    </Text>
+>>>>>>> fb8dbdb0f0172d80c5ca05e53333166fe94dd0ee
                   </View>
                 ))}
                 <Pressable onPress={handleNext} className="bg-blue-600 p-4 rounded-xl items-center">
@@ -818,7 +857,14 @@ function CreatePostModal({
             {postsLoading ? (
               <ActivityIndicator color="#3b82f6" />
             ) : userPosts.length === 0 ? (
+<<<<<<< HEAD
               <Text className="text-slate-500 text-center py-4">You haven't created any posts yet</Text>
+=======
+              <View className="items-center py-4">
+                <Ionicons name="document-text-outline" size={32} color="#cbd5e1" />
+                <Text className="text-slate-500 mt-2">You havent created any posts yet</Text>
+              </View>
+>>>>>>> fb8dbdb0f0172d80c5ca05e53333166fe94dd0ee
             ) : (
               userPosts.map((post) => (
                 <View key={post.id} className="mb-4 pb-4 border-b border-slate-100 last:border-b-0 last:mb-0 last:pb-0">

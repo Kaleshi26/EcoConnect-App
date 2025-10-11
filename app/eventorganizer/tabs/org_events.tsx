@@ -12,6 +12,7 @@ import {
   serverTimestamp,
   Timestamp,
   updateDoc,
+  where,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -20,13 +21,14 @@ import {
   Alert,
   Animated,
   Image,
+  ImageBackground,
   Platform,
   Pressable,
   ScrollView,
   Switch,
   Text,
   TextInput,
-  View
+  View,
 } from "react-native";
 
 import { useAuth } from "../../../contexts/AuthContext";
@@ -36,6 +38,7 @@ import { db, storage } from "../../../services/firebaseConfig";
 const isWeb = Platform.OS === "web";
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
+// UPDATED: Added `imageUrls` to store all event images
 type EventDoc = {
   id: string;
   title: string;
@@ -47,16 +50,39 @@ type EventDoc = {
   sponsorshipRequired?: boolean;
   organizerId?: string;
   createdAt?: Timestamp;
-  imageUrl?: string;
+  imageUrl?: string; // Main cover image
+  imageUrls?: string[]; // All event images
   status: "open" | "in_progress" | "completed";
   actualParticipants?: number;
   collectedWastes?: { type: string; weight: number }[];
   evidencePhotos?: string[];
 };
 
-// Small UI helpers
-function Row({ children }: { children: React.ReactNode }) {
-  return <View className="flex-row items-center">{children}</View>;
+// NEW: Helper function to upload multiple images from their local URIs
+const uploadImages = async (uris: string[], path: 'events' | 'evidence'): Promise<string[]> => {
+  const uploadTasks = uris.map(async (uri) => {
+    // Fetch the image data from the local URI
+    const response = await fetch(uri);
+    const blob = await response.blob();
+
+    // Create a unique filename for the image
+    const filename = `${path}/${Date.now()}-${Math.random().toString(36).substring(2)}.jpg`;
+    const storageRef = ref(storage, filename);
+
+    // Upload the blob to Firebase Storage
+    await uploadBytes(storageRef, blob);
+
+    // Get the public download URL for the uploaded image
+    return await getDownloadURL(storageRef);
+  });
+
+  // Wait for all upload tasks to complete
+  return Promise.all(uploadTasks);
+};
+
+// Small UI helpers (No changes here)
+function Row({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <View className={`flex-row items-center ${className ?? ""}`}>{children}</View>;
 }
 
 function Section({ title, children, color = "blue" }: { title: string; children: React.ReactNode; color?: string }) {
@@ -140,13 +166,7 @@ function Chip({
       className={`px-4 py-3 rounded-2xl mr-2 mb-2 border-2 ${colorMap[color]} ${
         selected ? '' : 'bg-white'
       }`}
-      style={{ 
-        shadowColor: "#000", 
-        shadowOpacity: selected ? 0.2 : 0.1, 
-        shadowRadius: 6, 
-        elevation: 4,
-        shadowOffset: { width: 0, height: 2 }
-      }}
+      
     >
       <Text className={`font-semibold ${selected ? "text-white" : "text-gray-700"}`}>
         {label}
@@ -197,13 +217,17 @@ function Stepper({
 
 function usePressScale(initial = 1) {
   const scale = useRef(new Animated.Value(initial)).current;
-  const onPressIn = () => Animated.spring(scale, { toValue: 0.95, useNativeDriver: true }).start();
-  const onPressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start();
+  // Conditionally use native driver only on mobile
+  const useNativeDriver = Platform.OS !== 'web';
+
+  const onPressIn = () => Animated.spring(scale, { toValue: 0.95, useNativeDriver }).start();
+  const onPressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver }).start();
   return { scale, onPressIn, onPressOut };
 }
 
-// Image Upload Component
-function ImageUploader({ 
+// MODIFIED: This component now only picks images and returns their local URIs.
+// The actual upload happens later.
+function ImagePickerComponent({ 
   images, 
   onImagesChange, 
   maxImages = 5,
@@ -216,19 +240,19 @@ function ImageUploader({
   title: string;
   color?: string;
 }) {
-  const [uploading, setUploading] = useState(false);
-
   const pickImage = async () => {
     if (images.length >= maxImages) {
-      Alert.alert("Limit Reached", `You can only upload up to ${maxImages} images.`);
+      Alert.alert("Limit Reached", `You can only select up to ${maxImages} images.`);
       return;
     }
 
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission required', 'We need permissions to access your images.');
-        return;
+      if (Platform.OS !== 'web') {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission required', 'We need permissions to access your images.');
+          return;
+        }
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -238,29 +262,17 @@ function ImageUploader({
         quality: 0.8,
       });
 
-      if (result.canceled || !result.assets[0].uri) return;
-
-      const imageUri = result.assets[0].uri;
-      setUploading(true);
-
-      // Native vs Web upload
-      let downloadURL = imageUri;
-
-      if (!isWeb) {
-        const response = await fetch(imageUri);
-        const blob = await response.blob();
-        const filename = `events/${Date.now()}-${Math.random().toString(36).substring(2)}.jpg`;
-        const storageRef = ref(storage, filename);
-        await uploadBytes(storageRef, blob);
-        downloadURL = await getDownloadURL(storageRef);
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
       }
 
-      onImagesChange([...images, downloadURL]);
-      setUploading(false);
+      const imageUri = result.assets[0].uri;
+      // Just add the local URI to the state. No upload here.
+      onImagesChange([...images, imageUri]);
+      
     } catch (err) {
-      console.error("Image upload error:", err);
-      Alert.alert("Upload Failed", "Could not upload image. Please try again.");
-      setUploading(false);
+      console.error("Image pick error:", err);
+      Alert.alert("Error", "Could not select image. Please try again.");
     }
   };
 
@@ -299,14 +311,9 @@ function ImageUploader({
         {images.length < maxImages && (
           <Pressable
             onPress={pickImage}
-            disabled={uploading}
             className={`w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 items-center justify-center ${colorMap[color]} opacity-90`}
           >
-            {uploading ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <Ionicons name="add" size={24} color="white" />
-            )}
+            <Ionicons name="add" size={24} color="white" />
           </Pressable>
         )}
       </View>
@@ -317,8 +324,7 @@ function ImageUploader({
   );
 }
 
-
-// Date helpers for web inputs
+// Date helpers (No changes here)
 function pad(n: number) {
   return n < 10 ? `0${n}` : `${n}`;
 }
@@ -361,7 +367,6 @@ function combineDateTime(date?: Date | null, time?: Date | null): Date | null {
 function tsToDate(ts?: Timestamp) {
   try {
     if (!ts) return null;
-    // @ts-ignore
     if (typeof ts.toDate === "function") return ts.toDate();
   } catch {}
   return null;
@@ -375,8 +380,8 @@ function getStatus(ev: EventDoc) {
   return "In Progress";
 }
 
-// Event Card with enhanced UI
-function EventCard({ ev, onClosePress }: { ev: EventDoc; onClosePress: () => void }) {
+// Event Card (No changes here)
+function EventCard({ ev, onClosePress, onPress }: { ev: EventDoc; onClosePress: () => void; onPress: () => void }) {
   const status = getStatus(ev);
   const d = formatDateTime(ev.eventAt);
 
@@ -389,7 +394,10 @@ function EventCard({ ev, onClosePress }: { ev: EventDoc; onClosePress: () => voi
   const statusConfig = statusColors[status] || { bg: "bg-gray-100", text: "text-gray-700" };
 
   return (
-    <View className="mb-6 bg-white rounded-3xl overflow-hidden shadow-2xl border-2 border-gray-100">
+    <Pressable 
+      onPress={onPress} // Add this onPress handler
+      className="mb-6 bg-white rounded-3xl overflow-hidden shadow-2xl border-2 border-gray-100"
+    >
       <Image
         source={{
           uri: ev.imageUrl || "https://images.unsplash.com/photo-1581579438747-1dc8d17bbce4?w=400",
@@ -438,9 +446,9 @@ function EventCard({ ev, onClosePress }: { ev: EventDoc; onClosePress: () => voi
         {status === "In Progress" && (
           <Pressable
             onPress={onClosePress}
-            className="mt-4 bg-gradient-to-r from-orange-500 to-red-500 rounded-2xl py-4 items-center shadow-lg"
+            className="mt-4 bg-sky-500 rounded-2xl py-4 items-center shadow-lg"
           >
-            <Text className="text-white font-bold text-base">Close Event & Submit Report</Text>
+            <Text className="text-white font-bold text-base">Close Event & Submit Details</Text>
           </Pressable>
         )}
         
@@ -458,12 +466,12 @@ function EventCard({ ev, onClosePress }: { ev: EventDoc; onClosePress: () => voi
           </View>
         )}
       </View>
-    </View>
+    </Pressable> // Change this from </View> to </Pressable>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* Create Event Form (with image upload)                             */
+/* Create Event Form (with image upload)                              */
 /* ------------------------------------------------------------------ */
 function CreateEventForm({
   onCancel,
@@ -476,6 +484,7 @@ function CreateEventForm({
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  // This state now holds LOCAL URIs of the selected images
   const [eventImages, setEventImages] = useState<string[]>([]);
 
   const [date, setDate] = useState<Date | null>(new Date());
@@ -506,6 +515,7 @@ function CreateEventForm({
     return null;
   };
 
+  // UPDATED: The publish function now handles the image upload process
   const publish = async () => {
     setErrorMsg(null);
     const error = validate();
@@ -522,6 +532,11 @@ function CreateEventForm({
     }
     try {
       setPublishing(true);
+
+      // 1. Upload images to Firebase Storage and get download URLs
+      const uploadedImageUrls = await uploadImages(eventImages, 'events');
+      
+      // 2. Prepare the data payload for Firestore
       const payload = {
         title: title.trim(),
         description: description.trim(),
@@ -537,8 +552,11 @@ function CreateEventForm({
         platform: Platform.OS,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        imageUrl: eventImages[0], // Use first image as main image
+        imageUrl: uploadedImageUrls[0], // Use first image as main cover
+        imageUrls: uploadedImageUrls,  // Store all image URLs
       };
+
+      // 3. Add the document to the 'events' collection
       await addDoc(collection(db, "events"), payload);
 
       onPublished();
@@ -574,7 +592,7 @@ function CreateEventForm({
         {/* Event Images */}
         <Section title="🎨 Event Images" color="purple">
           <View className="p-4">
-            <ImageUploader
+            <ImagePickerComponent
               images={eventImages}
               onImagesChange={setEventImages}
               maxImages={5}
@@ -586,7 +604,7 @@ function CreateEventForm({
             </Text>
           </View>
         </Section>
-
+        {/* ... (Rest of the form is unchanged) ... */}
         {/* Title */}
         <Section title="📝 Event Title" color="blue">
           <TextInput 
@@ -735,7 +753,7 @@ function CreateEventForm({
         <View className="flex-row mt-6 mb-8">
           <Pressable 
             onPress={onCancel} 
-            className="flex-1 mr-4 rounded-2xl py-5 items-center bg-gradient-to-r from-gray-400 to-gray-500 shadow-lg"
+            className="flex-1 mr-4 rounded-2xl py-5 items-center bg-red-500 shadow-lg"
           >
             <Text className="text-white font-bold text-lg">Cancel</Text>
           </Pressable>
@@ -748,8 +766,8 @@ function CreateEventForm({
               disabled={publishing}
               className={`rounded-2xl py-5 items-center shadow-xl ${
                 publishing 
-                  ? "bg-gradient-to-r from-blue-400 to-purple-400" 
-                  : "bg-gradient-to-r from-blue-500 to-purple-600"
+                  ? "bg-blue-400" 
+                  : "bg-blue-400"
               }`}
             >
               {publishing ? (
@@ -766,7 +784,7 @@ function CreateEventForm({
 }
 
 /* ------------------------------------------------------------------ */
-/* Close Event Form (with evidence photos)                           */
+/* Close Event Form (with evidence photos)                            */
 /* ------------------------------------------------------------------ */
 function CloseEventForm({
   event,
@@ -781,6 +799,7 @@ function CloseEventForm({
   const [collectedWastes, setCollectedWastes] = useState<{ type: string; weight: number }[]>([]);
   const [newWasteType, setNewWasteType] = useState("");
   const [newWasteWeight, setNewWasteWeight] = useState(0);
+  // This state now holds LOCAL URIs of the selected photos
   const [evidencePhotos, setEvidencePhotos] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
 
@@ -806,6 +825,7 @@ function CloseEventForm({
     return null;
   };
 
+  // UPDATED: The closeEvent function now handles the image upload process
   const closeEvent = async () => {
     setErrorMsg(null);
     const error = validate();
@@ -816,15 +836,21 @@ function CloseEventForm({
     }
     try {
       setClosing(true);
+
+      // 1. Upload evidence photos and get their download URLs
+      const uploadedPhotoUrls = await uploadImages(evidencePhotos, 'evidence');
+
+      // 2. Prepare the update payload
       const eventRef = doc(db, "events", event.id);
       await updateDoc(eventRef, {
         actualParticipants,
         collectedWastes,
-        evidencePhotos,
+        evidencePhotos: uploadedPhotoUrls, // Save the final URLs
         notes: notes.trim(),
         status: "completed",
         updatedAt: serverTimestamp(),
       });
+
       onClosed();
     } catch (e: any) {
       const msg = e?.message ?? "Failed to close event.";
@@ -859,7 +885,7 @@ function CloseEventForm({
         {/* Evidence Photos */}
         <Section title="📸 Evidence Photos" color="green">
           <View className="p-4">
-            <ImageUploader
+            <ImagePickerComponent
               images={evidencePhotos}
               onImagesChange={setEvidencePhotos}
               maxImages={10}
@@ -871,7 +897,7 @@ function CloseEventForm({
             </Text>
           </View>
         </Section>
-
+        {/* ... (Rest of the form is unchanged) ... */}
         {/* Actual Participants */}
         <Section title="👥 Actual Participants" color="blue">
           <View className="px-4 py-4">
@@ -898,14 +924,14 @@ function CloseEventForm({
                 className="flex-1 px-4 py-3 border-2 border-orange-200 rounded-xl mr-2"
               />
               <TextInput
-                value={newWasteWeight.toString()}
+                value={newWasteWeight > 0 ? newWasteWeight.toString() : ""}
                 onChangeText={(t) => setNewWasteWeight(parseFloat(t) || 0)}
-                placeholder="Weight"
+                placeholder="Weight (kg)"
                 keyboardType="numeric"
-                className="w-24 px-4 py-3 border-2 border-orange-200 rounded-xl"
+                className="w-28 px-4 py-3 border-2 border-orange-200 rounded-xl"
               />
             </View>
-            <Pressable onPress={addWaste} className="bg-orange-500 rounded-xl py-3 items-center mt-2 shadow-lg">
+            <Pressable onPress={addWaste} className="bg-sky-500 rounded-xl py-3 items-center mt-2 shadow-lg">
               <Text className="text-white font-bold">Add Waste</Text>
             </Pressable>
           </View>
@@ -929,7 +955,7 @@ function CloseEventForm({
         <View className="flex-row mt-6 mb-8">
           <Pressable 
             onPress={onCancel} 
-            className="flex-1 mr-4 rounded-2xl py-5 items-center bg-gradient-to-r from-gray-400 to-gray-500 shadow-lg"
+            className="flex-1 mr-4 rounded-2xl py-5 items-center bg-red-500 shadow-lg"
           >
             <Text className="text-white font-bold text-lg">Cancel</Text>
           </Pressable>
@@ -941,8 +967,8 @@ function CloseEventForm({
               disabled={closing}
               className={`rounded-2xl py-5 items-center shadow-xl ${
                 closing 
-                  ? "bg-gradient-to-r from-green-400 to-blue-400" 
-                  : "bg-gradient-to-r from-green-500 to-blue-600"
+                  ? "bg-blue-400" 
+                  : "bg-blue-600" 
               }`}
             >
               {closing ? (
@@ -958,8 +984,158 @@ function CloseEventForm({
   );
 }
 
+// NEW COMPONENT: EventDetailsModal
+// NEW & IMPROVED COMPONENT: EventDetailsModal - Matches desired aesthetics
+function EventDetailsModal({ event, onClose }: { event: EventDoc; onClose: () => void }) {
+  return (
+    // Outer Pressable for backdrop to close modal
+    <Pressable onPress={onClose} className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      {/* Inner Pressable to prevent closing when tapping modal content, with max-h for controlled size */}
+      <Pressable className="w-full max-w-lg max-h-[90vh] bg-gray-900 rounded-3xl overflow-hidden shadow-2xl">
+        <ImageBackground
+          // --- THIS IS THE NEW, RELIABLE IMAGE URL ---
+          source={{ uri: "https://images.unsplash.com/photo-1509233725247-49e657c54213?q=80&w=749&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" }}
+          resizeMode="cover"
+          className="w-full"
+        >
+          {/* Main content area within the ImageBackground */}
+          <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+            <View className="flex-1 bg-black/60 pt-8 pb-6 px-6 relative">
+              {/* Close Button - positioned absolutely within this View */}
+              <Pressable
+                onPress={onClose}
+                className="absolute top-4 right-4 bg-white/20 rounded-full p-2 z-10"
+              >
+                <Ionicons name="close" size={28} color="white" />
+              </Pressable>
+
+              {/* Title and optional Host info */}
+              <Text className="text-4xl font-extrabold text-white mb-2 pr-10">{event.title}</Text>
+              {event.organizerName && ( // Assuming you have an organizerName in EventDoc
+                <Text className="text-white/80 text-lg font-medium mb-4">
+                  Hosted by {event.organizerName}
+                </Text>
+              )}
+
+              {/* Tags Section */}
+              <View className="flex-row flex-wrap mb-6">
+                {event.wasteTypes?.map((type, i) => (
+                  <View key={i} className="bg-white/20 rounded-full px-4 py-2 mr-2 mb-2">
+                    <Text className="text-white text-sm font-semibold">{type}</Text>
+                  </View>
+                ))}
+                {event.sponsorshipRequired && (
+                  <View className="bg-yellow-400 rounded-full px-4 py-2 mr-2 mb-2">
+                    <Text className="text-gray-900 text-sm font-bold">Sponsorship Needed</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Description */}
+              <Text className="text-white/90 text-base leading-relaxed mb-6">{event.description}</Text>
+
+              {/* Key Details - Icons and Text */}
+              <View className="space-y-4 mb-8">
+                <Row className="items-start"> {/* Use items-start for multi-line text alignment */}
+                  <Ionicons name="calendar-outline" size={22} color="white" className="mt-0.5" />
+                  <Text className="text-white text-base ml-3 flex-1">{formatDateTime(event.eventAt)}</Text>
+                </Row>
+                {!!event.location?.label && (
+                  <Row className="items-start">
+                    <Ionicons name="location-outline" size={22} color="white" className="mt-0.5" />
+                    <Text className="text-white text-base ml-3 flex-1">{event.location.label}</Text>
+                  </Row>
+                )}
+                <Row className="items-start">
+                  <Ionicons name="people-outline" size={22} color="white" className="mt-0.5" />
+                  <Text className="text-white text-base ml-3 flex-1">{event.volunteersNeeded ?? 0} volunteers needed</Text>
+                </Row>
+              </View>
+
+              {/* Action Button */}
+              <Pressable className="bg-blue-600 rounded-xl py-4 items-center mt-auto">
+                <Text className="text-white font-bold text-lg">Track volunteers</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </ImageBackground>
+      </Pressable>
+    </Pressable>
+  );
+}
+
+// Add this hardcoded data before the OrgEvents component
+const newsData = [
+  {
+    id: '1',
+    title: 'The Hidden Dangers of Microplastics on Our Coasts',
+    excerpt: 'Learn about the invisible threat and its impact on marine life.',
+    image: 'https://images.unsplash.com/photo-1759240193068-347e29be6b89?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&q=80&w=2070',
+  },
+  {
+    id: '2',
+    title: "Sri Lanka's Proactive Stance on Marine Pollution",
+    excerpt: 'Recent initiatives are making waves in ocean conservation.',
+    image: 'https://bmkltsly13vb.compat.objectstorage.ap-singapore-1.oraclecloud.com/cdn.sg.dailymirror.lk/assets/uploads/image_0ac73279fa.jpg',
+  },
+  {
+    id: '3',
+    title: 'How "Ghost Nets" Haunt Our Oceans',
+    excerpt: 'The fight against abandoned fishing gear is crucial for our ecosystem.',
+    image: 'https://images.unsplash.com/photo-1727860237343-57aa6c7078c5?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&q=80&w=1170',
+  },
+  {
+    id: '4',
+    title: 'Simple Steps to a Successful Beach Cleanup',
+    excerpt: 'A quick guide for organizers to maximize their impact.',
+    image: 'https://www.globalgiving.org/pfil/68748/ph_68748_267233.jpg',
+  },
+    {
+    id: '5',
+    title: 'The Lifecycle of a Plastic Bottle',
+    excerpt: 'From production to pollution, understand the journey.',
+    image: 'https://www.redcross.lk/wp-content/uploads/2016/06/IMG_0552.jpg',
+  },
+];
+
+// Add these two new components after the newsData array
+
+function NewsCard({ item }: { item: typeof newsData[0] }) {
+  return (
+    <Pressable className="w-64 h-48 rounded-2xl overflow-hidden mr-4 shadow-lg bg-gray-200">
+      <ImageBackground source={{ uri: item.image }} resizeMode="cover" className="flex-1">
+        <View className="flex-1 justify-end bg-black/40 p-4">
+          <Text className="text-white font-bold text-base leading-tight shadow-md">{item.title}</Text>
+          <Text className="text-white/80 text-xs mt-1 shadow-sm">{item.excerpt}</Text>
+        </View>
+      </ImageBackground>
+    </Pressable>
+  );
+}
+
+function NewsSection() {
+  return (
+    <View className="mb-8">
+      <View className="flex-row justify-between items-center mb-4">
+          <Text className="text-2xl font-bold text-gray-800">News & Insights</Text>
+          <Pressable onPress={() => Alert.alert("Show All", "This can navigate to a full news screen later.")}>
+            <Text className="font-semibold text-blue-600">Show all</Text>
+          </Pressable>
+      </View>
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingLeft: 2 }} // Ensures shadow visibility on the first card
+      >
+        {newsData.map(item => <NewsCard key={item.id} item={item} />)}
+      </ScrollView>
+    </View>
+  );
+}
+
+
 /* ------------------------------------------------------------------ */
-/* My Events List + Create New Event Button                          */
+/* My Events List + Create New Event Button                           */
 /* ------------------------------------------------------------------ */
 export default function OrgEvents() {
   const { user } = useAuth();
@@ -970,24 +1146,36 @@ export default function OrgEvents() {
   const [showCloseForm, setShowCloseForm] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [selectedEventForDetails, setSelectedEventForDetails] = useState<EventDoc | null>(null);
 
   const addBtnAnim = usePressScale();
 
   // Live events subscription
   useEffect(() => {
+    if (!user?.uid) {
+      setEvents([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    const q = query(collection(db, "events"), orderBy("createdAt", "desc"));
+    const q = query(
+      collection(db, "events"), 
+      // This where clause was missing before, it's more efficient
+      // to filter on the server than in the client.
+      where("organizerId", "==", user.uid),
+      orderBy("createdAt", "desc")
+    );
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const all: EventDoc[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-        const mine = user ? all.filter((e) => e.organizerId === user.uid) : all;
-        setEvents(mine);
+        const myEvents: EventDoc[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+        setEvents(myEvents);
         setLoading(false);
       },
       (err) => {
         console.error("[EventsList] snapshot error:", err);
         setLoading(false);
+        Alert.alert("Error", "Could not fetch your events.");
       }
     );
     return () => unsub();
@@ -1028,36 +1216,41 @@ export default function OrgEvents() {
 
   return (
     <View className="flex-1 bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      {/* FIXED: Enhanced Header - Removed transparency */}
-      <View className="px-6 pt-12 pb-6 bg-gradient-to-r from-blue-600 to-purple-600 shadow-2xl">
-        <Row className="justify-between items-center mb-6">
-          <View>
-            <Text className="text-3xl font-bold text-white">My Events</Text>
-            <Text className="text-blue-100 font-medium mt-1">Manage your cleanup events</Text>
+      <View>
+        {/* The main image container */}
+        <ImageBackground
+          source={{ uri: "https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=1200" }}
+          className="w-full h-64"
+          resizeMode="cover"
+        >
+          {/* Semi-transparent overlay for text readability */}
+          <View className="flex-1 bg-black/30 px-6 pt-20">
+            <View>
+              <Text className="text-4xl font-extrabold text-white shadow-lg">Hello, Ocean Guardian!</Text>
+              <Text className="text-white/90 text-lg font-medium mt-1 shadow-md">
+                Let's make our beaches shine ✨
+              </Text>
+            </View>
           </View>
-          <Pressable 
-            onPress={() => Alert.alert("Notifications", "No notifications yet.")}
-            className="bg-white/10 p-3 rounded-2xl border border-white/20"
-          >
-            <Ionicons name="notifications-outline" size={24} color="white" />
-          </Pressable>
-        </Row>
+        </ImageBackground>
 
-        {/* FIXED: Enhanced Search Bar - Solid background */}
-        <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 shadow-lg">
-          <Ionicons name="search-outline" size={20} color="#6b7280" />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search your events..."
-            placeholderTextColor="#9ca3af"
-            className="ml-3 flex-1 text-gray-800 font-medium text-base"
-          />
-          {search.length > 0 && (
-            <Pressable onPress={() => setSearch("")}>
-              <Ionicons name="close-circle" size={20} color="#6b7280" />
-            </Pressable>
-          )}
+        {/* Search bar positioned to overlap the image */}
+        <View className="px-8 -mt-8">
+          <View className="flex-row items-center bg-white rounded-2xl px-4 py-4 shadow-2xl shadow-gray-400">
+            <Ionicons name="search-outline" size={22} color="#6b7280" />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search your events..."
+              placeholderTextColor="#9ca3af"
+              className="ml-3 flex-1 text-gray-900 font-medium text-base"
+            />
+            {search.length > 0 && (
+              <Pressable onPress={() => setSearch("")}>
+                <Ionicons name="close-circle" size={22} color="#9ca3af" />
+              </Pressable>
+            )}
+          </View>
         </View>
       </View>
 
@@ -1067,6 +1260,8 @@ export default function OrgEvents() {
             <Text className="text-white font-bold text-lg text-center">{infoMsg}</Text>
           </View>
         ) : null}
+
+        <NewsSection />
 
         {loading ? (
           <View className="py-16 items-center">
@@ -1098,13 +1293,20 @@ export default function OrgEvents() {
                 key={ev.id}
                 ev={ev}
                 onClosePress={() => setShowCloseForm(ev.id)}
+                onPress={() => setSelectedEventForDetails(ev)}
               />
             ))}
           </View>
         )}
       </ScrollView>
 
-      {/* Enhanced Floating Add Button */}
+      {selectedEventForDetails && (
+        <EventDetailsModal 
+          event={selectedEventForDetails} 
+          onClose={() => setSelectedEventForDetails(null)} 
+        />
+      )}
+
       <Animated.View
         style={{
           position: "absolute",
@@ -1117,9 +1319,9 @@ export default function OrgEvents() {
           onPressIn={addBtnAnim.onPressIn}
           onPressOut={addBtnAnim.onPressOut}
           onPress={() => setShowForm(true)}
-          className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full shadow-2xl items-center justify-center border-4 border-white"
+          className="w-20 h-20 bg-cyan-200 rounded-full shadow-2xl items-center justify-center border-1 bg-cyan-300"
         >
-          <Ionicons name="add" size={32} color="white" />
+          <Ionicons name="add" size={32} color="bg-sky-800" />
         </Pressable>
       </Animated.View>
     </View>

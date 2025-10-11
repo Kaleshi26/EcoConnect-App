@@ -1,78 +1,113 @@
-import * as Notifications from 'expo-notifications';
 import { useRouter } from "expo-router";
 import { signOut } from "firebase/auth";
-import { Bell, BellOff, CheckCircle, ChevronRight, Clock, FileText, History, LogOut, MapPin, Settings, Truck, User } from "lucide-react-native";
-import React, { useEffect, useRef, useState } from "react";
-import { Alert, Modal, ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
+import { collection, onSnapshot, query, Timestamp, where } from "firebase/firestore";
+import { Calendar, CheckCircle, ChevronDown, ChevronRight, ChevronUp, FileText, History, Image as ImageIcon, LogOut, MapPin, Package, Truck, User, Weight } from "lucide-react-native";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, Image, Modal, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../../../contexts/AuthContext";
-import { useNotifications } from "../../../contexts/NotificationContext";
-import { auth } from "../../../services/firebaseConfig";
-import * as NotificationService from "../../../services/notificationService";
+import { auth, db } from "../../../services/firebaseConfig";
+
+type WasteCollection = {
+  id: string;
+  eventId: string;
+  eventTitle: string;
+  eventDescription: string;
+  collectorId: string;
+  collectorEmail: string;
+  location?: { label?: string; lat?: number; lng?: number };
+  collectedWeights: Record<string, string>;
+  proofImages: string[];
+  wasteTypes: string[];
+  status: string;
+  collectedAt?: Timestamp;
+  createdAt?: Timestamp;
+  completedAt?: Timestamp;
+  estimatedQuantity?: string;
+  priority?: string;
+  organizerId?: string;
+};
+
+function tsToDate(ts?: Timestamp) {
+  try {
+    if (!ts) return null;
+    // @ts-ignore
+    if (typeof ts.toDate === "function") return ts.toDate();
+  } catch {}
+  return null;
+}
+
+function formatDate(d?: Date | null) {
+  if (!d) return "N/A";
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+function formatTime(d?: Date | null) {
+  if (!d) return "";
+  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
 
 export default function WcProfile() {
   const { user } = useAuth();
   const router = useRouter();
-  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
-  const { 
-    notificationsEnabled, 
-    remindersEnabled, 
-    scheduledCount,
-    setNotificationsEnabled,
-    setRemindersEnabled,
-    refreshScheduledCount
-  } = useNotifications();
-  const notificationListener = useRef<Notifications.Subscription | undefined>(undefined);
-  const responseListener = useRef<Notifications.Subscription | undefined>(undefined);
+  const [wasteCollections, setWasteCollections] = useState<WasteCollection[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showHistory, setShowHistory] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [showImageModal, setShowImageModal] = useState(false);
 
-  // Initialize notification listeners
+  // Fetch waste collections
   useEffect(() => {
-    async function setupNotifications() {
-      try {
-        const token = await NotificationService.registerForPushNotificationsAsync();
-        if (token && user?.uid) {
-          await NotificationService.savePushToken(user.uid, token);
-        }
-      } catch (error) {
-        console.error('Error setting up notifications:', error);
-      }
+    if (!user?.uid) {
+      setLoading(false);
+      return;
     }
 
-    setupNotifications();
+    // Query without orderBy to avoid index requirement
+    // We'll sort on the client side instead
+    const q = query(
+      collection(db, "wasteCollections"),
+      where("collectorId", "==", user.uid)
+    );
 
-    // Handle notification received while app is in foreground
-    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification received:', notification);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        let collections: WasteCollection[] = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...(doc.data() as Omit<WasteCollection, "id">),
+        }));
+        
+        // Sort by completedAt on the client side (newest first)
+        collections = collections.sort((a, b) => {
+          const dateA = tsToDate(a.completedAt)?.getTime() || 0;
+          const dateB = tsToDate(b.completedAt)?.getTime() || 0;
+          return dateB - dateA; // Descending order (newest first)
+        });
+        
+        setWasteCollections(collections);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error fetching waste collections:", error);
+        Alert.alert(
+          "Index Required",
+          "Please create the Firebase index to enable sorting. Check the console for the link."
+        );
+        setLoading(false);
+      }
+    );
 
-    // Handle notification tapped
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification tapped:', response);
-      const data = response.notification.request.content.data;
-      
-      // Navigate based on notification type
-      if (data.screen === 'wc_assignment') {
-        router.push('/waste_collector/tabs/wc_assignment');
-      } else if (data.screen === 'wc_analytics') {
-        router.push('/waste_collector/tabs/wc_analytics');
-      }
-    });
-
-    return () => {
-      if (notificationListener.current) {
-        notificationListener.current.remove();
-      }
-      if (responseListener.current) {
-        responseListener.current.remove();
-      }
-    };
+    return () => unsubscribe();
   }, [user?.uid]);
 
-  // Refresh scheduled count when modal opens
-  useEffect(() => {
-    if (showNotificationSettings) {
-      refreshScheduledCount();
-    }
-  }, [showNotificationSettings]);
+  // Calculate total stats
+  const totalCollections = wasteCollections.length;
+  const totalWeight = wasteCollections.reduce((sum, collection) => {
+    const weights = Object.values(collection.collectedWeights || {});
+    const collectionTotal = weights.reduce((s, w) => s + (parseFloat(w) || 0), 0);
+    return sum + collectionTotal;
+  }, 0);
 
   async function handleLogout() {
     try {
@@ -83,8 +118,19 @@ export default function WcProfile() {
     }
   }
 
-  function handleAssignmentHistory() {
-    Alert.alert("Coming Soon", "Assignment history feature will be available soon!");
+  function toggleItemExpanded(id: string) {
+    const newExpanded = new Set(expandedItems);
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id);
+    } else {
+      newExpanded.add(id);
+    }
+    setExpandedItems(newExpanded);
+  }
+
+  function handleViewImages(images: string[]) {
+    setSelectedImages(images);
+    setShowImageModal(true);
   }
 
   function handleTerms() {
@@ -92,253 +138,509 @@ export default function WcProfile() {
   }
 
   return (
-    <View className="flex-1 bg-slate-50">
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
-        {/* Header card */}
-        <View className="bg-white rounded-2xl shadow border border-slate-100 p-6 mb-6 items-center">
-          <View className="w-24 h-24 rounded-full bg-green-50 border border-green-200 items-center justify-center mb-4">
-            <User color="#16a34a" size={40} />
+    <View className="flex-1 bg-gray-50">
+      {/* Curved Header Background */}
+      <View 
+        style={{
+          backgroundColor: '#059669',
+          height: 280,
+          borderBottomLeftRadius: 40,
+          borderBottomRightRadius: 40,
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          elevation: 5,
+        }}
+      >
+        {/* Decorative circles */}
+        <View style={{
+          position: 'absolute',
+          width: 100,
+          height: 100,
+          borderRadius: 50,
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          top: -20,
+          right: 30,
+        }} />
+        <View style={{
+          position: 'absolute',
+          width: 60,
+          height: 60,
+          borderRadius: 30,
+          backgroundColor: 'rgba(255, 255, 255, 0.08)',
+          top: 180,
+          left: 20,
+        }} />
+      </View>
+
+      <ScrollView className="flex-1" contentContainerStyle={{ paddingTop: 60, paddingHorizontal: 16, paddingBottom: 100 }}>
+        {/* Header Title */}
+        <View className="mb-6">
+          <Text className="text-3xl font-bold text-white" style={{ letterSpacing: 0.5 }}>Profile</Text>
+          <Text className="text-emerald-50 text-base mt-1">Your account information</Text>
+        </View>
+
+        {/* Profile Card */}
+        <View 
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 20,
+            padding: 24,
+            marginBottom: 24,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            elevation: 3,
+            alignItems: 'center',
+          }}
+        >
+          <View style={{
+            width: 96,
+            height: 96,
+            borderRadius: 48,
+            backgroundColor: '#d1fae5',
+            borderWidth: 4,
+            borderColor: '#10b981',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 16,
+          }}>
+            <User color="#059669" size={48} strokeWidth={2.5} />
           </View>
-          <Text className="text-xl font-bold text-slate-800 mb-1">
+          <Text className="text-2xl font-bold text-gray-900 mb-2">
             {user?.email?.split("@")[0] || "Waste Collector"}
           </Text>
-          <Text className="text-slate-600 mb-2">{user?.email}</Text>
-          <View className="px-3 py-1.5 bg-green-50 rounded-full">
-            <Text className="text-green-700 font-medium text-sm">Waste Collector</Text>
+          <Text className="text-gray-600 mb-3 text-base">{user?.email}</Text>
+          <View style={{ backgroundColor: '#d1fae5', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: '#10b981' }}>
+            <Text className="text-emerald-700 font-bold text-sm">♻️ Waste Collector</Text>
           </View>
         </View>
 
         {/* Role overview */}
-        <View className="bg-white rounded-2xl shadow border border-slate-100 overflow-hidden mb-6">
-          <View className="p-6 pb-4 border-b border-slate-100">
-            <Text className="text-xl font-bold text-slate-800">Your Role</Text>
-          </View>
-          <View className="p-6">
-            <View className="flex-row items-center mb-4">
-              <MapPin size={18} color="#16a34a" />
-              <Text className="ml-2 text-slate-700">Navigate to assigned locations</Text>
-            </View>
-            <View className="flex-row items-center mb-4">
-              <Truck size={18} color="#16a34a" />
-              <Text className="ml-2 text-slate-700">Collect and transport waste safely</Text>
-            </View>
+        <View 
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 20,
+            overflow: 'hidden',
+            marginBottom: 24,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            elevation: 3,
+          }}
+        >
+          <View style={{ padding: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
             <View className="flex-row items-center">
-              <CheckCircle size={18} color="#16a34a" />
-              <Text className="ml-2 text-slate-700">Upload disposal proof and mark completion</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Notification Settings Card */}
-        <View className="bg-white rounded-2xl shadow border border-slate-100 p-6 mb-6">
-          <TouchableOpacity 
-            onPress={() => setShowNotificationSettings(true)} 
-            className="flex-row items-center justify-between"
-          >
-            <View className="flex-row items-center flex-1">
-              {notificationsEnabled ? (
-                <Bell size={20} color="#2563eb" />
-              ) : (
-                <BellOff size={20} color="#9ca3af" />
-              )}
-              <View className="ml-3 flex-1">
-                <Text className="text-slate-800 font-medium text-base">Notifications</Text>
-                <Text className="text-slate-500 text-xs mt-0.5">
-                  {scheduledCount} scheduled reminder{scheduledCount !== 1 ? 's' : ''}
-                </Text>
+              <View style={{ backgroundColor: '#ede9fe', padding: 10, borderRadius: 12, marginRight: 12 }}>
+                <Truck size={22} color="#7c3aed" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-xl font-bold text-gray-900">Your Role</Text>
+                <Text className="text-gray-500 text-xs mt-1">Responsibilities</Text>
               </View>
             </View>
-            <ChevronRight size={20} color="#94a3b8" />
-          </TouchableOpacity>
+          </View>
+          <View style={{ padding: 20 }}>
+            <View className="flex-row items-center mb-4">
+              <View style={{ backgroundColor: '#d1fae5', padding: 8, borderRadius: 10, marginRight: 12 }}>
+                <MapPin size={20} color="#059669" />
+              </View>
+              <Text className="text-slate-700 font-semibold flex-1">Navigate to assigned locations</Text>
+            </View>
+            <View className="flex-row items-center mb-4">
+              <View style={{ backgroundColor: '#dbeafe', padding: 8, borderRadius: 10, marginRight: 12 }}>
+                <Truck size={20} color="#2563eb" />
+              </View>
+              <Text className="text-slate-700 font-semibold flex-1">Collect and transport waste safely</Text>
+            </View>
+            <View className="flex-row items-center">
+              <View style={{ backgroundColor: '#d1fae5', padding: 8, borderRadius: 10, marginRight: 12 }}>
+                <CheckCircle size={20} color="#059669" />
+              </View>
+              <Text className="text-slate-700 font-semibold flex-1">Upload disposal proof and mark completion</Text>
+            </View>
+          </View>
         </View>
 
-        {/* Assignment history */}
-        <View className="bg-white rounded-2xl shadow border border-slate-100 p-6 mb-6">
-          <TouchableOpacity onPress={handleAssignmentHistory} className="flex-row items-center justify-between">
-            <View className="flex-row items-center flex-1">
-              <History size={20} color="#16a34a" />
-              <Text className="ml-3 text-slate-800 font-medium text-base">Assignment History</Text>
+        {/* Collection Statistics */}
+        <View 
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 20,
+            padding: 20,
+            marginBottom: 24,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            elevation: 3,
+          }}
+        >
+          <View className="flex-row items-center mb-5">
+            <View style={{ backgroundColor: '#d1fae5', padding: 10, borderRadius: 12, marginRight: 12 }}>
+              <History size={22} color="#059669" />
             </View>
-            <ChevronRight size={20} color="#94a3b8" />
+            <View className="flex-1">
+              <Text className="text-xl font-bold text-gray-900">Collection Stats</Text>
+              <Text className="text-gray-500 text-xs mt-1">Your achievements</Text>
+            </View>
+          </View>
+          <View className="flex-row justify-around">
+            <View className="items-center">
+              <View style={{ backgroundColor: '#dbeafe', padding: 14, borderRadius: 999, marginBottom: 8 }}>
+                <Package size={28} color="#2563eb" />
+              </View>
+              <Text className="text-3xl font-bold text-gray-900">{totalCollections}</Text>
+              <Text className="text-sm text-gray-600 font-semibold mt-1">Collections</Text>
+            </View>
+            <View className="items-center">
+              <View style={{ backgroundColor: '#d1fae5', padding: 14, borderRadius: 999, marginBottom: 8 }}>
+                <Weight size={28} color="#059669" />
+              </View>
+              <Text className="text-3xl font-bold text-gray-900">{totalWeight.toFixed(1)}</Text>
+              <Text className="text-sm text-gray-600 font-semibold mt-1">Total kg</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Assignment History */}
+        <View 
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 20,
+            overflow: 'hidden',
+            marginBottom: 24,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            elevation: 3,
+          }}
+        >
+          <TouchableOpacity
+            onPress={() => setShowHistory(!showHistory)}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: 20,
+              borderBottomWidth: 1,
+              borderBottomColor: '#f3f4f6',
+            }}
+          >
+            <View className="flex-row items-center flex-1">
+              <View style={{ backgroundColor: '#dbeafe', padding: 10, borderRadius: 12, marginRight: 12 }}>
+                <History size={22} color="#2563eb" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-xl font-bold text-gray-900">History</Text>
+                <Text className="text-gray-500 text-xs mt-1">{wasteCollections.length} assignment{wasteCollections.length !== 1 ? 's' : ''}</Text>
+              </View>
+            </View>
+            {showHistory ? (
+              <ChevronUp size={24} color="#059669" strokeWidth={2.5} />
+            ) : (
+              <ChevronDown size={24} color="#059669" strokeWidth={2.5} />
+            )}
           </TouchableOpacity>
+
+          {showHistory && (
+            <View style={{ padding: 20, paddingTop: 16 }}>
+              {loading ? (
+                <View className="py-8 items-center">
+                  <ActivityIndicator size="large" color="#059669" />
+                  <Text className="text-gray-700 mt-3 font-semibold">Loading history...</Text>
+                </View>
+              ) : wasteCollections.length === 0 ? (
+                <View className="py-8 items-center">
+                  <View style={{ backgroundColor: '#f3f4f6', padding: 20, borderRadius: 999, marginBottom: 12 }}>
+                    <Package size={40} color="#9ca3af" />
+                  </View>
+                  <Text className="text-gray-700 font-bold text-lg">No collections yet</Text>
+                  <Text className="text-gray-500 text-sm mt-2 text-center">Complete assignments to see your history</Text>
+                </View>
+              ) : (
+                <View className="space-y-4">
+                  {wasteCollections.map((collection) => {
+                    const isExpanded = expandedItems.has(collection.id);
+                    const completedDate = tsToDate(collection.completedAt);
+                    const totalWasteWeight = Object.values(collection.collectedWeights || {}).reduce(
+                      (sum, weight) => sum + (parseFloat(weight) || 0),
+                      0
+                    );
+
+                    return (
+                      <View
+                        key={collection.id}
+                        style={{
+                          borderWidth: 2,
+                          borderColor: '#e5e7eb',
+                          borderRadius: 16,
+                          overflow: 'hidden',
+                          marginBottom: 12,
+                        }}
+                      >
+                        <TouchableOpacity
+                          onPress={() => toggleItemExpanded(collection.id)}
+                          style={{
+                            backgroundColor: '#f9fafb',
+                            padding: 16,
+                          }}
+                        >
+                          <View className="flex-row items-start justify-between mb-2">
+                            <View className="flex-1">
+                              <Text className="text-base font-bold text-gray-900 mb-2">
+                                {collection.eventTitle}
+                              </Text>
+                              <View className="flex-row items-center mb-2">
+                                <View style={{ backgroundColor: '#fef3c7', padding: 6, borderRadius: 8, marginRight: 8 }}>
+                                  <Calendar size={16} color="#d97706" />
+                                </View>
+                                <Text className="text-sm text-gray-700 font-semibold">
+                                  {formatDate(completedDate)} • {formatTime(completedDate)}
+                                </Text>
+                              </View>
+                              {collection.location?.label && (
+                                <View className="flex-row items-center">
+                                  <View style={{ backgroundColor: '#d1fae5', padding: 6, borderRadius: 8, marginRight: 8 }}>
+                                    <MapPin size={16} color="#059669" />
+                                  </View>
+                                  <Text className="text-sm text-gray-700 font-semibold">
+                                    {collection.location.label}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                            <View className="items-end ml-3">
+                              <View style={{ backgroundColor: '#d1fae5', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#10b981' }}>
+                                <Text className="text-emerald-700 font-bold text-sm">
+                                  {totalWasteWeight.toFixed(1)} kg
+                                </Text>
+                              </View>
+                              {isExpanded ? (
+                                <ChevronUp size={22} color="#059669" strokeWidth={2.5} />
+                              ) : (
+                                <ChevronDown size={22} color="#059669" strokeWidth={2.5} />
+                              )}
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+
+                        {isExpanded && (
+                          <View className="bg-white p-4 border-t border-slate-200">
+                            {/* Description */}
+                            {collection.eventDescription && (
+                              <View className="mb-4">
+                                <Text className="text-sm font-semibold text-slate-700 mb-1">
+                                  Description
+                                </Text>
+                                <Text className="text-sm text-slate-600">
+                                  {collection.eventDescription}
+                                </Text>
+                              </View>
+                            )}
+
+                            {/* Waste Types */}
+                            {collection.wasteTypes && collection.wasteTypes.length > 0 && (
+                              <View className="mb-4">
+                                <Text className="text-sm font-semibold text-slate-700 mb-2">
+                                  Waste Types
+                                </Text>
+                                <View className="flex-row flex-wrap">
+                                  {collection.wasteTypes.map((type, idx) => (
+                                    <View
+                                      key={idx}
+                                      className="bg-emerald-50 px-3 py-1.5 rounded-full mr-2 mb-2 border border-emerald-200"
+                                    >
+                                      <Text className="text-emerald-700 text-xs font-medium">
+                                        {type}
+                                      </Text>
+                                    </View>
+                                  ))}
+                                </View>
+                              </View>
+                            )}
+
+                            {/* Collected Weights */}
+                            {Object.keys(collection.collectedWeights || {}).length > 0 && (
+                              <View className="mb-4">
+                                <Text className="text-sm font-semibold text-slate-700 mb-2">
+                                  Collected Amounts
+                                </Text>
+                                <View className="bg-slate-50 rounded-lg p-3">
+                                  {Object.entries(collection.collectedWeights).map(
+                                    ([type, weight], idx) => (
+                                      <View
+                                        key={idx}
+                                        className="flex-row justify-between items-center py-2 border-b border-slate-200 last:border-b-0"
+                                      >
+                                        <Text className="text-slate-700 flex-1">{type}</Text>
+                                        <Text className="text-slate-900 font-bold">
+                                          {weight} kg
+                                        </Text>
+                                      </View>
+                                    )
+                                  )}
+                                </View>
+                              </View>
+                            )}
+
+                            {/* Proof Images */}
+                            {collection.proofImages && collection.proofImages.length > 0 && (
+                              <View className="mb-2">
+                                <Text className="text-sm font-semibold text-slate-700 mb-2">
+                                  Proof Images ({collection.proofImages.length})
+                                </Text>
+                                <TouchableOpacity
+                                  onPress={() => handleViewImages(collection.proofImages)}
+                                  style={{
+                                    backgroundColor: '#dbeafe',
+                                    borderWidth: 2,
+                                    borderColor: '#3b82f6',
+                                    padding: 12,
+                                    borderRadius: 12,
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}
+                                >
+                                  <ImageIcon size={20} color="#2563eb" strokeWidth={2.5} />
+                                  <Text className="text-blue-700 font-bold ml-2">
+                                    View Images
+                                  </Text>
+                                </TouchableOpacity>
+                              </View>
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Terms & Conditions */}
-        <View className="bg-white rounded-2xl shadow border border-slate-100 p-6 mb-6">
+        <View 
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 20,
+            padding: 20,
+            marginBottom: 24,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            elevation: 3,
+          }}
+        >
           <TouchableOpacity onPress={handleTerms} className="flex-row items-center justify-between">
             <View className="flex-row items-center flex-1">
-              <FileText size={20} color="#16a34a" />
-              <Text className="ml-3 text-slate-800 font-medium text-base">Terms & Conditions</Text>
+              <View style={{ backgroundColor: '#ede9fe', padding: 10, borderRadius: 12, marginRight: 12 }}>
+                <FileText size={22} color="#7c3aed" />
+              </View>
+              <Text className="text-gray-900 font-bold text-base">Terms & Conditions</Text>
             </View>
-            <ChevronRight size={20} color="#94a3b8" />
+            <ChevronRight size={22} color="#059669" strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
 
         {/* Account actions */}
-        <View className="bg-white rounded-2xl shadow border border-slate-100 p-6">
-          <TouchableOpacity onPress={handleLogout} className="bg-red-500 rounded-xl py-4 items-center">
+        <View 
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 20,
+            padding: 20,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            elevation: 3,
+          }}
+        >
+          <TouchableOpacity 
+            onPress={handleLogout}
+            style={{
+              backgroundColor: '#ef4444',
+              borderRadius: 14,
+              paddingVertical: 16,
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.2,
+              shadowRadius: 6,
+              elevation: 6,
+            }}
+          >
             <View className="flex-row items-center">
-              <LogOut size={18} color="#ffffff" />
-              <Text className="text-white font-semibold text-base ml-2">Sign Out</Text>
+              <LogOut size={22} color="#ffffff" strokeWidth={2.5} />
+              <Text className="text-white font-bold text-base ml-2">Sign Out</Text>
             </View>
           </TouchableOpacity>
         </View>
       </ScrollView>
 
-      {/* Notification Settings Modal */}
+      {/* Image Viewer Modal */}
       <Modal
-        visible={showNotificationSettings}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowNotificationSettings(false)}
+        visible={showImageModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowImageModal(false)}
       >
-        <View className="flex-1 bg-slate-50">
-          {/* Header */}
-          <View className="bg-gradient-to-r from-blue-500 to-indigo-600 px-6 pt-12 pb-6 shadow-lg">
-            <View className="flex-row items-center justify-between">
-              <View className="flex-row items-center flex-1">
-                <View className="bg-white/20 p-3 rounded-xl mr-3">
-                  <Settings size={24} color="white" />
-                </View>
-                <View>
-                  <Text className="text-white text-2xl font-bold">Notification Settings</Text>
-                  <Text className="text-blue-100 text-sm">Manage alerts & reminders</Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                onPress={() => setShowNotificationSettings(false)}
-                className="bg-white/20 p-2 rounded-full"
-              >
-                <Text className="text-white font-bold text-lg">×</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Settings Content */}
-          <ScrollView className="flex-1 px-6 py-6">
-            {/* Main Notifications Toggle */}
-            <View className="bg-white rounded-2xl p-5 mb-4 shadow-sm">
-              <View className="flex-row items-center justify-between">
-                <View className="flex-1">
-                  <View className="flex-row items-center mb-2">
-                    <Bell size={20} color="#2563eb" />
-                    <Text className="text-lg font-bold text-gray-900 ml-2">Push Notifications</Text>
-                  </View>
-                  <Text className="text-gray-600 text-sm">
-                    Receive notifications about assignment updates
-                  </Text>
-                </View>
-                <Switch
-                  value={notificationsEnabled}
-                  onValueChange={(value) => setNotificationsEnabled(value)}
-                  trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-                  thumbColor={notificationsEnabled ? '#2563eb' : '#f3f4f6'}
-                />
-              </View>
-            </View>
-
-            {/* Reminders Toggle */}
-            <View className={`bg-white rounded-2xl p-5 mb-4 shadow-sm ${!notificationsEnabled && 'opacity-50'}`}>
-              <View className="flex-row items-center justify-between">
-                <View className="flex-1">
-                  <View className="flex-row items-center mb-2">
-                    <Clock size={20} color="#d97706" />
-                    <Text className="text-lg font-bold text-gray-900 ml-2">Assignment Reminders</Text>
-                  </View>
-                  <Text className="text-gray-600 text-sm">
-                    Get reminded 24h and 1h before scheduled assignments
-                  </Text>
-                </View>
-                <Switch
-                  value={remindersEnabled}
-                  onValueChange={setRemindersEnabled}
-                  disabled={!notificationsEnabled}
-                  trackColor={{ false: '#d1d5db', true: '#fcd34d' }}
-                  thumbColor={remindersEnabled ? '#d97706' : '#f3f4f6'}
-                />
-              </View>
-            </View>
-
-            {/* Scheduled Notifications Count */}
-            {scheduledCount > 0 && (
-              <View className="bg-green-50 rounded-2xl p-5 mb-4 border border-green-200">
-                <View className="flex-row items-center mb-2">
-                  <Clock size={18} color="#059669" />
-                  <Text className="text-green-900 font-bold text-base ml-2">Active Reminders</Text>
-                </View>
-                <Text className="text-green-800 text-sm">
-                  You have {scheduledCount} reminder{scheduledCount !== 1 ? 's' : ''} scheduled for upcoming assignments.
-                </Text>
-              </View>
-            )}
-
-            {/* Notification Types Info */}
-            <View className="bg-blue-50 rounded-2xl p-5 mb-4 border border-blue-200">
-              <Text className="text-blue-900 font-bold text-base mb-3">📬 You'll receive notifications for:</Text>
-              <View className="space-y-2">
-                <View className="flex-row items-start mb-2">
-                  <Text className="text-blue-700 mr-2">•</Text>
-                  <Text className="text-blue-800 text-sm flex-1">New assignments assigned to you</Text>
-                </View>
-                <View className="flex-row items-start mb-2">
-                  <Text className="text-blue-700 mr-2">•</Text>
-                  <Text className="text-blue-800 text-sm flex-1">Assignment reminders (24h & 1h before)</Text>
-                </View>
-                <View className="flex-row items-start mb-2">
-                  <Text className="text-blue-700 mr-2">•</Text>
-                  <Text className="text-blue-800 text-sm flex-1">Assignment completion confirmations</Text>
-                </View>
-                <View className="flex-row items-start">
-                  <Text className="text-blue-700 mr-2">•</Text>
-                  <Text className="text-blue-800 text-sm flex-1">Achievement unlocks and milestones</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Clear All Button */}
+        <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.95)' }}>
+          <View className="flex-1 relative">
+            {/* Close Button */}
             <TouchableOpacity
-              onPress={async () => {
-                Alert.alert(
-                  'Clear All Notifications',
-                  'Are you sure you want to clear all pending notifications?',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Clear',
-                      style: 'destructive',
-                      onPress: async () => {
-                        await NotificationService.clearAllNotifications();
-                        await refreshScheduledCount();
-                        Alert.alert('Success', 'All notifications cleared');
-                      }
-                    }
-                  ]
-                );
+              onPress={() => setShowImageModal(false)}
+              style={{
+                position: 'absolute',
+                top: 48,
+                right: 24,
+                zIndex: 10,
+                backgroundColor: '#059669',
+                padding: 12,
+                borderRadius: 999,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 8,
               }}
-              className="bg-red-50 border border-red-200 rounded-2xl p-4 items-center mb-4"
             >
-              <Text className="text-red-600 font-semibold">Clear All Pending Notifications</Text>
+              <Text className="text-white font-bold text-xl">✕</Text>
             </TouchableOpacity>
 
-            {/* Info Text */}
-            <View className="bg-gray-100 rounded-xl p-4">
-              <Text className="text-gray-600 text-xs text-center">
-                Notifications help you stay on top of your waste collection assignments. 
-                You can customize your preferences here at any time.
-              </Text>
-            </View>
-          </ScrollView>
-
-          {/* Close Button */}
-          <View className="bg-white px-6 py-4 border-t border-gray-200">
-            <TouchableOpacity
-              onPress={() => setShowNotificationSettings(false)}
-              className="bg-blue-600 py-4 rounded-xl shadow-lg"
+            {/* Image Gallery */}
+            <ScrollView
+              contentContainerStyle={{ padding: 20, paddingTop: 100, paddingBottom: 40 }}
+              showsVerticalScrollIndicator={false}
             >
-              <Text className="text-white text-center font-semibold text-lg">
-                Done
-              </Text>
-            </TouchableOpacity>
+              <View className="space-y-4">
+                {selectedImages.map((imageUrl, index) => (
+                  <View key={index} className="mb-6">
+                    <Image
+                      source={{ uri: imageUrl }}
+                      style={{ width: '100%', height: 384, borderRadius: 16 }}
+                      resizeMode="contain"
+                    />
+                    <View style={{ backgroundColor: 'rgba(5, 150, 105, 0.9)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, marginTop: 8, alignSelf: 'flex-start' }}>
+                      <Text className="text-white font-bold">
+                        Image {index + 1} of {selectedImages.length}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>

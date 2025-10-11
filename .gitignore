@@ -9,6 +9,10 @@ dist/
 web-build/
 expo-env.d.ts
 
+# Native build folders (THIS IS THE FIX)
+/android/
+/ios/
+
 # Native
 .kotlin/
 *.orig.*
