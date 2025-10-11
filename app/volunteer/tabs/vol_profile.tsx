@@ -1,10 +1,7 @@
-<<<<<<< HEAD
-// app/volunteer/tabs/vol_profile.tsx
-=======
 import { useAuth } from "@/contexts/AuthContext";
 import { auth, db } from "@/services/firebaseConfig";
->>>>>>> fb8dbdb0f0172d80c5ca05e53333166fe94dd0ee
 import { Ionicons } from "@expo/vector-icons";
+import * as MediaLibrary from "expo-media-library";
 import { useRouter } from "expo-router";
 import { signOut } from "firebase/auth";
 import {
@@ -12,20 +9,14 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
-  Timestamp,
-<<<<<<< HEAD
-  getDoc,
   setDoc,
-} from "firebase/firestore";
-import QRCode from 'react-native-qrcode-svg';
-import ViewShot, { captureRef } from 'react-native-view-shot';
-import * as MediaLibrary from 'expo-media-library';
-=======
+  Timestamp,
   updateDoc,
   where,
 } from "firebase/firestore";
@@ -44,7 +35,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
->>>>>>> fb8dbdb0f0172d80c5ca05e53333166fe94dd0ee
+import QRCode from "react-native-qrcode-svg";
+import ViewShot, { captureRef } from "react-native-view-shot";
 
 // Types
 type PostCategory = "event" | "blog" | "achievement" | "suggestion" | "question";
@@ -161,18 +153,18 @@ function BadgeDisplay({ badge }: { badge: "none" | "silver" | "gold" | "platinum
 }
 
 // QR Code Modal for Events
-function QrCodeModal({ 
-  visible, 
-  onClose, 
-  eventId, 
-  regId, 
+function QrCodeModal({
+  visible,
+  onClose,
+  eventId,
+  regId,
   eventTitle,
-  userUid 
-}: { 
-  visible: boolean; 
-  onClose: () => void; 
-  eventId: string; 
-  regId: string; 
+  userUid,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  eventId: string;
+  regId: string;
   eventTitle: string;
   userUid: string;
 }) {
@@ -181,39 +173,29 @@ function QrCodeModal({
   const handleDownload = async () => {
     if (!qrRef.current) return;
     const { status } = await MediaLibrary.requestPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission Required', 'Please grant permission to save to library.');
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please grant permission to save to library.");
       return;
     }
     try {
-      const uri = await captureRef(qrRef, { format: 'png', quality: 1 });
+      const uri = await captureRef(qrRef, { format: "png", quality: 1 });
       await MediaLibrary.saveToLibraryAsync(uri);
-      Alert.alert('Success', 'QR code saved to your gallery.');
+      Alert.alert("Success", "QR code saved to your gallery.");
     } catch (error) {
-      console.error('Download error:', error);
-      Alert.alert('Error', 'Failed to download QR code.');
+      console.error("Download error:", error);
+      Alert.alert("Error", "Failed to download QR code.");
     }
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} transparent={true} animationType="fade" onRequestClose={onClose}>
       <View className="flex-1 justify-center items-center bg-black/50">
         <View className="bg-white rounded-2xl p-6 w-11/12 max-w-sm shadow-xl">
           <Text className="text-xl font-bold text-gray-900 mb-2 text-center">Your Registration</Text>
           <Text className="text-gray-600 mb-4 text-center">{eventTitle}</Text>
           <View className="items-center mb-6">
-            <ViewShot ref={qrRef} options={{ format: 'png', quality: 1 }}>
-              <QRCode
-                value={`vol-reg:${eventId}:${regId}:${userUid}`}
-                size={200}
-                backgroundColor="white"
-                color="black"
-              />
+            <ViewShot ref={qrRef} options={{ format: "png", quality: 1 }}>
+              <QRCode value={`vol-reg:${eventId}:${regId}:${userUid}`} size={200} backgroundColor="white" color="black" />
             </ViewShot>
           </View>
           <Pressable onPress={handleDownload} className="bg-blue-600 rounded-xl py-3 mb-3">
@@ -229,14 +211,14 @@ function QrCodeModal({
 }
 
 // Private Info Form Modals
-function PrivateInfoModal({ 
-  visible, 
-  onClose, 
-  onComplete 
-}: { 
-  visible: boolean; 
-  onClose: () => void; 
-  onComplete: () => void; 
+function PrivateInfoModal({
+  visible,
+  onClose,
+  onComplete,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onComplete: () => void;
 }) {
   const { user } = useAuth();
   const [step, setStep] = useState(1);
@@ -316,8 +298,8 @@ function PrivateInfoModal({
 
   return (
     <Modal visible={true} animationType="slide" transparent>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === "ios" ? "padding" : "height"} 
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1 bg-black/50 justify-end"
       >
         <View className="bg-white rounded-t-3xl max-h-[85%]">
@@ -327,7 +309,6 @@ function PrivateInfoModal({
               <Ionicons name="close" size={24} color="#64748b" />
             </Pressable>
           </View>
-<<<<<<< HEAD
           <ScrollView className="p-4" keyboardShouldPersistTaps="handled">
             {step === 1 ? (
               <>
@@ -342,41 +323,10 @@ function PrivateInfoModal({
                     <Text className="text-slate-700 mb-2">{field.label} *</Text>
                     <TextInput
                       value={step1[field.key as keyof PrivateInfoStep1]}
-                      onChangeText={(text) => setStep1(prev => ({ ...prev, [field.key]: text }))}
+                      onChangeText={(text) => setStep1((prev) => ({ ...prev, [field.key]: text }))}
                       className="border border-gray-300 rounded-xl p-3"
                       placeholder={`Enter ${field.label.toLowerCase()}`}
                     />
-=======
-          <Text className="text-xl font-bold text-slate-800">My Registered Events</Text>
-        </View>
-      </View>
-      <View className="p-6">
-        {registeredEvents.length === 0 ? (
-          <View className="items-center py-4">
-            <Ionicons name="calendar-outline" size={32} color="#cbd5e1" />
-            <Text className="text-slate-500 mt-2 text-center">You havet registered for any events yet</Text>
-          </View>
-        ) : (
-          registeredEvents.map((event) => {
-            const eventDate = tsToDate(event.eventDate);
-            return (
-              <View key={event.id} className="mb-4 pb-4 border-b border-slate-100 last:border-b-0 last:mb-0 last:pb-0">
-                <Text className="font-semibold text-slate-800 mb-1">{event.eventTitle}</Text>
-                {eventDate && (
-                  <Text className="text-slate-600 text-sm mb-2">
-                    {formatDate(eventDate)} • {formatTime(eventDate)}
-                  </Text>
-                )}
-                <View className="flex-row items-center">
-                  <View className={`px-3 py-1 rounded-full ${
-                    event.status === "confirmed" ? "bg-green-100" : "bg-yellow-100"
-                  }`}>
-                    <Text className={`text-xs font-medium ${
-                      event.status === "confirmed" ? "text-green-800" : "text-yellow-800"
-                    }`}>
-                      {event.status === "confirmed" ? "Confirmed" : "Pending"}
-                    </Text>
->>>>>>> fb8dbdb0f0172d80c5ca05e53333166fe94dd0ee
                   </View>
                 ))}
                 <Pressable onPress={handleNext} className="bg-blue-600 p-4 rounded-xl items-center">
@@ -395,7 +345,7 @@ function PrivateInfoModal({
                     <Text className="text-slate-700 mb-2">{field.label} *</Text>
                     <TextInput
                       value={step2[field.key as keyof PrivateInfoStep2]}
-                      onChangeText={(text) => setStep2(prev => ({ ...prev, [field.key]: text }))}
+                      onChangeText={(text) => setStep2((prev) => ({ ...prev, [field.key]: text }))}
                       className="border border-gray-300 rounded-xl p-3"
                       placeholder={`Enter ${field.label.toLowerCase()}`}
                       multiline={field.multiline}
@@ -404,8 +354,8 @@ function PrivateInfoModal({
                     />
                   </View>
                 ))}
-                <Pressable 
-                  onPress={handleSubmit} 
+                <Pressable
+                  onPress={handleSubmit}
                   disabled={loading}
                   className={`bg-green-600 p-4 rounded-xl items-center ${loading ? "opacity-50" : ""}`}
                 >
@@ -424,158 +374,7 @@ function PrivateInfoModal({
   );
 }
 
-// Main Profile Screen
-export default function VolProfile() {
-  const { user, profile } = useAuth();
-  const router = useRouter();
-  const [showAccountMenu, setShowAccountMenu] = useState(false);
-  const [userPosts, setUserPosts] = useState<Post[]>([]);
-  const [postsLoading, setPostsLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editingPost, setEditingPost] = useState<Post | null>(null);
-  const [showEvents, setShowEvents] = useState(false);
-  const [showPosts, setShowPosts] = useState(false);
-  const [registeredEvents, setRegisteredEvents] = useState<RegisteredEvent[]>([]);
-  const [eventsLoading, setEventsLoading] = useState(false);
-  const [qrModal, setQrModal] = useState<{ eventId: string; regId: string; eventTitle: string } | null>(null);
-  const [showPrivateInfoModal, setShowPrivateInfoModal] = useState(false);
-  const [badge, setBadge] = useState<"none" | "silver" | "gold" | "platinum">("none");
-  const [privateInfoExists, setPrivateInfoExists] = useState(false);
-
-  const headerOpacity = useRef(new Animated.Value(0)).current;
-  const headerTranslate = useRef(new Animated.Value(-20)).current;
-  const completeBtnAnim = usePressScale();
-
-  // Animations
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(headerOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
-      Animated.spring(headerTranslate, { toValue: 0, tension: 80, friction: 8, useNativeDriver: true }),
-    ]).start();
-  }, []);
-
-  // Fetch user posts
-  useEffect(() => {
-    if (!user) {
-      setUserPosts([]);
-      setPostsLoading(false);
-      return;
-    }
-    setPostsLoading(true);
-    const q = query(
-      collection(db, "posts"),
-      where("authorId", "==", user.uid),
-      where("status", "==", "published"),
-      orderBy("createdAt", "desc")
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const postsData: Post[] = [];
-      snapshot.forEach((doc) => {
-        postsData.push({ id: doc.id, ...doc.data() } as Post);
-      });
-      setUserPosts(postsData);
-      setPostsLoading(false);
-    }, (error) => {
-      console.error("Error fetching posts:", error);
-      Alert.alert("Error", `Failed to load posts: ${error.message || "Unknown error"}`);
-      setUserPosts([]);
-      setPostsLoading(false);
-    });
-    return () => unsubscribe();
-  }, [user]);
-
-  // Fetch registered events and private info
-  useEffect(() => {
-    if (!user) return;
-    const fetchAll = async () => {
-      setEventsLoading(true);
-      try {
-        // Registered events
-        const registrationsRef = collection(db, `users/${user.uid}/registrations`);
-        const snapshot = await getDocs(registrationsRef);
-        const events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as RegisteredEvent));
-        setRegisteredEvents(events);
-
-        // Private info
-        const privateDoc = await getDoc(doc(db, "users", user.uid, "privateInfo", "info"));
-        setPrivateInfoExists(privateDoc.exists());
-
-        // Badge logic
-        let newBadge: "none" | "silver" | "gold" | "platinum" = "none";
-        if (privateDoc.exists()) {
-          newBadge = "silver";
-          const completedCount = events.filter(e => e.status === "completed").length;
-          if (completedCount >= 10) newBadge = "platinum";
-          else if (completedCount >= 5) newBadge = "gold";
-        }
-        setBadge(newBadge);
-      } catch (error) {
-        console.error("Error fetching profile data:", error);
-      } finally {
-        setEventsLoading(false);
-      }
-    };
-    fetchAll();
-  }, [user]);
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      router.replace("/(public)/auth/login");
-    } catch (error: any) {
-      Alert.alert("Error", `Failed to sign out: ${error.message || "Unknown error"}`);
-    }
-  };
-
-  const handleEditPost = (postId: string) => {
-    const post = userPosts.find((p) => p.id === postId);
-    if (post) {
-      setEditingPost(post);
-      setShowCreateModal(true);
-    }
-  };
-
-  const handleDeletePost = async (postId: string) => {
-    if (!user) {
-      Alert.alert("Error", "You must be logged in to delete a post");
-      return;
-    }
-    Alert.alert(
-      "Delete Post",
-      "Are you sure you want to delete this post? This action cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteDoc(doc(db, "posts", postId));
-              Alert.alert("Success", "Post deleted successfully");
-            } catch (error: any) {
-              console.error("Error deleting post:", error);
-              Alert.alert("Error", `Failed to delete post: ${error.message || "Unknown error"}`);
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const handleViewQr = (event: RegisteredEvent) => {
-    if (!user) return;
-    setQrModal({
-      eventId: event.id,
-      regId: event.id, // assuming regId == eventId in user's registration doc
-      eventTitle: event.eventTitle || "Event",
-    });
-  };
-
-  const toggleAccountMenu = () => {
-    setShowAccountMenu(!showAccountMenu);
-  };
-
-  // Add this inside vol_profile.tsx, before export default VolProfile
+// Create Post Modal
 function CreatePostModal({
   visible,
   onClose,
@@ -653,9 +452,7 @@ function CreatePostModal({
       >
         <View className="bg-white rounded-t-3xl max-h-[85%]">
           <View className="p-4 border-b border-gray-200 flex-row justify-between items-center">
-            <Text className="text-xl font-bold text-slate-800">
-              {editingPost ? "Edit Post" : "Create Post"}
-            </Text>
+            <Text className="text-xl font-bold text-slate-800">{editingPost ? "Edit Post" : "Create Post"}</Text>
             <Pressable onPress={onClose}>
               <Ionicons name="close" size={24} color="#64748b" />
             </Pressable>
@@ -715,9 +512,7 @@ function CreatePostModal({
               {posting ? (
                 <ActivityIndicator color="white" />
               ) : (
-                <Text className="text-white font-bold text-lg">
-                  {editingPost ? "Update Post" : "Publish Post"}
-                </Text>
+                <Text className="text-white font-bold text-lg">{editingPost ? "Update Post" : "Publish Post"}</Text>
               )}
             </Pressable>
           </ScrollView>
@@ -726,6 +521,157 @@ function CreatePostModal({
     </Modal>
   );
 }
+
+// Main Profile Screen
+export default function VolProfile() {
+  const { user, profile } = useAuth();
+  const router = useRouter();
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const [userPosts, setUserPosts] = useState<Post[]>([]);
+  const [postsLoading, setPostsLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const [showEvents, setShowEvents] = useState(false);
+  const [showPosts, setShowPosts] = useState(false);
+  const [registeredEvents, setRegisteredEvents] = useState<RegisteredEvent[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [qrModal, setQrModal] = useState<{ eventId: string; regId: string; eventTitle: string } | null>(null);
+  const [showPrivateInfoModal, setShowPrivateInfoModal] = useState(false);
+  const [badge, setBadge] = useState<"none" | "silver" | "gold" | "platinum">("none");
+  const [privateInfoExists, setPrivateInfoExists] = useState(false);
+
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const headerTranslate = useRef(new Animated.Value(-20)).current;
+  const completeBtnAnim = usePressScale();
+
+  // Animations
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(headerOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.spring(headerTranslate, { toValue: 0, tension: 80, friction: 8, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  // Fetch user posts
+  useEffect(() => {
+    if (!user) {
+      setUserPosts([]);
+      setPostsLoading(false);
+      return;
+    }
+    setPostsLoading(true);
+    const q = query(
+      collection(db, "posts"),
+      where("authorId", "==", user.uid),
+      where("status", "==", "published"),
+      orderBy("createdAt", "desc")
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const postsData: Post[] = [];
+      snapshot.forEach((doc) => {
+        postsData.push({ id: doc.id, ...doc.data() } as Post);
+      });
+      setUserPosts(postsData);
+      setPostsLoading(false);
+    }, (error) => {
+      console.error("Error fetching posts:", error);
+      Alert.alert("Error", `Failed to load posts: ${error.message || "Unknown error"}`);
+      setUserPosts([]);
+      setPostsLoading(false);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  // Fetch registered events and private info
+  useEffect(() => {
+    if (!user) return;
+    const fetchAll = async () => {
+      setEventsLoading(true);
+      try {
+        // Registered events
+        const registrationsRef = collection(db, `users/${user.uid}/registrations`);
+        const snapshot = await getDocs(registrationsRef);
+        const events = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as RegisteredEvent));
+        setRegisteredEvents(events);
+
+        // Private info
+        const privateDoc = await getDoc(doc(db, "users", user.uid, "privateInfo", "info"));
+        setPrivateInfoExists(privateDoc.exists());
+
+        // Badge logic
+        let newBadge: "none" | "silver" | "gold" | "platinum" = "none";
+        if (privateDoc.exists()) {
+          newBadge = "silver";
+          const completedCount = events.filter((e) => e.status === "completed").length;
+          if (completedCount >= 10) newBadge = "platinum";
+          else if (completedCount >= 5) newBadge = "gold";
+        }
+        setBadge(newBadge);
+      } catch (error) {
+        console.error("Error fetching profile data:", error);
+      } finally {
+        setEventsLoading(false);
+      }
+    };
+    fetchAll();
+  }, [user]);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.replace("/(public)/auth/login");
+    } catch (error: any) {
+      Alert.alert("Error", `Failed to sign out: ${error.message || "Unknown error"}`);
+    }
+  };
+
+  const handleEditPost = (postId: string) => {
+    const post = userPosts.find((p) => p.id === postId);
+    if (post) {
+      setEditingPost(post);
+      setShowCreateModal(true);
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    if (!user) {
+      Alert.alert("Error", "You must be logged in to delete a post");
+      return;
+    }
+    Alert.alert(
+      "Delete Post",
+      "Are you sure you want to delete this post? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(db, "posts", postId));
+              Alert.alert("Success", "Post deleted successfully");
+            } catch (error: any) {
+              console.error("Error deleting post:", error);
+              Alert.alert("Error", `Failed to delete post: ${error.message || "Unknown error"}`);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleViewQr = (event: RegisteredEvent) => {
+    if (!user) return;
+    setQrModal({
+      eventId: event.id,
+      regId: event.id, // assuming regId == eventId in user's registration doc
+      eventTitle: event.eventTitle || "Event",
+    });
+  };
+
+  const toggleAccountMenu = () => {
+    setShowAccountMenu(!showAccountMenu);
+  };
 
   return (
     <View className="flex-1 bg-slate-50">
@@ -804,25 +750,41 @@ function CreatePostModal({
             {eventsLoading ? (
               <ActivityIndicator color="#3b82f6" />
             ) : registeredEvents.length === 0 ? (
-              <Text className="text-slate-500 text-center py-4">No registered events</Text>
+              <View className="items-center py-4">
+                <Ionicons name="calendar-outline" size={32} color="#cbd5e1" />
+                <Text className="text-slate-500 mt-2 text-center">You haven't registered for any events yet</Text>
+              </View>
             ) : (
               registeredEvents.map((event) => {
                 const eventDate = tsToDate(event.eventDate);
                 return (
-                  <View key={event.id} className="mb-4 pb-4 border-b border-slate-100 last:border-b-0 last:mb-0 last:pb-0">
+                  <View
+                    key={event.id}
+                    className="mb-4 pb-4 border-b border-slate-100 last:border-b-0 last:mb-0 last:pb-0"
+                  >
                     <Text className="font-semibold text-slate-800">{event.eventTitle}</Text>
                     <Text className="text-slate-600 text-sm">
                       {formatDate(eventDate)} {eventDate && formatTime(eventDate) && `• ${formatTime(eventDate)}`}
                     </Text>
                     <View className="mt-2">
-                      <View className={`px-3 py-1 rounded-full inline-block ${
-                        event.status === "completed" ? "bg-green-100" : 
-                        event.status === "confirmed" ? "bg-blue-100" : "bg-yellow-100"
-                      }`}>
-                        <Text className={`text-xs font-medium ${
-                          event.status === "completed" ? "text-green-800" : 
-                          event.status === "confirmed" ? "text-blue-800" : "text-yellow-800"
-                        }`}>
+                      <View
+                        className={`px-3 py-1 rounded-full inline-block ${
+                          event.status === "completed"
+                            ? "bg-green-100"
+                            : event.status === "confirmed"
+                            ? "bg-blue-100"
+                            : "bg-yellow-100"
+                        }`}
+                      >
+                        <Text
+                          className={`text-xs font-medium ${
+                            event.status === "completed"
+                              ? "text-green-800"
+                              : event.status === "confirmed"
+                              ? "text-blue-800"
+                              : "text-yellow-800"
+                          }`}
+                        >
                           {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
                         </Text>
                       </View>
@@ -857,24 +819,23 @@ function CreatePostModal({
             {postsLoading ? (
               <ActivityIndicator color="#3b82f6" />
             ) : userPosts.length === 0 ? (
-<<<<<<< HEAD
-              <Text className="text-slate-500 text-center py-4">You haven't created any posts yet</Text>
-=======
               <View className="items-center py-4">
                 <Ionicons name="document-text-outline" size={32} color="#cbd5e1" />
-                <Text className="text-slate-500 mt-2">You havent created any posts yet</Text>
+                <Text className="text-slate-500 mt-2">You haven't created any posts yet</Text>
               </View>
->>>>>>> fb8dbdb0f0172d80c5ca05e53333166fe94dd0ee
             ) : (
               userPosts.map((post) => (
-                <View key={post.id} className="mb-4 pb-4 border-b border-slate-100 last:border-b-0 last:mb-0 last:pb-0">
+                <View
+                  key={post.id}
+                  className="mb-4 pb-4 border-b border-slate-100 last:border-b-0 last:mb-0 last:pb-0"
+                >
                   <Text className="font-semibold text-slate-800 mb-1">{post.title}</Text>
-                  <Text className="text-slate-600 text-sm mb-2" numberOfLines={2}>{post.content}</Text>
+                  <Text className="text-slate-600 text-sm mb-2" numberOfLines={2}>
+                    {post.content}
+                  </Text>
                   <View className="flex-row justify-between items-center">
                     <CategoryBadge category={post.category} />
-                    <Text className="text-slate-500 text-xs">
-                      {post.createdAt?.toDate().toLocaleDateString()}
-                    </Text>
+                    <Text className="text-slate-500 text-xs">{post.createdAt?.toDate().toLocaleDateString()}</Text>
                   </View>
                   <View className="flex-row mt-2">
                     <Pressable onPress={() => handleEditPost(post.id)} className="p-1">
@@ -953,6 +914,3 @@ function CreatePostModal({
     </View>
   );
 }
-
-// Reuse CreatePostModal from original code (already defined above in your file)
-// Ensure it's available in scope or import it if separated
