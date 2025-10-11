@@ -2,34 +2,34 @@ import { File, Paths } from 'expo-file-system';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import {
-  collection,
-  onSnapshot,
-  query,
-  Timestamp,
-  where
+    collection,
+    onSnapshot,
+    query,
+    Timestamp,
+    where
 } from "firebase/firestore";
 import {
-  BarChart3,
-  Calendar,
-  CheckCircle,
-  Clock,
-  Download,
-  FileText,
-  Package,
-  Share2,
-  TrendingUp
+    BarChart3,
+    Calendar,
+    CheckCircle,
+    Clock,
+    Download,
+    FileText,
+    Package,
+    Share2,
+    TrendingUp
 } from "lucide-react-native";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  View
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    Text,
+    View
 } from "react-native";
 import { useAuth } from "../../../contexts/AuthContext";
 import { db } from "../../../services/firebaseConfig";
@@ -118,10 +118,22 @@ const Analytics = () => {
   // Show loading state while auth is being checked
   if (authLoading) {
     return (
-      <View className="flex-1 bg-gradient-to-br from-slate-50 to-blue-50 justify-center items-center">
-        <View className="bg-white p-6 rounded-2xl shadow-sm">
-          <ActivityIndicator size="large" color="#2563eb" />
-          <Text className="text-gray-600 mt-3 font-medium">Loading...</Text>
+      <View className="flex-1 bg-gray-50 justify-center items-center">
+        <View 
+          style={{
+            backgroundColor: '#ffffff',
+            padding: 32,
+            borderRadius: 24,
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.1,
+            shadowRadius: 12,
+            elevation: 6,
+          }}
+        >
+          <ActivityIndicator size="large" color="#059669" />
+          <Text className="text-gray-700 mt-4 font-semibold text-base">Loading Analytics...</Text>
         </View>
       </View>
     );
@@ -858,50 +870,140 @@ const Analytics = () => {
 
   if (loading) {
     return (
-      <View className="flex-1 bg-gradient-to-br from-slate-50 to-blue-50 justify-center items-center">
-        <View className="bg-white p-6 rounded-2xl shadow-sm">
-          <ActivityIndicator size="large" color="#2563eb" />
-          <Text className="text-gray-600 mt-3 font-medium">Loading analytics...</Text>
+      <View className="flex-1 bg-gray-50 justify-center items-center">
+        <View 
+          style={{
+            backgroundColor: '#ffffff',
+            padding: 32,
+            borderRadius: 24,
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.1,
+            shadowRadius: 12,
+            elevation: 6,
+          }}
+        >
+          <ActivityIndicator size="large" color="#059669" />
+          <Text className="text-gray-700 mt-4 font-semibold text-base">Loading Analytics...</Text>
         </View>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-gradient-to-br from-slate-50 to-blue-50">
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 }}>
+    <View className="flex-1 bg-gray-50">
+      {/* Curved Header Background */}
+      <View 
+        style={{
+          backgroundColor: '#059669',
+          height: 200,
+          borderBottomLeftRadius: 40,
+          borderBottomRightRadius: 40,
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          elevation: 5,
+        }}
+      >
+        {/* Decorative circles */}
+        <View style={{
+          position: 'absolute',
+          width: 100,
+          height: 100,
+          borderRadius: 50,
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          top: -20,
+          right: 30,
+        }} />
+        <View style={{
+          position: 'absolute',
+          width: 60,
+          height: 60,
+          borderRadius: 30,
+          backgroundColor: 'rgba(255, 255, 255, 0.08)',
+          top: 100,
+          left: 20,
+        }} />
+      </View>
+
+      <ScrollView contentContainerStyle={{ paddingTop: 60, paddingHorizontal: 16, paddingBottom: 80 }}>
         {/* Header */}
-        <View className="flex-row items-center mb-6">
-          <View className="bg-blue-100 p-3 rounded-2xl mr-4">
-            <BarChart3 size={28} color="#2563eb" />
-          </View>
-          <View>
-            <Text className="text-2xl font-bold text-gray-900">Analytics Dashboard</Text>
-            <Text className="text-gray-600">Your collection performance overview</Text>
+        <View className="mb-6">
+          <View className="flex-row items-center mb-2">
+            <View 
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                padding: 12,
+                borderRadius: 16,
+                marginRight: 12,
+              }}
+            >
+              <BarChart3 size={32} color="#ffffff" strokeWidth={2.5} />
+            </View>
+            <View className="flex-1">
+              <Text className="text-3xl font-bold text-white" style={{ letterSpacing: 0.5 }}>Analytics</Text>
+              <Text className="text-emerald-50 text-base mt-1">Performance Overview</Text>
+            </View>
           </View>
         </View>
 
         {/* Key Metrics Row */}
         <View className="flex-row flex-wrap mb-6">
           <View className="w-1/2 pr-2 mb-4">
-            <View className="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-blue-400">
-              <View className="flex-row items-center mb-2">
-                <Package size={20} color="#2563eb" />
-                <Text className="text-gray-600 text-sm ml-2">Total Weight</Text>
+            <View 
+              style={{
+                backgroundColor: '#ffffff',
+                padding: 16,
+                borderRadius: 20,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.08,
+                shadowRadius: 8,
+                elevation: 3,
+                borderLeftWidth: 5,
+                borderLeftColor: '#10b981',
+              }}
+            >
+              <View className="flex-row items-center mb-3">
+                <View style={{ backgroundColor: '#d1fae5', padding: 8, borderRadius: 12 }}>
+                  <Package size={20} color="#059669" />
+                </View>
+                <Text className="text-gray-600 text-sm ml-2 font-medium">Total Weight</Text>
               </View>
-              <Text className="text-2xl font-bold text-gray-900">{wasteAnalytics.totalWeight.toFixed(1)}</Text>
-              <Text className="text-gray-500 text-xs">kg collected</Text>
+              <Text className="text-3xl font-bold text-gray-900">{wasteAnalytics.totalWeight.toFixed(1)}</Text>
+              <Text className="text-emerald-600 text-xs font-semibold mt-1">kg collected</Text>
             </View>
           </View>
           
           <View className="w-1/2 pl-2 mb-4">
-            <View className="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-green-400">
-              <View className="flex-row items-center mb-2">
-                <CheckCircle size={20} color="#059669" />
-                <Text className="text-gray-600 text-sm ml-2">Completed</Text>
+            <View 
+              style={{
+                backgroundColor: '#ffffff',
+                padding: 16,
+                borderRadius: 20,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.08,
+                shadowRadius: 8,
+                elevation: 3,
+                borderLeftWidth: 5,
+                borderLeftColor: '#3b82f6',
+              }}
+            >
+              <View className="flex-row items-center mb-3">
+                <View style={{ backgroundColor: '#dbeafe', padding: 8, borderRadius: 12 }}>
+                  <CheckCircle size={20} color="#2563eb" />
+                </View>
+                <Text className="text-gray-600 text-sm ml-2 font-medium">Completed</Text>
               </View>
-              <Text className="text-2xl font-bold text-gray-900">{wasteAnalytics.completedAssignments}</Text>
-              <Text className="text-gray-500 text-xs">assignments</Text>
+              <Text className="text-3xl font-bold text-gray-900">{wasteAnalytics.completedAssignments}</Text>
+              <Text className="text-blue-600 text-xs font-semibold mt-1">assignments</Text>
             </View>
           </View>
         </View>
@@ -909,36 +1011,81 @@ const Analytics = () => {
         {/* Performance Metrics */}
         <View className="flex-row flex-wrap mb-6">
           <View className="w-1/2 pr-2 mb-4">
-            <View className="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-purple-400">
-              <View className="flex-row items-center mb-2">
-                <TrendingUp size={20} color="#7c3aed" />
-                <Text className="text-gray-600 text-sm ml-2">Efficiency</Text>
+            <View 
+              style={{
+                backgroundColor: '#ffffff',
+                padding: 16,
+                borderRadius: 20,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.08,
+                shadowRadius: 8,
+                elevation: 3,
+                borderLeftWidth: 5,
+                borderLeftColor: '#8b5cf6',
+              }}
+            >
+              <View className="flex-row items-center mb-3">
+                <View style={{ backgroundColor: '#ede9fe', padding: 8, borderRadius: 12 }}>
+                  <TrendingUp size={20} color="#7c3aed" />
+                </View>
+                <Text className="text-gray-600 text-sm ml-2 font-medium">Efficiency</Text>
               </View>
-              <Text className="text-2xl font-bold text-gray-900">{wasteAnalytics.completionRate.toFixed(0)}%</Text>
-              <Text className="text-gray-500 text-xs">completion rate</Text>
+              <Text className="text-3xl font-bold text-gray-900">{wasteAnalytics.completionRate.toFixed(0)}%</Text>
+              <Text className="text-purple-600 text-xs font-semibold mt-1">completion rate</Text>
             </View>
           </View>
           
           <View className="w-1/2 pl-2 mb-4">
-            <View className="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-orange-400">
-              <View className="flex-row items-center mb-2">
-                <Clock size={20} color="#f97316" />
-                <Text className="text-gray-600 text-sm ml-2">Avg Weight</Text>
+            <View 
+              style={{
+                backgroundColor: '#ffffff',
+                padding: 16,
+                borderRadius: 20,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.08,
+                shadowRadius: 8,
+                elevation: 3,
+                borderLeftWidth: 5,
+                borderLeftColor: '#f59e0b',
+              }}
+            >
+              <View className="flex-row items-center mb-3">
+                <View style={{ backgroundColor: '#fef3c7', padding: 8, borderRadius: 12 }}>
+                  <Clock size={20} color="#d97706" />
+                </View>
+                <Text className="text-gray-600 text-sm ml-2 font-medium">Avg Weight</Text>
               </View>
-              <Text className="text-2xl font-bold text-gray-900">{wasteAnalytics.averageWeightPerAssignment.toFixed(1)}</Text>
-              <Text className="text-gray-500 text-xs">kg per assignment</Text>
+              <Text className="text-3xl font-bold text-gray-900">{wasteAnalytics.averageWeightPerAssignment.toFixed(1)}</Text>
+              <Text className="text-amber-600 text-xs font-semibold mt-1">kg per assignment</Text>
             </View>
           </View>
         </View>
 
         {/* Weekly Performance Chart */}
         {wasteAnalytics.weeklyTrend.length > 0 && (
-          <View className="bg-white rounded-2xl p-4 mb-6 shadow-sm">
-            <View className="flex-row items-center mb-4">
-              <View className="bg-green-100 p-2 rounded-lg mr-3">
-                <Calendar size={20} color="#059669" />
+          <View 
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: 20,
+              padding: 20,
+              marginBottom: 24,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.08,
+              shadowRadius: 8,
+              elevation: 3,
+            }}
+          >
+            <View className="flex-row items-center mb-5">
+              <View style={{ backgroundColor: '#d1fae5', padding: 10, borderRadius: 12, marginRight: 12 }}>
+                <Calendar size={22} color="#059669" />
               </View>
-              <Text className="text-lg font-bold text-gray-900">This Week's Performance</Text>
+              <View className="flex-1">
+                <Text className="text-xl font-bold text-gray-900">Weekly Performance</Text>
+                <Text className="text-gray-500 text-xs mt-1">Last 7 days activity</Text>
+              </View>
             </View>
             
             <View className="space-y-3">
@@ -947,18 +1094,42 @@ const Analytics = () => {
                 const barWidth = maxWeight > 0 ? (item.weight / maxWeight) * 100 : 0;
                 
                 return (
-                  <View key={index} className="flex-row items-center">
-                    <Text className="text-gray-600 text-sm w-12">{item.day}</Text>
-                    <View className="flex-1 bg-gray-200 rounded-full h-4 mx-3 overflow-hidden">
+                  <View key={index} className="flex-row items-center mb-3">
+                    <Text className="text-gray-700 font-semibold text-sm w-14">{item.day}</Text>
+                    <View 
+                      style={{
+                        flex: 1,
+                        backgroundColor: '#e5e7eb',
+                        borderRadius: 12,
+                        height: 36,
+                        marginHorizontal: 8,
+                        overflow: 'hidden',
+                      }}
+                    >
                       <View 
-                        className="bg-green-500 h-4 rounded-full flex-row items-center justify-end pr-2"
-                        style={{ width: `${Math.max(barWidth, 5)}%` }}
+                        style={{
+                          width: `${Math.max(barWidth, 8)}%`,
+                          height: 36,
+                          borderRadius: 12,
+                          backgroundColor: '#10b981',
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'flex-end',
+                          paddingRight: 12,
+                        }}
                       >
-                        <Text className="text-white text-xs font-semibold">
-                          {item.weight.toFixed(1)}kg
-                        </Text>
+                        {barWidth > 20 && (
+                          <Text className="text-white text-xs font-bold">
+                            {item.weight.toFixed(1)}kg
+                          </Text>
+                        )}
                       </View>
                     </View>
+                    {barWidth <= 20 && (
+                      <Text className="text-gray-600 text-xs font-semibold w-12 text-right">
+                        {item.weight.toFixed(1)}kg
+                      </Text>
+                    )}
                   </View>
                 );
               })}
@@ -966,32 +1137,75 @@ const Analytics = () => {
           </View>
         )}
 
-        {/* For Waste Type Distribution */}
+        {/* Waste Type Distribution */}
         {wasteAnalytics.wasteTypeBreakdown.length > 0 && (
-          <View className="bg-white rounded-2xl p-4 mb-6 shadow-sm">
-            <View className="flex-row items-center mb-4">
-              <View className="bg-blue-100 p-2 rounded-lg mr-3">
-                <Package size={20} color="#2563eb" />
+          <View 
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: 20,
+              padding: 20,
+              marginBottom: 24,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.08,
+              shadowRadius: 8,
+              elevation: 3,
+            }}
+          >
+            <View className="flex-row items-center mb-5">
+              <View style={{ backgroundColor: '#dbeafe', padding: 10, borderRadius: 12, marginRight: 12 }}>
+                <Package size={22} color="#2563eb" />
               </View>
-              <Text className="text-lg font-bold text-gray-900">For Waste Type Distribution</Text>
+              <View className="flex-1">
+                <Text className="text-xl font-bold text-gray-900">Waste Distribution</Text>
+                <Text className="text-gray-500 text-xs mt-1">Breakdown by type</Text>
+              </View>
             </View>
             
             {/* Detailed breakdown */}
             <View className="space-y-2">
               {wasteAnalytics.wasteTypeBreakdown.map((item, index) => (
-                <View key={index} className="flex-row items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <View className="flex-row items-center">
+                <View 
+                  key={index} 
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: 14,
+                    backgroundColor: '#f9fafb',
+                    borderRadius: 14,
+                    marginBottom: 8,
+                    borderLeftWidth: 4,
+                    borderLeftColor: item.color,
+                  }}
+                >
+                  <View className="flex-row items-center flex-1">
                     <View 
-                      style={{ backgroundColor: item.color }}
-                      className="w-4 h-4 rounded-full mr-3"
+                      style={{ 
+                        backgroundColor: item.color,
+                        width: 12,
+                        height: 12,
+                        borderRadius: 6,
+                        marginRight: 12,
+                      }}
                     />
-                    <Text className="font-medium text-gray-800">{item.name}</Text>
+                    <Text className="font-semibold text-gray-800 text-base">{item.name}</Text>
                   </View>
                   <View className="items-end">
-                    <Text className="font-bold text-gray-900">{item.value.toFixed(1)} kg</Text>
-                    <Text className="text-xs text-gray-500">
-                      {((item.value / wasteAnalytics.totalWeight) * 100).toFixed(1)}%
-                    </Text>
+                    <Text className="font-bold text-gray-900 text-lg">{item.value.toFixed(1)} kg</Text>
+                    <View 
+                      style={{
+                        backgroundColor: item.color,
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                        borderRadius: 8,
+                        marginTop: 4,
+                      }}
+                    >
+                      <Text className="text-xs text-white font-bold">
+                        {((item.value / wasteAnalytics.totalWeight) * 100).toFixed(1)}%
+                      </Text>
+                    </View>
                   </View>
                 </View>
               ))}
@@ -1002,15 +1216,27 @@ const Analytics = () => {
 
         {/* Empty State */}
         {wasteAnalytics.totalWeight === 0 && (
-          <View className="bg-white rounded-2xl p-8 items-center">
-            <View className="bg-gray-100 p-4 rounded-full mb-4">
-              <BarChart3 size={32} color="#6b7280" />
+          <View 
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: 20,
+              padding: 32,
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.08,
+              shadowRadius: 8,
+              elevation: 3,
+            }}
+          >
+            <View style={{ backgroundColor: '#f3f4f6', padding: 20, borderRadius: 999, marginBottom: 16 }}>
+              <BarChart3 size={40} color="#9ca3af" />
             </View>
-            <Text className="text-gray-600 text-center font-medium mb-2">
-              No data available yet
+            <Text className="text-gray-700 text-center font-bold text-lg mb-2">
+              No Analytics Yet
             </Text>
             <Text className="text-gray-500 text-center text-sm">
-              Complete some assignments to see your analytics
+              Complete waste collection assignments to see your performance metrics and insights
             </Text>
           </View>
         )}
@@ -1020,17 +1246,25 @@ const Analytics = () => {
       {wasteAnalytics.totalWeight > 0 && (
         <Pressable
           onPress={() => setShowReportModal(true)}
-          className="absolute bottom-20 right-6 bg-blue-600 rounded-full p-4 shadow-lg flex-row items-center"
           style={{
+            position: 'absolute',
+            bottom: 80,
+            right: 20,
+            backgroundColor: '#059669',
+            borderRadius: 30,
+            paddingVertical: 16,
+            paddingHorizontal: 20,
+            flexDirection: 'row',
+            alignItems: 'center',
             shadowColor: '#000',
-            shadowOffset: { width: 0, height: 4 },
+            shadowOffset: { width: 0, height: 6 },
             shadowOpacity: 0.3,
-            shadowRadius: 4.65,
-            elevation: 8,
+            shadowRadius: 8,
+            elevation: 10,
           }}
         >
-          <FileText size={24} color="white" />
-          <Text className="text-white font-bold ml-2 mr-1">Generate Report</Text>
+          <FileText size={24} color="white" strokeWidth={2.5} />
+          <Text className="text-white font-bold ml-2 text-base">Generate Report</Text>
         </Pressable>
       )}
 
