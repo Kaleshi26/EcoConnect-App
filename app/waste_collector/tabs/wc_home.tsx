@@ -19,7 +19,6 @@ import {
     CheckCircle,
     CheckCircle2,
     ChevronLeft,
-    ChevronRight,
     ClipboardList,
     Clock,
     MapPin,
@@ -55,6 +54,7 @@ type EventDoc = {
   status?: "Pending" | "In-progress" | "Completed";
   assignedTo?: string;
   proofUrl?: string;
+  imageUrl?: string;
 };
 
 function tsToDate(ts?: Timestamp) {
@@ -149,7 +149,6 @@ export default function WcHome({ userId }: { userId: string }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [currentDate, setCurrentDate] = useState(new Date());
 
   // 🔹 Fetch assigned events
   useEffect(() => {
@@ -307,24 +306,53 @@ export default function WcHome({ userId }: { userId: string }) {
                   <Text className="text-gray-500 text-xs mt-1">Task summary</Text>
                 </View>
               </View>
-              <View className="flex-row justify-between">
+              <View className="flex-row justify-around">
                 <View className="items-center">
                   <Text className="text-3xl font-bold text-blue-600">
-                    {events.filter(e => e.status !== "Completed").length}
+                    {(() => {
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      
+                      // Calculate available tasks (same logic as availableCleanups)
+                      return events.filter((ev) => {
+                        // Skip if completed
+                        if (ev.status === "Completed") return false;
+                        
+                        // Check if event date is today or in the past
+                        const date = tsToDate(ev.eventAt);
+                        if (!date) {
+                          // If no date, count it as active
+                          return true;
+                        }
+                        
+                        const d = new Date(date);
+                        d.setHours(0, 0, 0, 0);
+                        
+                        // Show if date is today or past
+                        return d <= today;
+                      }).length;
+                    })()}
                   </Text>
                   <Text className="text-xs text-gray-500 font-semibold mt-1">Active</Text>
                 </View>
                 <View className="items-center">
-                  <Text className="text-3xl font-bold text-emerald-600">
-                    {events.filter(e => e.status === "Completed").length}
+                  <Text className="text-3xl font-bold text-amber-600">
+                    {(() => {
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      
+                      // Calculate upcoming events (future dates)
+                      return events.filter((ev) => {
+                        if (ev.status === "Completed") return false;
+                        const date = tsToDate(ev.eventAt);
+                        if (!date) return false;
+                        const d = new Date(date);
+                        d.setHours(0, 0, 0, 0);
+                        return d > today; // future dates only
+                      }).length;
+                    })()}
                   </Text>
-                  <Text className="text-xs text-gray-500 font-semibold mt-1">Completed</Text>
-                </View>
-                <View className="items-center">
-                  <Text className="text-3xl font-bold text-purple-600">
-                    {events.length}
-                  </Text>
-                  <Text className="text-xs text-gray-500 font-semibold mt-1">Total</Text>
+                  <Text className="text-xs text-gray-500 font-semibold mt-1">Upcoming</Text>
                 </View>
               </View>
             </View>
@@ -377,12 +405,9 @@ export default function WcHome({ userId }: { userId: string }) {
                 </View>
               </TouchableOpacity>
 
-              {/* View Upcoming Assignments */}
+              {/* View Analytics */}
               <TouchableOpacity
-                onPress={() => router.push({
-                  pathname: "/waste_collector/tabs/wc_assignment",
-                  params: { tab: "upcoming" }
-                })}
+                onPress={() => router.navigate("/waste_collector/tabs/wc_analytics")}
                 style={{
                   width: '48%',
                   backgroundColor: '#ffffff',
@@ -395,180 +420,172 @@ export default function WcHome({ userId }: { userId: string }) {
                   shadowRadius: 8,
                   elevation: 3,
                   borderLeftWidth: 4,
-                  borderLeftColor: '#f59e0b',
-                }}
-              >
-                <View className="items-center">
-                  <View style={{ backgroundColor: '#fef3c7', padding: 16, borderRadius: 16, marginBottom: 12 }}>
-                    <Calendar size={28} color="#d97706" />
-                  </View>
-                  <Text className="text-gray-900 font-bold text-center mb-1">Upcoming</Text>
-                  <Text className="text-gray-500 text-xs text-center font-semibold">Scheduled</Text>
-                </View>
-              </TouchableOpacity>
-
-              {/* View Analytics - Full Width */}
-              <TouchableOpacity
-                onPress={() => router.navigate("/waste_collector/tabs/wc_analytics")}
-                style={{
-                  width: '100%',
-                  backgroundColor: '#ffffff',
-                  borderRadius: 20,
-                  padding: 16,
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.08,
-                  shadowRadius: 8,
-                  elevation: 3,
-                  borderLeftWidth: 4,
                   borderLeftColor: '#059669',
                 }}
               >
-                <View className="flex-row items-center">
-                  <View style={{ backgroundColor: '#d1fae5', padding: 16, borderRadius: 16, marginRight: 12 }}>
+                <View className="items-center">
+                  <View style={{ backgroundColor: '#d1fae5', padding: 16, borderRadius: 16, marginBottom: 12 }}>
                     <BarChart3 size={28} color="#059669" />
                   </View>
-                  <View className="flex-1">
-                    <Text className="text-gray-900 font-bold text-lg">Analytics</Text>
-                    <Text className="text-gray-500 text-sm font-semibold">Performance metrics</Text>
-                  </View>
-                  <View style={{ backgroundColor: '#d1fae5', padding: 8, borderRadius: 10 }}>
-                    <ChevronRight size={18} color="#059669" />
-                  </View>
+                  <Text className="text-gray-900 font-bold text-center mb-1">Analytics</Text>
+                  <Text className="text-gray-500 text-xs text-center font-semibold">Performance</Text>
                 </View>
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Assignment Calendar View */}
+          {/* Upcoming Events */}
           <View className="mb-6">
             <View className="flex-row items-center mb-4">
-              <View style={{ backgroundColor: '#dbeafe', padding: 10, borderRadius: 12, marginRight: 12 }}>
-                <Calendar size={22} color="#2563eb" />
+              <View style={{ backgroundColor: '#fef3c7', padding: 10, borderRadius: 12, marginRight: 12 }}>
+                <Calendar size={22} color="#d97706" />
               </View>
               <View className="flex-1">
                 <Text className="text-xl font-bold text-gray-900">
-                  Calendar
+                  Upcoming Events
                 </Text>
                 <Text className="text-gray-500 text-xs mt-1">
-                  View assignments by date
+                  Future scheduled assignments
                 </Text>
               </View>
             </View>
 
-            <View 
-              style={{
-                backgroundColor: '#ffffff',
-                borderRadius: 20,
-                padding: 20,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.08,
-                shadowRadius: 8,
-                elevation: 3,
-              }}
-            >
-              {/* Calendar Header */}
-              <View className="flex-row items-center justify-between mb-6">
-                <TouchableOpacity
-                  onPress={() => {
-                    const newDate = new Date(currentDate);
-                    newDate.setMonth(newDate.getMonth() - 1);
-                    setCurrentDate(newDate);
-                  }}
+            {loading ? (
+              <View className="py-10 items-center">
+                <View 
                   style={{
-                    backgroundColor: '#059669',
-                    padding: 10,
-                    borderRadius: 12,
+                    backgroundColor: '#ffffff',
+                    padding: 32,
+                    borderRadius: 24,
+                    alignItems: 'center',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 12,
+                    elevation: 6,
                   }}
                 >
-                  <ChevronLeft size={20} color="#ffffff" strokeWidth={2.5} />
-                </TouchableOpacity>
-                
-                <Text className="text-xl font-bold text-gray-900">
-                  {currentDate.toLocaleDateString(undefined, { 
-                    month: 'long', 
-                    year: 'numeric' 
-                  })}
-                </Text>
-                
-                <TouchableOpacity
-                  onPress={() => {
-                    const newDate = new Date(currentDate);
-                    newDate.setMonth(newDate.getMonth() + 1);
-                    setCurrentDate(newDate);
-                  }}
-                  style={{
-                    backgroundColor: '#059669',
-                    padding: 10,
-                    borderRadius: 12,
-                  }}
-                >
-                  <ChevronRight size={20} color="#ffffff" strokeWidth={2.5} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Calendar Grid */}
-              <View className="mb-4">
-                {/* Day headers */}
-                <View className="flex-row mb-2">
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                    <View key={day} className="flex-1 items-center py-2">
-                      <Text className="text-xs font-semibold text-gray-500">{day}</Text>
-                    </View>
-                  ))}
+                  <ActivityIndicator size="large" color="#059669" />
+                  <Text className="text-gray-700 mt-4 font-semibold text-base">Loading events...</Text>
                 </View>
+              </View>
+            ) : (() => {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              
+              const upcomingEvents = events.filter((ev) => {
+                if (ev.status === "Completed") return false;
+                const date = tsToDate(ev.eventAt);
+                if (!date) return false;
+                const d = new Date(date);
+                d.setHours(0, 0, 0, 0);
+                return d > today; // future dates only
+              });
 
-                {/* Calendar days */}
-                <View className="flex-row flex-wrap">
-                  {getDaysInMonth(currentDate).map((day, index) => {
-                    if (!day) {
-                      return <View key={index} className="w-[14.28%] h-12" />;
-                    }
-
-                    const dayEvents = getEventsForDate(day, events);
-                    const isToday = isSameDay(day, new Date());
-                    const hasEvents = dayEvents.length > 0;
-
-                    return (
-                      <TouchableOpacity
-                        key={day.getTime()}
-                        onPress={() => {
-                          console.log('Date clicked:', day);
-                        }}
-                        className={`w-[14.28%] h-12 items-center justify-center border-b border-r border-gray-100 ${
-                          isToday ? 'bg-blue-50' : ''
-                        }`}
-                      >
-                        <Text className={`text-sm font-medium ${
-                          isToday ? 'text-blue-600' : 'text-gray-700'
-                        }`}>
-                          {day.getDate()}
-                        </Text>
-                        {hasEvents && (
-                          <View className="flex-row mt-1">
-                            {dayEvents.slice(0, 3).map((_, eventIndex) => (
-                              <View
-                                key={eventIndex}
-                                className={`w-1.5 h-1.5 rounded-full mx-0.5 ${
-                                  dayEvents[eventIndex]?.status === 'Completed' ? 'bg-emerald-500' :
-                                  dayEvents[eventIndex]?.status === 'In-progress' ? 'bg-blue-500' :
-                                  'bg-amber-500'
-                                }`}
-                              />
-                            ))}
-                            {dayEvents.length > 3 && (
-                              <Text className="text-xs text-gray-500 ml-1">+</Text>
+               return upcomingEvents.length > 0 ? (
+                 <View>
+                   {upcomingEvents.map((ev) => {
+                     const d = tsToDate(ev.eventAt);
+                     const dateStr = d ? `${formatDate(d)} • ${formatTime(d)}` : "No date";
+                     return (
+                       <View
+                         key={ev.id}
+                         style={{
+                           marginBottom: 16,
+                           backgroundColor: '#ffffff',
+                           borderRadius: 20,
+                           overflow: 'hidden',
+                           shadowColor: '#000',
+                           shadowOffset: { width: 0, height: 2 },
+                           shadowOpacity: 0.08,
+                           shadowRadius: 8,
+                           elevation: 3,
+                           borderLeftWidth: 5,
+                           borderLeftColor: '#f59e0b',
+                         }}
+                       >
+                        {/* Event Image */}
+                        {ev.imageUrl && (
+                          <Image
+                            source={{ uri: ev.imageUrl }}
+                            style={{ width: '100%', height: 192 }}
+                            resizeMode="cover"
+                          />
+                        )}
+                        
+                        <View style={{ padding: 16 }}>
+                          <Text className="text-xl font-bold text-gray-900 mb-3">
+                            {ev.title}
+                          </Text>
+                          
+                          <View style={{ backgroundColor: '#f9fafb', borderRadius: 14, padding: 12, marginBottom: 12 }}>
+                            <View className="flex-row items-center mb-2">
+                              <View style={{ backgroundColor: '#fef3c7', padding: 6, borderRadius: 8, marginRight: 8 }}>
+                                <Clock size={16} color="#d97706" />
+                              </View>
+                              <Text className="text-gray-700 text-sm font-semibold">{dateStr}</Text>
+                            </View>
+                            
+                            {!!ev.location?.label && (
+                              <View className="flex-row items-center">
+                                <View style={{ backgroundColor: '#d1fae5', padding: 6, borderRadius: 8, marginRight: 8 }}>
+                                  <MapPin size={16} color="#059669" />
+                                </View>
+                                <Text className="text-gray-700 text-sm font-semibold flex-1" numberOfLines={1}>
+                                  {ev.location.label}
+                                </Text>
+                              </View>
                             )}
                           </View>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
+                          
+                          {ev.wasteTypes && ev.wasteTypes.length > 0 && (
+                            <View>
+                              <Text className="text-gray-500 text-xs font-bold mb-2">WASTE TYPES</Text>
+                              <View className="flex-row flex-wrap">
+                                {ev.wasteTypes.slice(0, 3).map((type, idx) => (
+                                  <View key={idx} style={{ backgroundColor: '#fef3c7', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, marginRight: 8, marginBottom: 6, borderWidth: 1, borderColor: '#f59e0b' }}>
+                                    <Text className="text-amber-700 text-xs font-bold">{type}</Text>
+                                  </View>
+                                ))}
+                                {ev.wasteTypes.length > 3 && (
+                                  <View style={{ backgroundColor: '#dbeafe', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: '#3b82f6' }}>
+                                    <Text className="text-blue-700 text-xs font-bold">+{ev.wasteTypes.length - 3}</Text>
+                                  </View>
+                                )}
+                              </View>
+                             </View>
+                           )}
+                         </View>
+                       </View>
+                     );
+                   })}
+                 </View>
+               ) : (
+                <View 
+                  style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: 20,
+                    padding: 32,
+                    alignItems: 'center',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.08,
+                    shadowRadius: 8,
+                    elevation: 3,
+                  }}
+                >
+                  <View style={{ backgroundColor: '#f3f4f6', padding: 20, borderRadius: 999, marginBottom: 16 }}>
+                    <Calendar size={40} color="#9ca3af" />
+                  </View>
+                  <Text className="text-gray-700 font-bold text-lg mb-2">
+                    No Upcoming Events
+                  </Text>
+                  <Text className="text-gray-500 text-sm text-center">
+                    You have no scheduled events in the future
+                  </Text>
                 </View>
-              </View>
-
-            </View>
+              );
+            })()}
           </View>
           
           {loading ? (

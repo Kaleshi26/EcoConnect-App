@@ -504,7 +504,7 @@ export default function WcHome() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Available: Open events (from org_events) OR unassigned events that are ready for collection
+  // Available: Events that are today or past (not completed)
   const availableCleanups = events.filter((ev) => {
     // Skip if already assigned to someone else
     if (ev.assignedTo && ev.assignedTo !== userId) return false;
@@ -512,16 +512,19 @@ export default function WcHome() {
     // Skip if completed
     if (ev.status === "Completed" || ev.status === "completed") return false;
     
-    // Show if status is "open" (from org_events)
-    if (ev.status === "open") return true;
+    // Check if event date is today or in the past
+    const date = tsToDate(ev.eventAt);
+    if (!date) {
+      // If no date, show it if status is "open" or assigned to user
+      return ev.status === "open" || ev.assignedTo === userId;
+    }
     
-    // Show if assigned to this user and not completed
-    if (ev.assignedTo === userId) {
-      const date = tsToDate(ev.eventAt);
-      if (!date) return false;
-      const d = new Date(date);
-      d.setHours(0, 0, 0, 0);
-      return d <= today; // past or today
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    
+    // Show if date is today or past
+    if (d <= today) {
+      return ev.status === "open" || ev.assignedTo === userId;
     }
     
     return false;
