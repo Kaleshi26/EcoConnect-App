@@ -2,6 +2,7 @@
 
 A modern, role-based React Native app (Expo + TypeScript) that connects communities to organize eco-events, coordinate waste collection, manage sponsorships, and track impact—powered by Firebase, Expo Router, and NativeWind (Tailwind CSS for React Native).
 
+App Video - https://vimeo.com/1139806894?share=copy&fl=sv&fe=ci
 ---
 
 ## ✨ Features
